@@ -1,0 +1,14 @@
+[package]
+name = "nhope"
+legacy = false
+
+[lib]
+name = "nhope"
+language = "c++17"
+type = "static"
+
+[sys-dependencies.Threads]
+libs = [ "Threads" ]
+
+[dev-dependencies]
+gtest = { git = "../../google/googletest.git" }
