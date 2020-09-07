@@ -1,0 +1,99 @@
+#pragma once
+
+#include <stddef.h>
+
+#include <atomic>
+#include <limits>
+#include <memory>
+#include <utility>
+
+#include "produser.h"
+#include "ts-queue.h"
+
+namespace nhope::asyncs {
+
+template<typename T>
+class Chan final
+{
+    Chan(const Chan&) = delete;
+    Chan& operator=(const Chan&) = delete;
+
+public:
+    Chan(bool autoClose = true, size_t capacity = std::numeric_limits<size_t>::max())
+    {
+        m_d = std::make_shared<Prv>(autoClose, capacity);
+    }
+
+    ~Chan()
+    {
+        this->close();
+    }
+
+    void close()
+    {
+        m_d->queue.close();
+    }
+
+    bool get(T& value)
+    {
+        return m_d->queue.read(value);
+    }
+
+    void attachToProduser(Produser<T>& produser)
+    {
+        auto newInput = this->makeInput();
+        produser.attachConsumer(std::move(newInput));
+    }
+
+    std::unique_ptr<Consumer<T>> makeInput()
+    {
+        return std::unique_ptr<Consumer<T>>(new Input(m_d));
+    }
+
+private:
+    struct Prv
+    {
+        Prv(bool autoClose, int capacity)
+          : autoClose(autoClose)
+          , queue(capacity)
+        {}
+
+        const bool autoClose;
+        TSQueue<T> queue;
+        std::atomic<int> inputCount = 0;
+    };
+
+    class Input final : public Consumer<T>
+    {
+    public:
+        explicit Input(std::shared_ptr<Prv> d)
+          : m_d(d)
+        {
+            ++m_d->inputCount;
+        }
+
+        ~Input() override
+        {
+            if (--m_d->inputCount == 0) {
+                if (m_d->autoClose) {
+                    m_d->queue.close();
+                }
+            }
+        }
+
+        typename Consumer<T>::Status consume(const T& value) override
+        {
+            if (m_d->queue.write(T(value))) {
+                return Consumer<T>::Status::Ok;
+            }
+            return Consumer<T>::Status::Closed;
+        }
+
+        std::shared_ptr<Prv> m_d;
+    };
+
+private:
+    std::shared_ptr<Prv> m_d;
+};
+
+}   // namespace nhope::asyncs

@@ -2,7 +2,9 @@
 
 add_executable(asyncs-tests
     main.cpp
-    timeout-tests.cpp
+    asio-steady-timer-impl-tests.cpp
+    notifier-tests.cpp
+    chan-tests.cpp
 )
 target_link_libraries(asyncs-tests gtest nhope)
 
