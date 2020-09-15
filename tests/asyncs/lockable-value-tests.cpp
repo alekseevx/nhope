@@ -48,7 +48,7 @@ TEST(LockableValue, CopyValue)
     auto writter = std::thread([&lockInt]() {
         while (true) {
             std::this_thread::sleep_for(1ms);
-            auto v = lockInt.get();
+            auto v = lockInt.copy();
             lockInt = ++v;
             if (v == 80) {
                 break;
@@ -58,8 +58,7 @@ TEST(LockableValue, CopyValue)
 
     auto reader = std::thread([&lockInt]() {
         while (true) {
-            auto ra = lockInt.get();
-            if (ra == 77) {
+            if (lockInt.copy() == 77) {
                 break;
             }
             std::this_thread::sleep_for(1ms);
@@ -70,5 +69,5 @@ TEST(LockableValue, CopyValue)
     writter.join();
 
     // lockInt.readAccess
-    ASSERT_EQ(lockInt.get(), 80);
+    ASSERT_EQ(lockInt.copy(), 80);
 }

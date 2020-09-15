@@ -48,10 +48,10 @@ public:
         return *this;
     }
 
-    const T& get()
+    T copy()
     {
         ReadAccess ra(*this);
-        return *ra;
+        return T(*ra);
     }
 
 private:
