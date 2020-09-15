@@ -48,7 +48,7 @@ public:
         return *this;
     }
 
-    T copy()
+    T copy() const
     {
         ReadAccess ra(*this);
         return T(*ra);

@@ -42,7 +42,6 @@ TEST(LockableValue, ReadWrite)
 }
 
 TEST(LockableValue, CopyValue)
-
 {
     LockableValue<int> lockInt(42);
     auto writter = std::thread([&lockInt]() {
@@ -68,6 +67,5 @@ TEST(LockableValue, CopyValue)
     reader.join();
     writter.join();
 
-    // lockInt.readAccess
     ASSERT_EQ(lockInt.copy(), 80);
 }
