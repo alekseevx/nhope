@@ -45,6 +45,13 @@ public:
     {
         WriteAccess wa(*this);
         *wa = value;
+        return *this;
+    }
+
+    const T& get()
+    {
+        ReadAccess ra(*this);
+        return *ra;
     }
 
 private:

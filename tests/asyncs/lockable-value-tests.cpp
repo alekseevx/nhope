@@ -40,3 +40,35 @@ TEST(LockableValue, ReadWrite)
     writter.join();
     reader.join();
 }
+
+TEST(LockableValue, CopyValue)
+
+{
+    LockableValue<int> lockInt(42);
+    auto writter = std::thread([&lockInt]() {
+        while (true) {
+            std::this_thread::sleep_for(1ms);
+            auto v = lockInt.get();
+            lockInt = ++v;
+            if (v == 80) {
+                break;
+            }
+        }
+    });
+
+    auto reader = std::thread([&lockInt]() {
+        while (true) {
+            auto ra = lockInt.get();
+            if (ra == 77) {
+                break;
+            }
+            std::this_thread::sleep_for(1ms);
+        }
+    });
+
+    reader.join();
+    writter.join();
+
+    // lockInt.readAccess
+    ASSERT_EQ(lockInt.get(), 80);
+}
