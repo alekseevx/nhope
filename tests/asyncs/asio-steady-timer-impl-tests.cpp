@@ -43,4 +43,5 @@ TEST(AsioSteadyTimerImpl, Canceling)
     });
 
     ctx.run_for(5s);
+    ASSERT_FALSE(cancelableTimerTriggered);
 }
