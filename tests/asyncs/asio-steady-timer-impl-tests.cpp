@@ -15,7 +15,7 @@ TEST(AsioSteadyTimerImpl, AsyncWait)
     const time_point startTime = std::chrono::steady_clock::now();
     time_point stopTime;
 
-    auto timer = Timer::start(ctx, 1000ms, [&stopTime](const std::error_code& code) {
+    auto timer = Timer::start(ctx, 1000ms, [&stopTime](const std::error_code& code, Timer&) {
         GTEST_CHECK_(!code) << code;
         stopTime = std::chrono::steady_clock::now();
     });
@@ -33,11 +33,11 @@ TEST(AsioSteadyTimerImpl, Canceling)
     boost::asio::io_context ctx;
 
     bool cancelableTimerTriggered = false;
-    auto cancelableTimer = Timer::start(ctx, 5s, [&cancelableTimerTriggered](const std::error_code& code) {
+    auto cancelableTimer = Timer::start(ctx, 5s, [&cancelableTimerTriggered](const std::error_code& code, Timer&) {
         cancelableTimerTriggered = true;
     });
 
-    auto timer = Timer::start(ctx, 1s, [&cancelableTimer](const std::error_code& code) {
+    auto timer = Timer::start(ctx, 1s, [&cancelableTimer](const std::error_code& code, Timer&) {
         GTEST_CHECK_(!code) << code;
         cancelableTimer.reset();
     });

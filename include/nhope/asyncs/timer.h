@@ -12,7 +12,7 @@ namespace nhope::asyncs {
 class Timer
 {
 public:
-    using Handler = std::function<void(const std::error_code&)>;
+    using Handler = std::function<void(const std::error_code&, Timer&)>;
 
 public:
     virtual ~Timer() = default;

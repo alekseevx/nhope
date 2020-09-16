@@ -14,9 +14,9 @@ public:
         m_isCancelled = std::make_shared<bool>(false);
         m_timer.expires_after(expiryTime);
 
-        m_timer.async_wait([isCancelled = m_isCancelled, handler = std::move(handler)](const std::error_code& code) {
+        m_timer.async_wait([this, isCancelled = m_isCancelled, handler = std::move(handler)](auto& code) {
             if (*isCancelled == false) {
-                handler(code);
+                handler(code, *this);
             }
         });
     }
