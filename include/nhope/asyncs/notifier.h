@@ -43,8 +43,8 @@ public:
 
     void close()
     {
-        m_d->closed = true;
-        while (m_d->useExecutorCounter > 0)
+        std::atomic_store(&m_d->closed, true);
+        while (std::atomic_load(&m_d->useExecutorCounter) > 0)
             ;
     }
 
@@ -72,11 +72,12 @@ private:
 
         typename Consumer<T>::Status consume(const T& value) override
         {
-            if (m_d->closed) {
+            std::atomic_fetch_add(&m_d->useExecutorCounter, 1);
+            if (std::atomic_load(&m_d->closed) == true) {
+                std::atomic_fetch_sub(&m_d->useExecutorCounter, 1);
                 return Consumer<T>::Status::Closed;
             }
 
-            ++m_d->useExecutorCounter;
             try {
                 m_d->executor.post([d = m_d, value = T(value)]() {
                     if (!d->closed) {
@@ -85,7 +86,7 @@ private:
                 });
             } catch (...) {
             }
-            --m_d->useExecutorCounter;
+            std::atomic_fetch_sub(&m_d->useExecutorCounter, 1);
 
             return Consumer<T>::Status::Ok;
         }

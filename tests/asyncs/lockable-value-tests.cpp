@@ -57,7 +57,7 @@ TEST(LockableValue, CopyValue)
 
     auto reader = std::thread([&lockInt]() {
         while (true) {
-            if (lockInt.copy() == 77) {
+            if (lockInt.copy() > 77) {
                 break;
             }
             std::this_thread::sleep_for(1ms);
