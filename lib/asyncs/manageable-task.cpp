@@ -6,6 +6,7 @@
 #include <thread>
 #include <utility>
 
+#include "nhope/asyncs/reverse_lock.h"
 #include "nhope/asyncs/manageable-task.h"
 
 namespace {
@@ -207,8 +208,8 @@ public:   // ManageableTaskCtx
 
     void resetAllHandlers() override
     {
-        m_beforePause = std::function<bool()>();
-        m_afterPause = std::function<void()>();
+        m_beforePause = nullptr;
+        m_afterPause = nullptr;
     }
 
     bool checkPoint() override
@@ -266,9 +267,10 @@ public:   // ManageableTaskCtx
         m_state = State::Paused;
 
         std::list<std::promise<void>> pausePromises = std::move(m_pausePromises);
-        lock.unlock();
-        resolvePromises(pausePromises);
-        lock.lock();
+        {
+            ReverseLock unlock(lock);
+            resolvePromises(pausePromises);
+        }
     }
 
     void endPause(std::unique_lock<std::mutex>& lock)
@@ -281,9 +283,10 @@ public:   // ManageableTaskCtx
         }
 
         std::list<std::promise<void>> resumePromises = std::move(m_resumePromises);
-        lock.unlock();
-        resolvePromises(resumePromises);
-        lock.lock();
+        {
+            ReverseLock unlock(lock);
+            resolvePromises(resumePromises);
+        }
 
         m_wasPause = true;
         if (m_afterPause) {
