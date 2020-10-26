@@ -19,7 +19,7 @@ public:
     virtual void resetAllHandlers() = 0;
 
     virtual bool checkPoint() = 0;
-    virtual bool wasPause() const = 0;
+    [[nodiscard]] virtual bool wasPause() const = 0;
 };
 
 class ManageableTask
@@ -40,14 +40,14 @@ public:
 public:
     virtual ~ManageableTask() = default;
 
-    virtual State state() const = 0;
+    [[nodiscard]] virtual State state() const = 0;
 
     virtual std::future<void> asyncPause() = 0;
     virtual std::future<void> asyncResume() = 0;
     virtual void asyncStop() = 0;
     virtual std::future<void> asyncWaitForStopped() = 0;
 
-    virtual std::exception_ptr getError() const = 0;
+    [[nodiscard]] virtual std::exception_ptr getError() const = 0;
 
     void pause();
     void resume();

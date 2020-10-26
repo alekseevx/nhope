@@ -11,13 +11,15 @@ using namespace nhope::asyncs;
 using namespace std::chrono_literals;
 using LockableMap = LockableValue<std::map<std::string, int>>;
 
-TEST(LockableValue, ReadWrite)
+TEST(LockableValue, ReadWrite)   // NOLINT
 {
+    constexpr int MaxCounter = 100;
+
     LockableMap lockableMap;
 
     auto writter = std::thread([&lockableMap]() {
         int counter = 0;
-        while (counter < 100) {
+        while (counter < MaxCounter) {
             auto wa = lockableMap.writeAccess();
             (*wa)["counter"] = ++counter;
         }
@@ -29,7 +31,7 @@ TEST(LockableValue, ReadWrite)
             auto ra = lockableMap.readAccess();
             auto i = ra->find("counter");
             if (i != ra->end()) {
-                if (i->second >= 100) {
+                if (i->second >= MaxCounter) {
                     break;
                 }
             }
@@ -41,15 +43,19 @@ TEST(LockableValue, ReadWrite)
     reader.join();
 }
 
-TEST(LockableValue, CopyValue)
+TEST(LockableValue, CopyValue)   // NOLINT
 {
-    LockableValue<int> lockInt(42);
+    constexpr int StartValue = 42;
+    constexpr int MaxValueForWritter = 80;
+    constexpr int MaxValueForReader = 77;
+
+    LockableValue<int> lockInt(StartValue);
     auto writter = std::thread([&lockInt]() {
         while (true) {
             std::this_thread::sleep_for(1ms);
             auto v = lockInt.copy();
             lockInt = ++v;
-            if (v == 80) {
+            if (v == MaxValueForWritter) {
                 break;
             }
         }
@@ -57,7 +63,7 @@ TEST(LockableValue, CopyValue)
 
     auto reader = std::thread([&lockInt]() {
         while (true) {
-            if (lockInt.copy() > 77) {
+            if (lockInt.copy() > MaxValueForReader) {
                 break;
             }
             std::this_thread::sleep_for(1ms);

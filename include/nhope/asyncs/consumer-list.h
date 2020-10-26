@@ -1,5 +1,6 @@
 #pragma once
 
+#include <deque>
 #include <list>
 #include <mutex>
 #include <memory>
@@ -33,11 +34,10 @@ public:   // Consumer
     typename Consumer<T>::Status consume(const T& value) override
     {
         std::unique_lock lock(m_mutex);
-        List list;
         if (m_closed) {
             return Consumer<T>::Status::Closed;
         }
-        list.splice(list.end(), m_list);
+        List list = std::move(m_list);
         lock.unlock();
 
         auto it = list.begin();

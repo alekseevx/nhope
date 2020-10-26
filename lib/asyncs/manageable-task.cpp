@@ -1,4 +1,4 @@
-#include <assert.h>
+#include <cassert>
 
 #include <condition_variable>
 #include <list>
@@ -222,8 +222,9 @@ public:   // ManageableTaskCtx
             return true;
 
         case State::Pausing:
-            if (this->pauseAllowed())
+            if (this->pauseAllowed()) {
                 this->doPause(lock);
+            }
             return m_state != State::Stopping;
 
         case State::Stopping:
@@ -254,8 +255,9 @@ public:   // ManageableTaskCtx
         assert(lock.owns_lock());
 
         this->beginPause(lock);
-        while (m_state == State::Paused)
+        while (m_state == State::Paused) {
             m_stateChangedCV.wait(lock);
+        }
         this->endPause(lock);
     }
 

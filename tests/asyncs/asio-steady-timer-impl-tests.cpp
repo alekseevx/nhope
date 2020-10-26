@@ -8,14 +8,14 @@ using namespace std::literals;
 
 using time_point = std::chrono::steady_clock::time_point;
 
-TEST(AsioSteadyTimerImpl, AsyncWait)
+TEST(AsioSteadyTimerImpl, AsyncWait)   // NOLINT
 {
     boost::asio::io_context ctx;
 
     const time_point startTime = std::chrono::steady_clock::now();
     time_point stopTime;
 
-    auto timer = Timer::start(ctx, 1000ms, [&stopTime](const std::error_code& code, Timer&) {
+    auto timer = Timer::start(ctx, 1000ms, [&stopTime](const std::error_code& code, Timer& /*unused*/) {
         GTEST_CHECK_(!code) << code;
         stopTime = std::chrono::steady_clock::now();
     });
@@ -28,16 +28,17 @@ TEST(AsioSteadyTimerImpl, AsyncWait)
     GTEST_CHECK_(duration >= 1000ms && duration < 1100ms) << "The timer worket at the wrong time";
 }
 
-TEST(AsioSteadyTimerImpl, Canceling)
+TEST(AsioSteadyTimerImpl, Canceling)   // NOLINT
 {
     boost::asio::io_context ctx;
 
     bool cancelableTimerTriggered = false;
-    auto cancelableTimer = Timer::start(ctx, 5s, [&cancelableTimerTriggered](const std::error_code& code, Timer&) {
-        cancelableTimerTriggered = true;
-    });
+    auto cancelableTimer =
+      Timer::start(ctx, 5s, [&cancelableTimerTriggered](const std::error_code& /*unused*/, Timer& /*unused*/) {
+          cancelableTimerTriggered = true;
+      });
 
-    auto timer = Timer::start(ctx, 1s, [&cancelableTimer](const std::error_code& code, Timer&) {
+    auto timer = Timer::start(ctx, 1s, [&cancelableTimer](const std::error_code& code, Timer& /*unused*/) {
         GTEST_CHECK_(!code) << code;
         cancelableTimer.reset();
     });

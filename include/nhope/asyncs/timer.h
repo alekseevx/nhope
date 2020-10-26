@@ -15,9 +15,11 @@ public:
     using Handler = std::function<void(const std::error_code&, Timer&)>;
 
 public:
+    Timer(const Timer&) = delete;
+    Timer& operator=(const Timer&) = delete;
     virtual ~Timer() = default;
 
-    virtual bool isExpired() const = 0;
+    [[nodiscard]] virtual bool isExpired() const = 0;
 
 public:
     static std::unique_ptr<Timer> start(boost::asio::io_context& ctx, const std::chrono::nanoseconds& expiryTime,
@@ -25,8 +27,6 @@ public:
 
 protected:
     Timer() = default;
-    Timer(const Timer&) = delete;
-    Timer& operator=(const Timer&) = delete;
 };
 
 }   // namespace nhope::asyncs

@@ -5,9 +5,6 @@ namespace nhope::asyncs {
 template<typename T>
 class Consumer
 {
-    Consumer(const Consumer&) = delete;
-    Consumer& operator=(const Consumer&) = delete;
-
 public:
     enum class Status
     {
@@ -16,6 +13,8 @@ public:
     };
 
 public:
+    Consumer(const Consumer&) = delete;
+    Consumer& operator=(const Consumer&) = delete;
     Consumer() = default;
     virtual ~Consumer() = default;
 

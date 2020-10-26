@@ -1,6 +1,6 @@
 #pragma once
 
-#include <stddef.h>
+#include <cstddef>
 
 #include <atomic>
 #include <limits>
@@ -15,10 +15,10 @@ namespace nhope::asyncs {
 template<typename T>
 class Chan final
 {
+public:
     Chan(const Chan&) = delete;
     Chan& operator=(const Chan&) = delete;
 
-public:
     Chan(bool autoClose = true, size_t capacity = std::numeric_limits<size_t>::max())
     {
         m_d = std::make_shared<Prv>(autoClose, capacity);
@@ -47,20 +47,20 @@ public:
 
     std::unique_ptr<Consumer<T>> makeInput()
     {
-        return std::unique_ptr<Consumer<T>>(new Input(m_d));
+        return std::make_unique<Input>(m_d);
     }
 
 private:
     struct Prv
     {
-        Prv(bool autoClose, int capacity)
+        Prv(bool autoClose, size_t capacity)
           : autoClose(autoClose)
           , queue(capacity)
         {}
 
         const bool autoClose;
         TSQueue<T> queue;
-        std::atomic<int> inputCount = 0;
+        std::atomic<size_t> inputCount = 0;
     };
 
     class Input final : public Consumer<T>

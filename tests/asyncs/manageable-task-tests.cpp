@@ -9,9 +9,9 @@
 using namespace nhope::asyncs;
 using namespace std::literals;
 
-TEST(ManageableTask, checkAsyncWaitForStopped)
+TEST(ManageableTask, checkAsyncWaitForStopped)   // NOLINT
 {
-    auto task = ManageableTask::start([](auto&) {
+    auto task = ManageableTask::start([](auto& /*unused*/) {
         std::this_thread::sleep_for(500ms);
     });
 
@@ -33,26 +33,30 @@ static bool isChanged(std::atomic<int>& value)
     int currentValue = value;
     auto stop = steady_clock::now() + 10ms;
     while (steady_clock::now() < stop) {
-        if (currentValue != value)
+        if (currentValue != value) {
             return true;
+        }
     }
 
     return false;
 }
 
-TEST(ManageableTask, checkAsyncPauseResume)
+TEST(ManageableTask, checkAsyncPauseResume)   // NOLINT
 {
+    constexpr int IterCount = 100;
+    constexpr int SleepInterval = 1000;
+
     std::atomic<int> counter = 0;
 
     auto task = ManageableTask::start([&counter](auto& ctx) {
         while (ctx.checkPoint()) {
-            if (++counter % 1000 == 0) {
+            if (++counter % SleepInterval == 0) {
                 std::this_thread::sleep_for(1ms);
             }
         }
     });
 
-    for (int i = 0; i < 100; ++i) {
+    for (int i = 0; i < IterCount; ++i) {
         ASSERT_EQ(task->state(), ManageableTask::State::Running);
         ASSERT_TRUE(isChanged(counter));
 
@@ -73,13 +77,14 @@ TEST(ManageableTask, checkAsyncPauseResume)
     ASSERT_FALSE(isChanged(counter));
 }
 
-TEST(ManageableTask, checkStopPausedTask)
+TEST(ManageableTask, checkStopPausedTask)   // NOLINT
 {
+    constexpr int SleepInterval = 1000;
     std::atomic<int> counter = 0;
 
     auto task = ManageableTask::start([&counter](auto& ctx) {
         while (ctx.checkPoint()) {
-            if (++counter % 1000 == 0) {
+            if (++counter % SleepInterval == 0) {
                 std::this_thread::sleep_for(1ms);
             }
         }
@@ -100,7 +105,7 @@ TEST(ManageableTask, checkStopPausedTask)
     ASSERT_FALSE(isChanged(counter));
 }
 
-TEST(ManageableTask, checkEnableDisablePause)
+TEST(ManageableTask, checkEnableDisablePause)   // NOLINT
 {
     std::atomic<bool> pauseEnable = true;
 

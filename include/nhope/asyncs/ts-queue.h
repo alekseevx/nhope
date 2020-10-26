@@ -1,6 +1,6 @@
 #pragma once
 
-#include <assert.h>
+#include <cassert>
 
 #include <condition_variable>
 #include <limits>
@@ -14,11 +14,10 @@ namespace nhope::asyncs {
 template<typename T>
 class TSQueue final
 {
-private:
+public:
     TSQueue(const TSQueue&) = delete;
     TSQueue& operator=(const TSQueue&) = delete;
 
-public:
     explicit TSQueue(size_t capacity = std::numeric_limits<size_t>::max())
       : m_capacity(capacity)
     {

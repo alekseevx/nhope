@@ -1,6 +1,6 @@
 #pragma once
 
-#include <stddef.h>
+#include <memory>
 #include "consumer.h"
 
 namespace nhope::asyncs {
@@ -8,10 +8,10 @@ namespace nhope::asyncs {
 template<typename T>
 class Produser
 {
+public:
     Produser(const Produser&) = delete;
     Produser& operator=(const Produser&) = delete;
 
-public:
     Produser() = default;
     virtual ~Produser() = default;
 

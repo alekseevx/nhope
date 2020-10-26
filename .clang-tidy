@@ -1,0 +1,12 @@
+Checks: >
+    -*,
+    boost-*,
+    cert-*,
+    clang-analyzer-*,
+    cppcoreguidelines-*,-cppcoreguidelines-special-member-functions,
+    misc-*,-misc-non-private-member-variables-in-classes,
+    modernize-*,-modernize-use-trailing-return-type,
+    performance-*,
+    portability-*,
+    readability-*,-readability-redundant-access-specifiers
+CheckOptions:

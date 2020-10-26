@@ -1,4 +1,4 @@
-#include <limits.h>
+#include <climits>
 
 #include <gtest/gtest.h>
 
@@ -9,20 +9,23 @@
 
 using namespace nhope::asyncs;
 
-TEST(NotifierTests, CreateDestroyNotifier)
+TEST(NotifierTests, CreateDestroyNotifier)   // NOLINT
 {
+    constexpr int IterCount = 100;
+    constexpr int MaxNotifyCount = 1000;
+
     FuncProduser<int> numProduser([m = 0](int& value) mutable -> bool {
         value = m++;
         return true;
     });
     numProduser.start();
 
-    for (int i = 0; i < 100; ++i) {
+    for (int i = 0; i < IterCount; ++i) {
         boost::asio::io_context ioCtx;
         auto workGuard = boost::asio::make_work_guard(ioCtx);
 
-        Notifier notifer(ioCtx, std::function([m = 1000, &ioCtx](const int&) mutable {
-                             if (--m <= 0) {
+        Notifier notifer(ioCtx, std::function([notifyCount = 0, &ioCtx](const int& /*unused*/) mutable {
+                             if (++notifyCount > MaxNotifyCount) {
                                  ioCtx.stop();
                              }
                          }));

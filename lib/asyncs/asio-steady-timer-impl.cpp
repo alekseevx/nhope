@@ -27,7 +27,7 @@ public:
         m_timer.cancel();
     }
 
-    bool isExpired() const override
+    [[nodiscard]] bool isExpired() const override
     {
         const auto expiryTime = m_timer.expiry();
         return expiryTime >= std::chrono::steady_clock::now();

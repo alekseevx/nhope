@@ -10,14 +10,14 @@ namespace nhope::asyncs {
 template<typename T>
 class LockableValue final
 {
-    LockableValue(const LockableValue&) = delete;
-    LockableValue& operator=(const LockableValue&) = delete;
-
 public:
     class ReadAccess;
     class WriteAccess;
 
 public:
+    LockableValue(const LockableValue&) = delete;
+    LockableValue& operator=(const LockableValue&) = delete;
+
     explicit LockableValue(const T& value) noexcept(std::is_nothrow_copy_constructible_v<T>)
       : m_value(value)
     {}

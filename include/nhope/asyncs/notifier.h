@@ -13,13 +13,13 @@ namespace nhope::asyncs {
 template<typename T, typename Executor>
 class Notifier final
 {
-    Notifier(const Notifier&) = delete;
-    Notifier& operator=(const Notifier&) = delete;
-
 public:
     using Handler = std::function<void(const T&)>;
 
 public:
+    Notifier(const Notifier&) = delete;
+    Notifier& operator=(const Notifier&) = delete;
+
     Notifier(Executor& executor, Handler&& handler)
     {
         m_d = std::make_shared<Prv>(executor, std::move(handler));
@@ -38,14 +38,15 @@ public:
 
     std::unique_ptr<Consumer<T>> makeInput()
     {
-        return std::unique_ptr<Consumer<T>>(new Input(m_d));
+        return std::make_unique<Input>(m_d);
     }
 
     void close()
     {
         std::atomic_store(&m_d->closed, true);
-        while (std::atomic_load(&m_d->useExecutorCounter) > 0)
+        while (std::atomic_load(&m_d->useExecutorCounter) > 0) {
             ;
+        }
     }
 
 private:

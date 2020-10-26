@@ -1,4 +1,4 @@
-#include <limits.h>
+#include <climits>
 
 #include <gtest/gtest.h>
 
@@ -11,7 +11,7 @@ using namespace nhope::asyncs;
 int sum(Chan<int>& chan, int n = INT_MAX)
 {
     int result = 0;
-    int value;
+    int value = 0;
     while (n > 0 && chan.get(value)) {
         result += value;
         --n;
@@ -23,7 +23,7 @@ int sum(Chan<int>& chan, int n = INT_MAX)
 int count(Chan<int>& chan, int n = INT_MAX)
 {
     int result = 0;
-    int value;
+    int value = 0;
     while (n > 0 && chan.get(value)) {
         ++result;
         --n;
@@ -33,10 +33,14 @@ int count(Chan<int>& chan, int n = INT_MAX)
 }
 }   // namespace
 
-TEST(ChanTest, OneToOne)
+TEST(ChanTest, OneToOne)   //NOLINT
 {
+    constexpr int MaxProduseCount = 1'000'000;
+    constexpr int ChanCapacity = 100;
+    constexpr int SumLimit = 1000;
+
     FuncProduser<int> numProduser([m = 0](int& value) mutable -> bool {
-        if (m >= 1'000'000) {
+        if (m >= MaxProduseCount) {
             return false;
         }
 
@@ -44,18 +48,22 @@ TEST(ChanTest, OneToOne)
         return true;
     });
 
-    Chan<int> chan(true, 100);
+    Chan<int> chan(true, ChanCapacity);
     chan.attachToProduser(numProduser);
     numProduser.start();
 
-    int res = sum(chan, 1000);
+    int res = sum(chan, SumLimit);
     GTEST_ASSERT_EQ(res, 499'500);
 }
 
-TEST(ChanTest, ManyToOne)
+TEST(ChanTest, ManyToOne)   // NOLINT
 {
+    constexpr int MaxProduseCount = 1'000'000;
+    constexpr int ChanCapacity = 10;
+    constexpr int CountLimit = 100'000;
+
     FuncProduser<int> evenNumProduser([m = 0](int& value) mutable -> bool {
-        if (m >= 1'000'000) {
+        if (m >= MaxProduseCount) {
             return false;
         }
 
@@ -64,7 +72,7 @@ TEST(ChanTest, ManyToOne)
     });
 
     FuncProduser<int> oddNumproduser([m = 0](int& value) mutable -> bool {
-        if (m >= 1'000'000) {
+        if (m >= MaxProduseCount) {
             return false;
         }
 
@@ -72,20 +80,24 @@ TEST(ChanTest, ManyToOne)
         return true;
     });
 
-    Chan<int> chan(true, 10);
+    Chan<int> chan(true, ChanCapacity);
     chan.attachToProduser(evenNumProduser);
     chan.attachToProduser(oddNumproduser);
     evenNumProduser.start();
     oddNumproduser.start();
 
-    int res = count(chan, 100'000);
+    int res = count(chan, CountLimit);
     GTEST_ASSERT_EQ(res, 100'000);
 }
 
-TEST(ChanTest, OneToMany)
+TEST(ChanTest, OneToMany)   // NOLINT
 {
+    constexpr int MaxProduseCount = 1'000;
+    constexpr int ChanCapacity = 100;
+    constexpr int Chan2Capacity = 100;
+
     FuncProduser<int> numProduser([m = 0](int& value) mutable -> bool {
-        if (m >= 1000) {
+        if (m >= MaxProduseCount) {
             return false;
         }
 
@@ -93,7 +105,7 @@ TEST(ChanTest, OneToMany)
         return true;
     });
 
-    Chan<int> chan(true, 100);
+    Chan<int> chan(true, ChanCapacity);
     numProduser.attachConsumer(chan.makeInput());
 
     auto thread = std::thread([&chan]() {
@@ -101,7 +113,7 @@ TEST(ChanTest, OneToMany)
         GTEST_ASSERT_EQ(res, 499'500);
     });
 
-    Chan<int> chan2(true, 100);
+    Chan<int> chan2(true, Chan2Capacity);
     numProduser.attachConsumer(chan2.makeInput());
 
     auto thread2 = std::thread([&chan2]() {
