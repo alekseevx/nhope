@@ -5,6 +5,7 @@
 #include <atomic>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <utility>
 
 #include "produser.h"
@@ -37,6 +38,11 @@ public:
     bool get(T& value)
     {
         return m_d->queue.read(value);
+    }
+
+    std::optional<T> get()
+    {
+        return m_d->queue.read();
     }
 
     void attachToProduser(Produser<T>& produser)
