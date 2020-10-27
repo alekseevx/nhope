@@ -1,3 +1,4 @@
+#include <atomic>
 #include <utility>
 #include <boost/asio/steady_timer.hpp>
 #include "nhope/asyncs/timer.h"
@@ -11,7 +12,7 @@ public:
     AsioSteadyTimerImpl(boost::asio::io_context& ctx, const std::chrono::nanoseconds& expiryTime, Handler&& handler)
       : m_timer(ctx)
     {
-        m_isCancelled = std::make_shared<bool>(false);
+        m_isCancelled = std::make_shared<std::atomic<bool>>(false);
         m_timer.expires_after(expiryTime);
 
         m_timer.async_wait([this, isCancelled = m_isCancelled, handler = std::move(handler)](auto& code) {
@@ -35,7 +36,7 @@ public:
 
 private:
     boost::asio::steady_timer m_timer;
-    std::shared_ptr<bool> m_isCancelled;
+    std::shared_ptr<std::atomic<bool>> m_isCancelled;
 };
 
 }   // namespace
