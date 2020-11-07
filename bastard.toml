@@ -1,14 +1,12 @@
 [package]
 name = "nhope"
-legacy = false
 
 [lib]
 name = "nhope"
-language = "c++17"
-type = "static"
+lang = "c++17"
 
-[sys-dependencies.Threads]
-libs = [ "Threads" ]
+[sys-dependencies.Boost]
+components = [ "chrono", "system", "thread" ]
 
 [dev-dependencies]
-gtest = { git = "../../google/googletest.git" }
+gtest = { git = "git@gitlab.olimp.lan:google/googletest.git" }
