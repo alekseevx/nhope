@@ -231,8 +231,7 @@ public:   // ManageableTaskCtx
             return false;
 
         default:
-            assert(!"Invalid state");
-            return true;
+            throw std::runtime_error("Invalid state");
         }
     }
 
