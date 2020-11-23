@@ -15,6 +15,7 @@
 #include <boost/thread/futures/future_status.hpp>
 
 #include <nhope/asyncs/func-executor.h>
+#include <nhope/asyncs/thread-executor.h>
 
 #include <gtest/gtest.h>
 #include <utility>
@@ -25,40 +26,12 @@ using namespace std::literals;
 
 constexpr auto CallTimeout = boost::chrono::seconds(10);
 
-class Executor final
-{
-public:
-    Executor()
-    {
-        m_thread = std::thread([this] {
-            auto workGuard = boost::asio::make_work_guard(m_ctx);
-            m_ctx.run();
-        });
-    }
-
-    ~Executor()
-    {
-        m_ctx.stop();
-        m_thread.join();
-    }
-
-    template<typename Fn>
-    void post(Fn&& fn)
-    {
-        boost::asio::post(m_ctx, std::forward<Fn>(fn));
-    }
-
-private:
-    boost::asio::io_context m_ctx;
-    std::thread m_thread;
-};
-
 }   // namespace
 
 TEST(FuncExecutor, AsyncCallWithoutResult)   // NOLINT
 {
-    Executor executor;
-    FuncExecutor<Executor> funcExecutor(executor);
+    ThreadExecutor executor;
+    FuncExecutor<ThreadExecutor> funcExecutor(executor);
 
     std::atomic<bool> wasCall = false;
     auto future = funcExecutor.asyncCall([&wasCall] {
@@ -71,8 +44,8 @@ TEST(FuncExecutor, AsyncCallWithoutResult)   // NOLINT
 
 TEST(FuncExecutor, AsyncCallWithExcept)   // NOLINT
 {
-    Executor executor;
-    FuncExecutor<Executor> funcExecutor(executor);
+    ThreadExecutor executor;
+    FuncExecutor<ThreadExecutor> funcExecutor(executor);
 
     auto future = funcExecutor.asyncCall([] {
         throw std::runtime_error("Except");
@@ -86,8 +59,8 @@ TEST(FuncExecutor, AsyncCallWithResult)   // NOLINT
 {
     constexpr int ExpectedResult = 15555;
 
-    Executor executor;
-    FuncExecutor<Executor> funcExecutor(executor);
+    ThreadExecutor executor;
+    FuncExecutor<ThreadExecutor> funcExecutor(executor);
 
     auto future = funcExecutor.asyncCall([] {
         return ExpectedResult;
@@ -104,8 +77,8 @@ TEST(FuncExecutor, AsyncCallWithArgs)   // NOLINT
     const auto Arg1 = "Arg1"s;
     const auto Arg2 = 77777;
 
-    Executor executor;
-    FuncExecutor<Executor> funcExecutor(executor);
+    ThreadExecutor executor;
+    FuncExecutor<ThreadExecutor> funcExecutor(executor);
 
     auto func = [Arg1, Arg2](std::string_view arg1, int arg2) {
         EXPECT_EQ(arg1, Arg1);
@@ -118,8 +91,8 @@ TEST(FuncExecutor, AsyncCallWithArgs)   // NOLINT
 
 TEST(FuncExecutor, CallWithoutResult)   // NOLINT
 {
-    Executor executor;
-    FuncExecutor<Executor> funcExecutor(executor);
+    ThreadExecutor executor;
+    FuncExecutor<ThreadExecutor> funcExecutor(executor);
 
     std::atomic<bool> wasCall = false;
     funcExecutor.call([&wasCall] {
@@ -131,8 +104,8 @@ TEST(FuncExecutor, CallWithoutResult)   // NOLINT
 
 TEST(FuncExecutor, CallWithExcept)   // NOLINT
 {
-    Executor executor;
-    FuncExecutor<Executor> funcExecutor(executor);
+    ThreadExecutor executor;
+    FuncExecutor<ThreadExecutor> funcExecutor(executor);
 
     // clang-format off
     EXPECT_THROW(funcExecutor.call([] {   // NOLINT
@@ -145,8 +118,8 @@ TEST(FuncExecutor, CallWithResult)   // NOLINT
 {
     constexpr int ExpectedResult = 15555;
 
-    Executor executor;
-    FuncExecutor<Executor> funcExecutor(executor);
+    ThreadExecutor executor;
+    FuncExecutor<ThreadExecutor> funcExecutor(executor);
 
     auto actualResult = funcExecutor.call([] {
         return ExpectedResult;
@@ -160,8 +133,8 @@ TEST(FuncExecutor, CallWithArgs)   // NOLINT
     const auto Arg1 = "Arg1"s;
     const auto Arg2 = 77777;
 
-    Executor executor;
-    FuncExecutor<Executor> funcExecutor(executor);
+    ThreadExecutor executor;
+    FuncExecutor<ThreadExecutor> funcExecutor(executor);
 
     auto func = [Arg1, Arg2](std::string_view arg1, int arg2) {
         EXPECT_EQ(arg1, Arg1);
