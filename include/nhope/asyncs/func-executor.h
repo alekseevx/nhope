@@ -13,7 +13,7 @@
 
 namespace nhope::asyncs {
 
-class FuncExecutorWasStopped : std::runtime_error
+class FuncExecutorWasStopped : public std::runtime_error
 {
 public:
     FuncExecutorWasStopped()

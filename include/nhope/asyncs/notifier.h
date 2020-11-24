@@ -92,6 +92,7 @@ private:
             return Consumer<T>::Status::Ok;
         }
 
+    private:
         std::shared_ptr<Prv> m_d;
     };
 

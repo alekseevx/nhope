@@ -1,24 +1,17 @@
-#include <boost/asio/post.hpp>
-#include <boost/asio/strand.hpp>
-#include <chrono>
-#include <exception>
-#include <functional>
-#include <iostream>
 #include <stdexcept>
 #include <string_view>
 #include <string>
 #include <thread>
+#include <utility>
 
-#include <boost/asio/executor_work_guard.hpp>
-#include <boost/asio/io_context.hpp>
-#include <boost/chrono/duration.hpp>
-#include <boost/thread/futures/future_status.hpp>
+#include <boost/asio.hpp>
+#include <boost/chrono.hpp>
+#include <boost/thread.hpp>
 
 #include <nhope/asyncs/func-executor.h>
 #include <nhope/asyncs/thread-executor.h>
 
 #include <gtest/gtest.h>
-#include <utility>
 
 namespace {
 using namespace nhope::asyncs;

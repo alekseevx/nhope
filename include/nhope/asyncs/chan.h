@@ -95,6 +95,7 @@ private:
             return Consumer<T>::Status::Closed;
         }
 
+    private:
         std::shared_ptr<Prv> m_d;
     };
 
