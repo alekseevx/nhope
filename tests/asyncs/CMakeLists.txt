@@ -3,6 +3,7 @@ set(CMAKE_CXX_STANDARD 17)
 add_executable(asyncs-tests
     main.cpp
     timer-tests.cpp
+    ts-queue.cpp
     notifier-tests.cpp
     chan-tests.cpp
     lockable-value-tests.cpp
