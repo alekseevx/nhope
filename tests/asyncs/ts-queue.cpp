@@ -8,16 +8,69 @@
 using namespace std::chrono_literals;
 using namespace nhope::asyncs;
 
+TEST(QueueTests, OneWriterManyReaders)   // NOLINT
+{
+    constexpr int iterCount = 100;
+    constexpr int writeValue = 42;
+
+    TSQueue<int> queue;
+
+    ThreadExecutor writeThread;
+    ThreadExecutor readThread1;
+    ThreadExecutor readThread2;
+    ThreadExecutor readThread3;
+    readThread1.post([&] {
+        while (auto read = queue.read()) {
+            EXPECT_EQ(read.value(), writeValue);
+        }
+    });
+    readThread2.post([&] {
+        while (auto read = queue.read()) {
+            EXPECT_EQ(read.value(), writeValue);
+        }
+    });
+    readThread3.post([&] {
+        while (auto read = queue.read()) {
+            EXPECT_EQ(read.value(), writeValue);
+        }
+    });
+    for (int i = 0; i < iterCount; ++i) {
+        writeThread.post([&] {
+            queue.write(int(writeValue));
+        });
+    }
+    std::this_thread::sleep_for(300ms);
+
+    EXPECT_TRUE(queue.empty());
+    queue.close();
+}
+
+TEST(QueueTests, CloseQueue)   // NOLINT
+{
+    constexpr int iterCount = 100;
+    constexpr int closeIter = 42;
+
+    TSQueue<int> queue;
+
+    for (int i = 0; i < iterCount; ++i) {
+        if (i == closeIter) {
+            queue.close();
+        }
+        queue.write(int(closeIter));
+    }
+    EXPECT_EQ(queue.size(), closeIter);
+}
+
 TEST(QueueTests, WriteWithTimeout)   // NOLINT
 {
-    constexpr int IterCount = 100;
+    constexpr int iterCount = 100;
     constexpr std::size_t capacity = 42;
     constexpr int writeValue = 42;
 
     TSQueue<int> queue(capacity);
 
     ThreadExecutor writeThread;
-    for (int i = 0; i < IterCount; ++i) {
+    for (int i = 0; i < iterCount; ++i) {
         writeThread.post([&] {
             queue.write(int(writeValue), 100ms);
         });
@@ -28,14 +81,14 @@ TEST(QueueTests, WriteWithTimeout)   // NOLINT
 
 TEST(QueueTests, WriteWithCapacity)   // NOLINT
 {
-    constexpr int IterCount = 100;
+    constexpr int iterCount = 100;
     constexpr std::size_t capacity = 42;
     constexpr int writeValue = 42;
 
     TSQueue<int> queue(capacity);
 
     ThreadExecutor writeThread;
-    for (int i = 0; i < IterCount; ++i) {
+    for (int i = 0; i < iterCount; ++i) {
         writeThread.post([&] {
             queue.write(int(writeValue));
         });
@@ -52,7 +105,7 @@ TEST(QueueTests, WriteWithCapacity)   // NOLINT
 
 TEST(QueueTests, ReadFor)   // NOLINT
 {
-    constexpr int IterCount = 100;
+    constexpr int iterCount = 100;
     constexpr int writeValue = 42;
 
     ThreadExecutor thread;
@@ -60,7 +113,7 @@ TEST(QueueTests, ReadFor)   // NOLINT
     TSQueue<int> queue;
     int readValue{0};
 
-    for (int i = 0; i < IterCount; ++i) {
+    for (int i = 0; i < iterCount; ++i) {
         thread.post([&] {
             std::this_thread::sleep_for(2ms);
             queue.write(int(writeValue));
@@ -74,19 +127,19 @@ TEST(QueueTests, ReadFor)   // NOLINT
 
 TEST(QueueTests, GenerateAndRead)   // NOLINT
 {
-    constexpr int IterCount = 100;
+    constexpr int iterCount = 100;
     constexpr int writeValue = 42;
 
     TSQueue<int> queue;
 
     ThreadExecutor writeThread;
     ThreadExecutor readThread;
-    for (int i = 0; i < IterCount; ++i) {
+    for (int i = 0; i < iterCount; ++i) {
         writeThread.post([&] {
             std::this_thread::sleep_for(4ms);
             queue.write(int(writeValue));
         });
-        if (i < (IterCount / 2)) {
+        if (i < (iterCount / 2)) {
             readThread.post([&] {
                 auto readed = queue.read();
                 EXPECT_EQ(readed.value(), writeValue);
@@ -94,9 +147,9 @@ TEST(QueueTests, GenerateAndRead)   // NOLINT
         }
     }
 
-    std::this_thread::sleep_for(std::chrono::seconds(1));
+    std::this_thread::sleep_for(1s);
 
-    EXPECT_EQ(queue.size(), IterCount / 2);
+    EXPECT_EQ(queue.size(), iterCount / 2);
     int readVal{0};
     while (queue.read(readVal)) {
         EXPECT_EQ(readVal, writeValue);
