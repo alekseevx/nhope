@@ -11,8 +11,6 @@ project(${BASTARD_PACKAGE_NAME})
 target_compile_definitions(${BASTARD_PACKAGE_NAME}
     PUBLIC
         BOOST_THREAD_VERSION=5
-        BOOST_THREAD_PROVIDES_FUTURE
-        BOOST_THREAD_PROVIDES_EXECUTORS
 )
 
 add_subdirectory(tests)
