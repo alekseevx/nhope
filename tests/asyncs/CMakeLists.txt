@@ -7,7 +7,6 @@ add_executable(asyncs-tests
     chan-tests.cpp
     lockable-value-tests.cpp
     manageable-task-tests.cpp
-    func-executor-tests.cpp
     async-invoke-tests.cpp
 )
 target_link_libraries(asyncs-tests gtest nhope)
