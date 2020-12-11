@@ -60,7 +60,7 @@ public:
     {
         auto id = makeAsyncOperation(m_d, std::move(cancelHandler));
         return [id, d = this->m_d, completionHandler = std::move(completionHandler)](CompletionArgs... args) mutable {
-            auto bindedCompletionHandler = std::bind(std::bind(std::move(completionHandler), std::move(args)...));
+            auto bindedCompletionHandler = std::bind(std::move(completionHandler), std::move(args)...);
             asyncOperationFinished(d, id, std::move(bindedCompletionHandler));
         };
     }
