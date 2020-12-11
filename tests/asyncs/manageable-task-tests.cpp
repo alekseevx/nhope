@@ -64,12 +64,12 @@ TEST(ManageableTask, checkAsyncPauseResume)   // NOLINT
         auto taskState = task->state();
         ASSERT_TRUE(taskState == ManageableTask::State::Pausing || taskState == ManageableTask::State::Paused);
 
-        ASSERT_EQ(pauseFuture.wait_for(10ms), std::future_status::ready);
+        ASSERT_EQ(pauseFuture.wait_for(100ms), std::future_status::ready);
         ASSERT_EQ(task->state(), ManageableTask::State::Paused);
         ASSERT_FALSE(isChanged(counter));
 
         auto resumeFuture = task->asyncResume();
-        ASSERT_EQ(resumeFuture.wait_for(10ms), std::future_status::ready);
+        ASSERT_EQ(resumeFuture.wait_for(100ms), std::future_status::ready);
     }
 
     task->stop();
