@@ -9,8 +9,7 @@ bastard_setup()
 project(${BASTARD_PACKAGE_NAME})
 
 target_compile_definitions(${BASTARD_PACKAGE_NAME}
-    PUBLIC
-        BOOST_THREAD_VERSION=5
+    PUBLIC BOOST_THREAD_VERSION=5
 )
 
 add_subdirectory(tests)
