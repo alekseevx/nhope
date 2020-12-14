@@ -8,7 +8,9 @@
 #include <boost/chrono/duration.hpp>
 #include <boost/thread/future.hpp>
 #include <boost/thread/futures/future_status.hpp>
+#include <boost/thread/futures/launch.hpp>
 
+#include "nhope/asyncs/ao-context.h"
 #include "nhope/utils/exception_ptr.h"
 
 namespace nhope::asyncs {
@@ -20,6 +22,37 @@ template<typename R>
 class Promise;
 
 template<typename R>
+class Future;
+
+template<typename T>
+inline constexpr bool isFuture = false;
+
+template<typename R>
+inline constexpr bool isFuture<Future<R>> = true;
+
+template<typename T>
+inline constexpr bool isBoostFuture = false;
+
+template<typename R>
+inline constexpr bool isBoostFuture<boost::future<R>> = true;
+
+template<typename T>
+struct FutureResult
+{};
+
+template<typename R>
+struct FutureResult<Future<R>>
+{
+    using Type = R;
+};
+
+template<typename R>
+struct FutureResult<boost::future<R>>
+{
+    using Type = R;
+};
+
+template<typename R>
 class Future final
 {
     friend Promise<R>;
@@ -27,19 +60,20 @@ class Future final
     template<typename Rp, typename... Args>
     friend Future<Rp> makeReadyFuture(Args&&... args);
 
-public:
-    using Impl = boost::future<R>;
+    template<typename>
+    friend class Future;
 
+public:
     Future() = default;
     Future(const Future&) = delete;
-    Future(Future&&) noexcept = default;
-    explicit Future(Impl&& impl) noexcept
+    Future(Future&& other) noexcept = default;
+    explicit Future(boost::future<R>&& impl) noexcept
       : m_impl(std::move(impl))
     {}
 
     Future& operator=(const Future&) = delete;
     Future& operator=(Future&&) noexcept = default;
-    Future& operator=(Impl&& impl)
+    Future& operator=(boost::future<R>&& impl)
     {
         m_impl = std::move(impl);
         return *this;
@@ -97,6 +131,85 @@ public:
         return utils::toStdExceptionPtr(ex);
     }
 
+    template<typename Fn>
+    auto thenValue(Fn&& fn)
+    {
+        auto boostFuture = m_impl.then([fn = std::move(fn)](boost::future<R> boostFuture) {
+            if constexpr (std::is_void_v<R>) {
+                using ResultOfFn = std::invoke_result_t<Fn>;
+
+                if constexpr (std::is_void_v<ResultOfFn>) {
+                    boostFuture.get();
+                    fn();
+                    return;
+                } else {
+                    boostFuture.get();
+                    return unwrap(fn());
+                }
+            } else {
+                using ResultOfFn = std::invoke_result_t<Fn, R>;
+
+                if constexpr (std::is_void_v<ResultOfFn>) {
+                    fn(boostFuture.get());
+                    return;
+                } else {
+                    return unwrap(fn(boostFuture.get()));
+                }
+            }
+        });
+
+        auto unwrappedBoostFuture = unwrap(std::move(boostFuture));
+
+        using UnwrappedBoostFuture = decltype(unwrappedBoostFuture);
+        using Result = typename FutureResult<UnwrappedBoostFuture>::Type;
+
+        return Future<Result>(std::move(unwrappedBoostFuture));
+    }
+
+    template<typename Fn>
+    auto thenException(Fn&& fn)
+    {
+        auto boostFuture = m_impl.then([fn = std::move(fn)](boost::future<R> boostFuture) {
+            if (!boostFuture.has_exception()) {
+                return boostFuture.get();
+            }
+
+            return fn(utils::toStdExceptionPtr(boostFuture.get_exception_ptr()));
+        });
+
+        auto unwrappedBoostFuture = unwrap(std::move(boostFuture));
+        return Future<R>(std::move(unwrappedBoostFuture));
+    }
+
+private:
+    template<typename Rp>
+    static auto unwrapBoostFuture(boost::future<Rp>&& future)
+    {
+        if constexpr (isBoostFuture<Rp>) {
+            return unwrap(future.unwrap());
+        } else {
+            return std::move(future);
+        }
+    }
+
+    template<typename Rp>
+    static auto unwrapFuture(Future<Rp>&& future)
+    {
+        return unwrapBoostFuture(std::move(future.m_impl));
+    }
+
+    template<typename T>
+    static auto unwrap(T&& value)
+    {
+        if constexpr (isBoostFuture<T>) {
+            return unwrapBoostFuture(std::move(value));
+        } else if constexpr (isFuture<T>) {
+            return unwrapFuture(std::move(value));
+        } else {
+            return std::move(value);
+        }
+    }
+
 private:
     boost::future<R> m_impl;
 };
@@ -105,8 +218,6 @@ template<typename R>
 class Promise final
 {
 public:
-    using Impl = boost::promise<R>;
-
     Promise() = default;
     Promise(Promise&&) noexcept = default;
 
@@ -128,15 +239,13 @@ public:
     }
 
 private:
-    Impl m_impl;
+    boost::promise<R> m_impl;
 };
 
 template<>
 class Promise<void> final
 {
 public:
-    using Impl = boost::promise<void>;
-
     Promise() = default;
     Promise(Promise&&) noexcept = default;
 
@@ -158,13 +267,19 @@ public:
     }
 
 private:
-    Impl m_impl;
+    boost::promise<void> m_impl;
 };
 
 template<typename R, typename... Args>
 Future<R> makeReadyFuture(Args&&... args)
 {
     return Future(boost::make_ready_future(std::forward<Args>(args)...));
+}
+
+template<typename R, typename Fn, typename... Args>
+Future<R> toThread(Fn&& fn, Args&&... args)
+{
+    return Future<R>(boost::async(boost::launch::async, std::forward<Fn>(fn), std::forward<Args>(args)...));
 }
 
 }   // namespace nhope::asyncs
