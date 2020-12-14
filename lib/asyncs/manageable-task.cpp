@@ -33,24 +33,26 @@ class ManageableTaskImpl final
   , public ManageableTaskCtx
 {
 public:
-    ManageableTaskImpl(TaskFunction&& function)
-    {
-        m_workThread = std::thread([this, function = std::move(function)]() {
-            this->run(function);
-        });
-    }
-
     ~ManageableTaskImpl() override
     {
         this->asyncStop();
         m_workThread.join();
     }
 
+    void start(TaskFunction&& function)
+    {
+        m_workThread = std::thread([this, function = std::move(function)]() {
+            this->run(function);
+        });
+    }
+
     void run(const TaskFunction& function)
     {
         std::exception_ptr error;
         try {
-            function(*this);
+            if (checkPoint()) {
+                function(*this);
+            }
         } catch (...) {
             error = std::current_exception();
         }
@@ -336,5 +338,16 @@ void ManageableTask::waitForStopped()
 
 std::unique_ptr<ManageableTask> ManageableTask::start(TaskFunction&& function)
 {
-    return std::make_unique<ManageableTaskImpl>(std::move(function));
+    auto task = std::make_unique<ManageableTaskImpl>();
+    task->start(std::move(function));
+    return std::move(task);
+}
+
+std::unique_ptr<ManageableTask> ManageableTask::create(TaskFunction&& function)
+{
+    auto task = std::make_unique<ManageableTaskImpl>();
+    auto future = task->asyncPause();
+    task->start(std::move(function));
+    future.wait();
+    return std::move(task);
 }

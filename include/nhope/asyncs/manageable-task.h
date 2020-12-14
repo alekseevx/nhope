@@ -56,6 +56,9 @@ public:
 
 public:
     static std::unique_ptr<ManageableTask> start(TaskFunction&& function);
+
+    // create task on pause
+    static std::unique_ptr<ManageableTask> create(TaskFunction&& function);
 };
 
 }   // namespace nhope::asyncs

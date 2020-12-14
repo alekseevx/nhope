@@ -134,3 +134,26 @@ TEST(ManageableTask, checkEnableDisablePause)   // NOLINT
     ASSERT_EQ(pauseFuture.wait_for(10ms), std::future_status::ready);
     ASSERT_EQ(task->state(), ManageableTask::State::Paused);
 }
+
+TEST(ManageableTask, createPausedThenStart)   // NOLINT
+{
+    std::atomic<int> counter = 0;
+
+    auto task = ManageableTask::create([&counter](auto& ctx) {
+        while (ctx.checkPoint()) {
+            if (++counter == 4) {
+                return;
+            }
+            std::this_thread::sleep_for(1ms);
+        }
+    });
+
+    ASSERT_EQ(task->state(), ManageableTask::State::Paused);
+
+    ASSERT_EQ(counter, 0);
+    task->resume();
+
+    task->waitForStopped();
+    ASSERT_EQ(counter, 4);
+    ASSERT_EQ(task->state(), ManageableTask::State::Stopped);
+}
