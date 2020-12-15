@@ -340,7 +340,7 @@ std::unique_ptr<ManageableTask> ManageableTask::start(TaskFunction&& function)
 {
     auto task = std::make_unique<ManageableTaskImpl>();
     task->start(std::move(function));
-    return std::move(task);
+    return task;
 }
 
 std::unique_ptr<ManageableTask> ManageableTask::create(TaskFunction&& function)
@@ -349,5 +349,5 @@ std::unique_ptr<ManageableTask> ManageableTask::create(TaskFunction&& function)
     auto future = task->asyncPause();
     task->start(std::move(function));
     future.wait();
-    return std::move(task);
+    return task;
 }
