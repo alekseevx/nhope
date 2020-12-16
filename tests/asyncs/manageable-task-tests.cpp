@@ -17,13 +17,13 @@ TEST(ManageableTask, checkAsyncWaitForStopped)   // NOLINT
 
     ASSERT_EQ(task->state(), ManageableTask::State::Running);
 
-    auto status = task->asyncWaitForStopped().wait_for(1s);
-    ASSERT_EQ(status, std::future_status::ready);
+    auto status = task->asyncWaitForStopped().waitFor(1s);
+    ASSERT_EQ(status, FutureStatus::ready);
     ASSERT_EQ(task->state(), ManageableTask::State::Stopped);
 
     /* Повторный вызов допустим asyncWaitForStopped. */
-    status = task->asyncWaitForStopped().wait_for(0s);
-    ASSERT_EQ(status, std::future_status::ready);
+    status = task->asyncWaitForStopped().waitFor(0s);
+    ASSERT_EQ(status, FutureStatus::ready);
 }
 
 static bool isChanged(std::atomic<int>& value)
@@ -43,20 +43,20 @@ static bool isChanged(std::atomic<int>& value)
 
 TEST(ManageableTask, checkAsyncPauseResume)   // NOLINT
 {
-    constexpr int IterCount = 100;
-    constexpr int SleepInterval = 1000;
+    constexpr int iterCount = 100;
+    constexpr int sleepInterval = 1000;
 
     std::atomic<int> counter = 0;
 
     auto task = ManageableTask::start([&counter](auto& ctx) {
         while (ctx.checkPoint()) {
-            if (++counter % SleepInterval == 0) {
+            if (++counter % sleepInterval == 0) {
                 std::this_thread::sleep_for(1ms);
             }
         }
     });
 
-    for (int i = 0; i < IterCount; ++i) {
+    for (int i = 0; i < iterCount; ++i) {
         ASSERT_EQ(task->state(), ManageableTask::State::Running);
         ASSERT_TRUE(isChanged(counter));
 
@@ -64,12 +64,12 @@ TEST(ManageableTask, checkAsyncPauseResume)   // NOLINT
         auto taskState = task->state();
         ASSERT_TRUE(taskState == ManageableTask::State::Pausing || taskState == ManageableTask::State::Paused);
 
-        ASSERT_EQ(pauseFuture.wait_for(100ms), std::future_status::ready);
+        ASSERT_EQ(pauseFuture.waitFor(100ms), FutureStatus::ready);
         ASSERT_EQ(task->state(), ManageableTask::State::Paused);
         ASSERT_FALSE(isChanged(counter));
 
         auto resumeFuture = task->asyncResume();
-        ASSERT_EQ(resumeFuture.wait_for(100ms), std::future_status::ready);
+        ASSERT_EQ(resumeFuture.waitFor(100ms), FutureStatus::ready);
     }
 
     task->stop();
@@ -79,12 +79,12 @@ TEST(ManageableTask, checkAsyncPauseResume)   // NOLINT
 
 TEST(ManageableTask, checkStopPausedTask)   // NOLINT
 {
-    constexpr int SleepInterval = 1000;
+    constexpr int sleepInterval = 1000;
     std::atomic<int> counter = 0;
 
     auto task = ManageableTask::start([&counter](auto& ctx) {
         while (ctx.checkPoint()) {
-            if (++counter % SleepInterval == 0) {
+            if (++counter % sleepInterval == 0) {
                 std::this_thread::sleep_for(1ms);
             }
         }
@@ -99,8 +99,8 @@ TEST(ManageableTask, checkStopPausedTask)   // NOLINT
     ASSERT_FALSE(isChanged(counter));
 
     task->asyncStop();
-    auto status = task->asyncWaitForStopped().wait_for(1s);
-    ASSERT_EQ(status, std::future_status::ready);
+    auto status = task->asyncWaitForStopped().waitFor(1s);
+    ASSERT_EQ(status, FutureStatus::ready);
     ASSERT_EQ(task->state(), ManageableTask::State::Stopped);
     ASSERT_FALSE(isChanged(counter));
 }
@@ -127,11 +127,11 @@ TEST(ManageableTask, checkEnableDisablePause)   // NOLINT
 
     pauseEnable = false;
     auto pauseFuture = task->asyncPause();
-    ASSERT_EQ(pauseFuture.wait_for(10ms), std::future_status::timeout);
+    ASSERT_EQ(pauseFuture.waitFor(10ms), FutureStatus::timeout);
     ASSERT_EQ(task->state(), ManageableTask::State::Pausing);
 
     pauseEnable = true;
-    ASSERT_EQ(pauseFuture.wait_for(10ms), std::future_status::ready);
+    ASSERT_EQ(pauseFuture.waitFor(10ms), FutureStatus::ready);
     ASSERT_EQ(task->state(), ManageableTask::State::Paused);
 }
 

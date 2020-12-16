@@ -6,24 +6,17 @@
 #include <thread>
 #include <utility>
 
+#include "nhope/asyncs/future.h"
 #include "nhope/asyncs/reverse_lock.h"
 #include "nhope/asyncs/manageable-task.h"
 
 namespace {
 using namespace nhope::asyncs;
 
-std::future<void> makeResolvedFuture()
-{
-    std::promise<void> promise;
-    auto future = promise.get_future();
-    promise.set_value();
-    return future;
-}
-
-void resolvePromises(std::list<std::promise<void>>& promises)
+void resolvePromises(std::list<Promise<void>>& promises)
 {
     for (auto& p : promises) {
-        p.set_value();
+        p.setValue();
     }
     promises.clear();
 }
@@ -61,7 +54,7 @@ public:
 
     void stopped(std::exception_ptr&& error)
     {
-        std::list<std::promise<void>> promises;
+        std::list<Promise<void>> promises;
 
         {
             std::scoped_lock lock(m_mutex);
@@ -84,10 +77,10 @@ public:   // ManageableTask
         return m_state;
     }
 
-    std::future<void> asyncPause() override
+    Future<void> asyncPause() override
     {
-        std::future<void> ret;
-        std::list<std::promise<void>> outdatedPromises;
+        Future<void> ret;
+        std::list<Promise<void>> outdatedPromises;
 
         {
             std::scoped_lock lock(m_mutex);
@@ -96,26 +89,26 @@ public:   // ManageableTask
             case State::Running:
                 m_state = State::Pausing;
                 m_stateChangedCV.notify_one();
-                ret = m_pausePromises.emplace_back().get_future();
+                ret = m_pausePromises.emplace_back().future();
                 break;
 
             case State::Resuming:
                 m_state = State::Paused;
                 outdatedPromises = std::move(m_resumePromises);
-                ret = makeResolvedFuture();
+                ret = makeReadyFuture<void>();
                 break;
 
             case State::Pausing:
             case State::Stopping:
-                ret = m_pausePromises.emplace_back().get_future();
+                ret = m_pausePromises.emplace_back().future();
                 break;
 
             case State::Paused:
-                ret = makeResolvedFuture();
+                ret = makeReadyFuture<void>();
                 break;
 
             case State::Stopped:
-                ret = makeResolvedFuture();
+                ret = makeReadyFuture<void>();
                 break;
             }
         }
@@ -124,10 +117,10 @@ public:   // ManageableTask
         return ret;
     }
 
-    std::future<void> asyncResume() override
+    Future<void> asyncResume() override
     {
-        std::future<void> ret;
-        std::list<std::promise<void>> outdatedPromises;
+        Future<void> ret;
+        std::list<Promise<void>> outdatedPromises;
 
         {
             std::scoped_lock lock(m_mutex);
@@ -136,23 +129,23 @@ public:   // ManageableTask
             case State::Stopping:
             case State::Running:
             case State::Stopped:
-                ret = makeResolvedFuture();
+                ret = makeReadyFuture<void>();
                 break;
 
             case State::Pausing:
                 m_state = State::Running;
                 outdatedPromises = std::move(m_pausePromises);
-                ret = makeResolvedFuture();
+                ret = makeReadyFuture<void>();
                 break;
 
             case State::Resuming:
-                ret = m_resumePromises.emplace_back().get_future();
+                ret = m_resumePromises.emplace_back().future();
                 break;
 
             case State::Paused:
                 m_state = State::Resuming;
                 m_stateChangedCV.notify_one();
-                ret = m_resumePromises.emplace_back().get_future();
+                ret = m_resumePromises.emplace_back().future();
                 break;
             }
         }
@@ -180,15 +173,15 @@ public:   // ManageableTask
         }
     }
 
-    std::future<void> asyncWaitForStopped() override
+    Future<void> asyncWaitForStopped() override
     {
         std::scoped_lock lock(m_mutex);
 
         if (m_state == State::Stopped) {
-            return makeResolvedFuture();
+            return makeReadyFuture<void>();
         }
 
-        return m_stopPromises.emplace_back().get_future();
+        return m_stopPromises.emplace_back().future();
     }
 
     std::exception_ptr getError() const override
@@ -253,7 +246,7 @@ public:   // ManageableTaskCtx
 
     void doPause(std::unique_lock<std::mutex>& lock)
     {
-        assert(lock.owns_lock());
+        assert(lock.owns_lock());   // NOLINT
 
         this->beginPause(lock);
         while (m_state == State::Paused) {
@@ -264,12 +257,12 @@ public:   // ManageableTaskCtx
 
     void beginPause(std::unique_lock<std::mutex>& lock)
     {
-        assert(lock.owns_lock());
-        assert(m_state == State::Pausing);
+        assert(lock.owns_lock());            // NOLINT
+        assert(m_state == State::Pausing);   // NOLINT
 
         m_state = State::Paused;
 
-        std::list<std::promise<void>> pausePromises = std::move(m_pausePromises);
+        auto pausePromises = std::move(m_pausePromises);
         {
             ReverseLock unlock(lock);
             resolvePromises(pausePromises);
@@ -278,14 +271,14 @@ public:   // ManageableTaskCtx
 
     void endPause(std::unique_lock<std::mutex>& lock)
     {
-        assert(lock.owns_lock());
-        assert(m_state == State::Resuming || m_state == State::Stopping);
+        assert(lock.owns_lock());                                           // NOLINT
+        assert(m_state == State::Resuming || m_state == State::Stopping);   // NOLINT
 
         if (m_state == State::Resuming) {
             m_state = State::Running;
         }
 
-        std::list<std::promise<void>> resumePromises = std::move(m_resumePromises);
+        auto resumePromises = std::move(m_resumePromises);
         {
             ReverseLock unlock(lock);
             resolvePromises(resumePromises);
@@ -307,9 +300,9 @@ private:
     mutable std::mutex m_mutex;
     State m_state = State::Running;
     std::condition_variable m_stateChangedCV;
-    std::list<std::promise<void>> m_pausePromises;
-    std::list<std::promise<void>> m_resumePromises;
-    std::list<std::promise<void>> m_stopPromises;
+    std::list<Promise<void>> m_pausePromises;
+    std::list<Promise<void>> m_resumePromises;
+    std::list<Promise<void>> m_stopPromises;
     std::exception_ptr m_error;
 };
 

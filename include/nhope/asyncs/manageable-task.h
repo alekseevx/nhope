@@ -5,7 +5,7 @@
 #include <future>
 #include <memory>
 
-#include <boost/thread/future.hpp>
+#include "nhope/asyncs/future.h"
 
 namespace nhope::asyncs {
 
@@ -42,10 +42,10 @@ public:
 
     [[nodiscard]] virtual State state() const = 0;
 
-    virtual std::future<void> asyncPause() = 0;
-    virtual std::future<void> asyncResume() = 0;
+    virtual Future<void> asyncPause() = 0;
+    virtual Future<void> asyncResume() = 0;
     virtual void asyncStop() = 0;
-    virtual std::future<void> asyncWaitForStopped() = 0;
+    virtual Future<void> asyncWaitForStopped() = 0;
 
     [[nodiscard]] virtual std::exception_ptr getError() const = 0;
 

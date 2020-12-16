@@ -1,4 +1,5 @@
 #include <chrono>
+#include <exception>
 #include <stdexcept>
 #include <string>
 #include <thread>
@@ -28,7 +29,7 @@ public:
     {}
 
 public:   // Функции, вызываемые из внешних потоков
-    boost::future<int> asynFunc(const std::string& retval, std::chrono::nanoseconds sleepTime = 0s)
+    Future<int> asynFunc(const std::string& retval, std::chrono::nanoseconds sleepTime = 0s)
     {
         return asyncInvoke(m_aoCtx, &TestClass::funcImpl, this, retval, sleepTime);
     }
@@ -38,7 +39,7 @@ public:   // Функции, вызываемые из внешних поток
         return invoke(m_aoCtx, &TestClass::funcImpl, this, retval, sleepTime);
     }
 
-    boost::future<void> asyncFuncWithThrow()
+    Future<void> asyncFuncWithThrow()
     {
         return asyncInvoke(m_aoCtx, &TestClass::funcWithThrowImpl, this);
     }
@@ -134,14 +135,14 @@ TEST(AsyncInvoke, DesctructionObjectWhenInvokeInQueue)   // NOLINT
     freezeExecutor(executor, 100ms);
 
     for (int i = 0; i < iterCount; ++i) {
-        boost::future<int> future;
+        Future<int> future;
 
         {
             TestClass object(executor);
             future = object.asynFunc("test string");
         }
 
-        EXPECT_THROW(future.get(), AsyncOperationWasCancelled);   // NOLINT
+        EXPECT_THROW(int v = future.get(), AsyncOperationWasCancelled);   // NOLINT
     }
 }
 
@@ -152,7 +153,7 @@ TEST(AsyncInvoke, DesctructionObjectWhenInvokeActive)   // NOLINT
 
     ThreadExecutor executor;
     for (int i = 0; i < iterCount; ++i) {
-        boost::future<int> future;
+        Future<int> future;
 
         {
             TestClass object(executor);
