@@ -2,6 +2,7 @@
 
 #include <chrono>
 #include <exception>
+#include <functional>
 #include <type_traits>
 #include <utility>
 
@@ -167,6 +168,12 @@ public:
     }
 
     template<typename Fn>
+    auto thenValue(AOContext& aoCtx, Fn&& fn)
+    {
+        return this->thenValue(aoCtx.newAsyncOperation(std::function(fn), nullptr));
+    }
+
+    template<typename Fn>
     auto thenException(Fn&& fn)
     {
         auto boostFuture = m_impl.then([fn = std::move(fn)](boost::future<R> boostFuture) {
@@ -179,6 +186,12 @@ public:
 
         auto unwrappedBoostFuture = unwrap(std::move(boostFuture));
         return Future<R>(std::move(unwrappedBoostFuture));
+    }
+
+    template<typename Fn>
+    auto thenException(AOContext& aoCtx, Fn&& fn)
+    {
+        return this->thenValue(aoCtx.newAsyncOperation(std::function(fn), nullptr));
     }
 
 private:
