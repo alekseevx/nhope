@@ -40,7 +40,7 @@ public:
       : executor(executor)
     {}
 
-    AsyncOperationId makeAsyncOperation(CancelHandler&& cancelHandler)
+    AsyncOperationId makeAsyncOperation(CancelHandler cancelHandler)
     {
         std::unique_lock lock(this->mutex);
 
@@ -53,7 +53,7 @@ public:
         return id;
     }
 
-    void asyncOperationFinished(AsyncOperationId id, std::function<void()>&& completionHandler)
+    void asyncOperationFinished(AsyncOperationId id, std::function<void()> completionHandler)
     {
         std::unique_lock lock(this->mutex);
 
@@ -184,13 +184,13 @@ ThreadExecutor& AOContext::executor()
     return m_d->executor;
 }
 
-AOContext::AsyncOperationId AOContext::makeAsyncOperation(std::shared_ptr<Impl>& d, CancelHandler&& cancelHandler)
+AOContext::AsyncOperationId AOContext::makeAsyncOperation(std::shared_ptr<Impl>& d, CancelHandler cancelHandler)
 {
     return d->makeAsyncOperation(std::move(cancelHandler));
 }
 
 void AOContext::asyncOperationFinished(std::shared_ptr<Impl>& d, AsyncOperationId id,
-                                       std::function<void()>&& completionHandler)
+                                       std::function<void()> completionHandler)
 {
     d->asyncOperationFinished(id, std::move(completionHandler));
 }

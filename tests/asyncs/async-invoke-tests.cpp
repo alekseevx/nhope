@@ -1,4 +1,5 @@
 #include <chrono>
+#include <cstdio>
 #include <exception>
 #include <stdexcept>
 #include <string>
@@ -52,6 +53,7 @@ public:   // Функции, вызываемые из внешних поток
 private:   // Функции выполняемые в ThreadExecuter
     int funcImpl(const std::string& arg, std::chrono::nanoseconds sleepTime)
     {
+        EXPECT_EQ(m_aoCtx.executor().getThreadId(), std::this_thread::get_id());
         EXPECT_EQ(testArgValue(m_invokeCounter), arg);
 
         std::this_thread::sleep_for(sleepTime);
@@ -61,6 +63,8 @@ private:   // Функции выполняемые в ThreadExecuter
 
     void funcWithThrowImpl()
     {
+        EXPECT_EQ(m_aoCtx.executor().getThreadId(), std::this_thread::get_id());
+
         ++m_invokeCounter;
         throw std::runtime_error("invokeWithThrowImpl");
     }
@@ -142,7 +146,7 @@ TEST(AsyncInvoke, DesctructionObjectWhenInvokeInQueue)   // NOLINT
             future = object.asynFunc("test string");
         }
 
-        EXPECT_THROW(int v = future.get(), AsyncOperationWasCancelled);   // NOLINT
+        EXPECT_THROW(future.get(), AsyncOperationWasCancelled);   // NOLINT
     }
 }
 

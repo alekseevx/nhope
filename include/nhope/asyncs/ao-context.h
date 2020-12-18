@@ -55,13 +55,13 @@ public:
      * @retval функциональный объект, который должен быть вызван по завершении асинхронной операции.
      */
     template<typename... CompletionArgs>
-    CompletionHandler<CompletionArgs...> newAsyncOperation(CompletionHandler<CompletionArgs...>&& completionHandler,
-                                                           CancelHandler&& cancelHandler)
+    CompletionHandler<CompletionArgs...> newAsyncOperation(CompletionHandler<CompletionArgs...> completionHandler,
+                                                           CancelHandler cancelHandler)
     {
         auto id = makeAsyncOperation(m_d, std::move(cancelHandler));
-        return [id, d = this->m_d, completionHandler = std::move(completionHandler)](CompletionArgs... args) mutable {
-            auto bindedCompletionHandler = std::bind(std::move(completionHandler), std::move(args)...);
-            asyncOperationFinished(d, id, std::move(bindedCompletionHandler));
+        return [id, d = this->m_d, ch = std::move(completionHandler)](CompletionArgs... args) mutable {
+            auto packedCH = std::bind(std::move(ch), std::forward<CompletionArgs>(args)...);
+            asyncOperationFinished(d, id, std::move(packedCH));
         };
     }
 
@@ -69,9 +69,9 @@ private:
     class Impl;
     using AsyncOperationId = std::uint64_t;
 
-    static AsyncOperationId makeAsyncOperation(std::shared_ptr<Impl>& d, CancelHandler&&);
+    static AsyncOperationId makeAsyncOperation(std::shared_ptr<Impl>& d, CancelHandler);
     static void asyncOperationFinished(std::shared_ptr<Impl>& d, AsyncOperationId id,
-                                       std::function<void()>&& completionHandler);
+                                       std::function<void()> completionHandler);
 
     std::shared_ptr<Impl> m_d;
 };

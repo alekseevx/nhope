@@ -3,6 +3,7 @@
 #include <chrono>
 #include <exception>
 #include <functional>
+#include <memory>
 #include <type_traits>
 #include <utility>
 
@@ -18,6 +19,7 @@ namespace nhope::asyncs {
 
 using FutureStatus = boost::future_status;
 using FutureState = boost::future_state::state;
+using Launch = boost::launch;
 
 template<typename R>
 class Promise;
@@ -111,7 +113,7 @@ public:
         return m_impl.has_value();
     }
 
-    [[nodiscard]] R get()
+    R get()
     {
         if constexpr (std::is_void_v<R>) {
             m_impl.get();
@@ -135,42 +137,53 @@ public:
     template<typename Fn>
     auto thenValue(Fn&& fn)
     {
-        auto boostFuture = m_impl.then([fn = std::move(fn)](boost::future<R> boostFuture) {
-            if constexpr (std::is_void_v<R>) {
-                using ResultOfFn = std::invoke_result_t<Fn>;
+        return thenValue(m_impl.launch_policy(), std::forward<Fn>(fn));
+    }
 
-                if constexpr (std::is_void_v<ResultOfFn>) {
-                    boostFuture.get();
-                    fn();
-                    return;
-                } else {
-                    boostFuture.get();
-                    return unwrap(fn());
-                }
-            } else {
-                using ResultOfFn = std::invoke_result_t<Fn, R>;
-
-                if constexpr (std::is_void_v<ResultOfFn>) {
-                    fn(boostFuture.get());
-                    return;
-                } else {
-                    return unwrap(fn(boostFuture.get()));
-                }
-            }
+    template<typename Fn>
+    auto thenValue(Launch launch, Fn&& fn)
+    {
+        auto boostFuture = m_impl.then(launch, [fn = std::move(fn)](boost::future<R> boostFuture) mutable {
+            return callThenHandler(std::forward<Fn>(fn), std::move(boostFuture));
         });
 
-        auto unwrappedBoostFuture = unwrap(std::move(boostFuture));
+        auto unwrappedBoostFuture = unwrapBoostFuture(std::move(boostFuture));
 
         using UnwrappedBoostFuture = decltype(unwrappedBoostFuture);
-        using Result = typename FutureResult<UnwrappedBoostFuture>::Type;
-
-        return Future<Result>(std::move(unwrappedBoostFuture));
+        using UnwrappedResult = typename FutureResult<UnwrappedBoostFuture>::Type;
+        return Future<UnwrappedResult>(std::move(unwrappedBoostFuture));
     }
 
     template<typename Fn>
     auto thenValue(AOContext& aoCtx, Fn&& fn)
     {
-        return this->thenValue(aoCtx.newAsyncOperation(std::function(fn), nullptr));
+        auto promise = std::make_shared<Promise<R>>();
+        auto retval = promise->future().thenValue(Launch::sync, std::forward<Fn>(fn));
+
+        std::function thenHandler = [promise](std::shared_ptr<boost::future<R>> boostFuturePtr) {
+            if (boostFuturePtr->has_value()) {
+                if constexpr (std::is_void_v<R>) {
+                    promise->setValue();
+                } else {
+                    promise->setValue(boostFuturePtr.get());
+                }
+            } else {
+                auto exPtr = boostFuturePtr->get_exception_ptr();
+                promise->setException(utils::toStdExceptionPtr(exPtr));
+            }
+        };
+        std::function cancel = [promise] {
+            auto ex = boost::copy_exception(AsyncOperationWasCancelled());
+            promise->m_impl.set_exception(ex);
+        };
+        std::function safeThenHandler = aoCtx.newAsyncOperation(std::move(thenHandler), std::move(cancel));
+
+        m_impl.then([safeThenHandler](boost::future<R> boostFuture) {
+            auto boostFuturePtr = std::make_shared<boost::future<R>>(std::move(boostFuture));
+            safeThenHandler(boostFuturePtr);
+        });
+
+        return retval;
     }
 
     template<typename Fn>
@@ -223,6 +236,32 @@ private:
         }
     }
 
+    template<typename Fn>
+    static auto callThenHandler(Fn&& fn, boost::future<R> finishedFuture)
+    {
+        if constexpr (std::is_void_v<R>) {
+            using ResultOfFn = std::invoke_result_t<Fn>;
+
+            if constexpr (std::is_void_v<ResultOfFn>) {
+                finishedFuture.get();
+                fn();
+                return;
+            } else {
+                finishedFuture.get();
+                return unwrap(fn());
+            }
+        } else {
+            using ResultOfFn = std::invoke_result_t<Fn, R>;
+
+            if constexpr (std::is_void_v<ResultOfFn>) {
+                fn(finishedFuture.get());
+                return;
+            } else {
+                return unwrap(fn(finishedFuture.get()));
+            }
+        }
+    }
+
 private:
     boost::future<R> m_impl;
 };
@@ -230,6 +269,8 @@ private:
 template<typename R>
 class Promise final
 {
+    friend class Future<R>;
+
 public:
     Promise() = default;
     Promise(Promise&&) noexcept = default;
@@ -258,6 +299,8 @@ private:
 template<>
 class Promise<void> final
 {
+    friend class Future<void>;
+
 public:
     Promise() = default;
     Promise(Promise&&) noexcept = default;
