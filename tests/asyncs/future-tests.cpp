@@ -18,7 +18,7 @@ constexpr int invalidValue = -1;
 
 TEST(Future, simpleChain)   // NOLINT
 {
-    auto future = makeReadyFuture<void>()
+    auto future = makeReadyFuture()
                     .thenValue([] {
                         return toThread<int>([] {
                             std::this_thread::sleep_for(1s);
@@ -34,7 +34,7 @@ TEST(Future, simpleChain)   // NOLINT
 
 TEST(Future, notCaughtException)   // NOLINT
 {
-    auto future = makeReadyFuture<void>()
+    auto future = makeReadyFuture()
                     .thenValue([]() -> int {
                         throw std::runtime_error("TestTest");
                     })
@@ -48,7 +48,7 @@ TEST(Future, notCaughtException)   // NOLINT
 
 TEST(Future, caughtException)   // NOLINT
 {
-    auto future = makeReadyFuture<void>()
+    auto future = makeReadyFuture()
                     .thenValue([] {
                         return toThread<int>([]() -> int {
                             throw std::runtime_error("TestTest");
@@ -64,7 +64,7 @@ TEST(Future, caughtException)   // NOLINT
 
 TEST(Future, caughtException2)   // NOLINT
 {
-    auto future = makeReadyFuture<void>()
+    auto future = makeReadyFuture()
                     .thenValue([]() -> int {
                         throw std::runtime_error("TestTest");
                     })
@@ -82,7 +82,7 @@ TEST(Future, caughtException2)   // NOLINT
 
 TEST(Future, skipThenException)   // NOLINT
 {
-    auto future = makeReadyFuture<void>()
+    auto future = makeReadyFuture()
                     .thenValue([] {
                         return testValue;
                     })

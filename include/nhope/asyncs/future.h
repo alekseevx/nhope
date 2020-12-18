@@ -326,10 +326,15 @@ private:
     boost::promise<void> m_impl;
 };
 
-template<typename R, typename... Args>
-Future<R> makeReadyFuture(Args&&... args)
+template<typename R>
+Future<R> makeReadyFuture(R&& value)
 {
-    return Future(boost::make_ready_future(std::forward<Args>(args)...));
+    return Future<R>(boost::make_ready_future<R>(std::forward<R>(value)));
+}
+
+inline Future<void> makeReadyFuture()
+{
+    return Future<void>(boost::make_ready_future());
 }
 
 template<typename R, typename Fn, typename... Args>

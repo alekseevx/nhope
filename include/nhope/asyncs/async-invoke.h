@@ -13,7 +13,7 @@ template<typename Fn, typename... Args>
 auto asyncInvoke(AOContext& aoCtx, Fn&& fn, Args&&... args)
 {
     auto bindedFn = std::bind(std::forward<Fn>(fn), std::forward<Args>(args)...);
-    return makeReadyFuture<void>().thenValue(aoCtx, std::move(bindedFn));
+    return makeReadyFuture().thenValue(aoCtx, std::move(bindedFn));
 }
 
 template<typename Fn, typename... Args>

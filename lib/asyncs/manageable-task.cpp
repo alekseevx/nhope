@@ -95,7 +95,7 @@ public:   // ManageableTask
             case State::Resuming:
                 m_state = State::Paused;
                 outdatedPromises = std::move(m_resumePromises);
-                ret = makeReadyFuture<void>();
+                ret = makeReadyFuture();
                 break;
 
             case State::Pausing:
@@ -104,11 +104,11 @@ public:   // ManageableTask
                 break;
 
             case State::Paused:
-                ret = makeReadyFuture<void>();
+                ret = makeReadyFuture();
                 break;
 
             case State::Stopped:
-                ret = makeReadyFuture<void>();
+                ret = makeReadyFuture();
                 break;
             }
         }
@@ -129,13 +129,13 @@ public:   // ManageableTask
             case State::Stopping:
             case State::Running:
             case State::Stopped:
-                ret = makeReadyFuture<void>();
+                ret = makeReadyFuture();
                 break;
 
             case State::Pausing:
                 m_state = State::Running;
                 outdatedPromises = std::move(m_pausePromises);
-                ret = makeReadyFuture<void>();
+                ret = makeReadyFuture();
                 break;
 
             case State::Resuming:
@@ -178,7 +178,7 @@ public:   // ManageableTask
         std::scoped_lock lock(m_mutex);
 
         if (m_state == State::Stopped) {
-            return makeReadyFuture<void>();
+            return makeReadyFuture();
         }
 
         return m_stopPromises.emplace_back().future();
