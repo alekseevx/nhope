@@ -44,7 +44,7 @@ public:
     {
         std::unique_lock lock(this->mutex);
 
-        assert(this->state == AOContextState::Open);   // NOLINT
+        assert(this->state != AOContextState::Closed);   // NOLINT
 
         const auto id = this->asyncOperationCounter++;
         auto& rec = this->activeAsyncOperations[id];
@@ -85,8 +85,9 @@ public:
 
         this->state = AOContextState::Closing;
         this->waitActiveCompletionHandler(lock);
-        this->cancelAsyncOperations(lock);
         this->state = AOContextState::Closed;
+
+        this->cancelAsyncOperations(lock);
     }
 
     bool removeAsyncOperationRec([[maybe_unused]] std::unique_lock<std::mutex>& lock, AsyncOperationId id)
