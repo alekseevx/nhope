@@ -164,7 +164,7 @@ TEST(AsyncInvoke, DesctructionObjectWhenInvokeActive)   // NOLINT
             future = object.asynFunc(testArgValue(expectedInvokeNum), 100ms);
 
             // Подождем немного, чтобы метод успел вызваться
-            std::this_thread::sleep_for(1ms);
+            std::this_thread::sleep_for(10ms);
         }
 
         int actualInvokeNum = future.get();
