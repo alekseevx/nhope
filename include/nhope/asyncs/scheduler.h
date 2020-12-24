@@ -20,6 +20,11 @@ public:
 
     TaskId push(ManageableTask::TaskFunction&& task, int priority = 0);
 
+    [[nodiscard]] std::optional<TaskId> getActiveTaskId() const noexcept;
+
+    void wait(TaskId id);
+    Future<void> asyncWait(TaskId id);
+
     void waitAll();
     Future<void> asyncWaitAll();
 

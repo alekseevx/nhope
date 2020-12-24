@@ -70,10 +70,12 @@ TEST(Scheduler, SimpleTaskChain)   // NOLINT
     };
 
     EXPECT_EQ(scheduler.push(f1), 0);
+    EXPECT_EQ(scheduler.getActiveTaskId(), 0);
     EXPECT_EQ(scheduler.push(f2), 1);
     EXPECT_EQ(scheduler.push(f3), 2);
 
     scheduler.waitAll();
+    EXPECT_EQ(scheduler.getActiveTaskId(), std::nullopt);
 
     EXPECT_EQ(counter, 3);
 }
@@ -122,6 +124,7 @@ TEST(Scheduler, PriorityTask)   // NOLINT
     EXPECT_EQ(scheduler.push(f3, 2), 2);
 
     scheduler.waitAll();
+    EXPECT_EQ(scheduler.getActiveTaskId(), std::nullopt);
 
     EXPECT_EQ(counter, 1);
 }
@@ -173,6 +176,7 @@ TEST(Scheduler, CancelTask)   // NOLINT
     scheduler.cancel(1);
 
     scheduler.waitAll();
+    EXPECT_EQ(scheduler.getActiveTaskId(), std::nullopt);
 
     EXPECT_EQ(counter, 3);
 }
@@ -219,6 +223,7 @@ TEST(Scheduler, ClearTask)   // NOLINT
 
     EXPECT_EQ(scheduler.push(f1, 0), 0);
     std::this_thread::sleep_for(10ms);
+    EXPECT_EQ(scheduler.getActiveTaskId(), 0);
     EXPECT_EQ(scheduler.push(f2, 1), 1);
     std::this_thread::sleep_for(10ms);
     EXPECT_EQ(scheduler.push(f3, 2), 2);
@@ -229,6 +234,44 @@ TEST(Scheduler, ClearTask)   // NOLINT
     scheduler.waitAll();
 
     EXPECT_EQ(counter, 0);
+}
+
+TEST(Scheduler, TaskWait)   // NOLINT
+{
+    thread_local int localCounter{0};
+    constexpr auto threadCounter{100};
+    std::atomic_int counter = 0;
+    Scheduler scheduler;
+    auto f1 = [&counter](auto& /*unused*/) {
+        std::this_thread::sleep_for(300ms);
+        EXPECT_EQ(counter, 0);
+        counter = 1;
+    };
+
+    auto f2 = [&counter](auto& /*unused*/) {
+        std::this_thread::sleep_for(200ms);
+        EXPECT_EQ(counter, 1);
+        counter = 2;
+    };
+
+    auto f3 = [&counter](auto& /*unused*/) {
+        EXPECT_EQ(counter, 2);
+        std::this_thread::sleep_for(100ms);
+        counter = 3;
+    };
+
+    EXPECT_EQ(scheduler.push(f1), 0);
+    EXPECT_EQ(scheduler.push(f2), 1);
+
+    EXPECT_EQ(scheduler.getActiveTaskId(), 0);
+    scheduler.wait(1);
+
+    EXPECT_EQ(scheduler.getActiveTaskId(), std::nullopt);
+
+    EXPECT_EQ(scheduler.push(f3), 2);
+
+    scheduler.wait(2);
+    EXPECT_EQ(scheduler.getActiveTaskId(), std::nullopt);
 }
 
 TEST(Scheduler, ThreadRace)   // NOLINT
@@ -259,6 +302,6 @@ TEST(Scheduler, ThreadRace)   // NOLINT
     ASSERT_EQ(counter, 100);
 
     scheduler.waitAll();
-
+    EXPECT_EQ(scheduler.getActiveTaskId(), std::nullopt);
     EXPECT_EQ(counter, 200);
 }

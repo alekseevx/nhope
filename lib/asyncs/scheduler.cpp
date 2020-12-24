@@ -21,13 +21,18 @@ class Scheduler::Impl
           , task(std::move(ptr))
           , priority(pr)
         {}
-        ~Task() = default;
+        ~Task()
+        {
+            resolvePromises(stopPromises);
+            resolvePromises(waitPromises);
+        }
 
         TaskId id{};
         std::unique_ptr<ManageableTask> task;
         int priority{};
 
         std::list<Promise<void>> stopPromises;
+        std::list<Promise<void>> waitPromises;
 
         [[nodiscard]] bool wasCancelled() const
         {
@@ -83,6 +88,14 @@ public:
         return res;
     }
 
+    [[nodiscard]] std::optional<TaskId> getActiveTaskId() const noexcept
+    {
+        if (m_activeTask != nullptr) {
+            return m_activeTask->id;
+        }
+        return std::nullopt;
+    }
+
     Future<void> makeWaitAllPromise()
     {
         if (m_activeTask == nullptr) {
@@ -91,18 +104,25 @@ public:
         return m_waitStopPromises.emplace_back().future();
     }
 
+    Future<void> waitTask(TaskId id)
+    {
+        if (m_activeTask != nullptr && m_activeTask->id == id) {
+            return m_activeTask->waitPromises.emplace_back().future();
+        }
+        if (auto* task = findTask(id); task != nullptr) {
+            return task->waitPromises.emplace_back().future();
+        }
+        return makeReadyFuture();
+    }
+
     Future<void> cancelTask(TaskId id)
     {
         if (m_activeTask != nullptr && m_activeTask->id == id) {
             m_activeTask->task->asyncStop();
             return m_activeTask->task->asyncWaitForStopped();
         }
-        if (auto it = std::find_if(m_queue.begin(), m_queue.end(),
-                                   [id](const auto& t) {
-                                       return t->id == id;
-                                   });
-            it != m_queue.end()) {
-            return (*it)->cancelLater();
+        if (auto* task = findTask(id); task != nullptr) {
+            return task->cancelLater();
         }
 
         return makeReadyFuture();
@@ -130,6 +150,18 @@ public:
 private:
     friend class Scheduler;
     using TaskList = std::list<std::unique_ptr<Task>>;
+
+    Task* findTask(TaskId id)
+    {
+        if (auto it = std::find_if(m_queue.begin(), m_queue.end(),
+                                   [id](const auto& t) {
+                                       return t->id == id;
+                                   });
+            it != m_queue.end()) {
+            return (*it).get();
+        }
+        return nullptr;
+    }
 
     std::unique_ptr<Task> createTask(int priority, ManageableTask::TaskFunction&& task)
     {
@@ -171,7 +203,7 @@ private:
             m_queue.pop_back();
             if (m_activeTask->wasCancelled()) {
                 m_activeTask->task->stop();
-                resolvePromises(m_activeTask->stopPromises);
+
             } else {
                 m_activeTask->task->resume();
             }
@@ -202,6 +234,25 @@ Scheduler::TaskId Scheduler::push(ManageableTask::TaskFunction&& task, int prior
     return invoke(m_impl->m_ao, [this, priority, &task] {
         return m_impl->push(priority, std::move(task));
     });
+}
+
+std::optional<Scheduler::TaskId> Scheduler::getActiveTaskId() const noexcept
+{
+    return invoke(m_impl->m_ao, [this] {
+        return m_impl->getActiveTaskId();
+    });
+}
+
+Future<void> Scheduler::asyncWait(TaskId id)
+{
+    return asyncInvoke(m_impl->m_ao, [this, id] {
+        return m_impl->waitTask(id);
+    });
+}
+
+void Scheduler::wait(TaskId id)
+{
+    asyncWait(id).get();
 }
 
 Future<void> Scheduler::asyncWaitAll()
