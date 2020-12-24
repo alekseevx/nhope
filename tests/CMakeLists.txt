@@ -8,6 +8,7 @@ add_executable(nhope-tests
     asyncs/future-tests.cpp
     asyncs/lockable-value-tests.cpp
     asyncs/manageable-task-tests.cpp
+    asyncs/scheduler-tests.cpp
     asyncs/notifier-tests.cpp
     asyncs/timer-tests.cpp
     asyncs/ts-queue.cpp

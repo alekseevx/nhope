@@ -1,0 +1,44 @@
+#pragma once
+
+#include <cstdint>
+#include <functional>
+#include <memory>
+
+#include <boost/noncopyable.hpp>
+
+#include <nhope/asyncs/manageable-task.h>
+
+namespace nhope::asyncs {
+
+class Scheduler : boost::noncopyable
+{
+public:
+    using TaskId = uint64_t;
+
+    Scheduler();
+    ~Scheduler();
+
+    TaskId push(ManageableTask::TaskFunction&& task, int priority = 0);
+
+    void waitAll();
+    Future<void> asyncWaitAll();
+
+    /*!
+     * Отменяет задание с указанным идентификатором
+     * Отмена произойдет когда придет очередь указанного задания
+     */
+    void cancel(TaskId id);
+    Future<void> asyncCancel(TaskId id);
+
+    /*!
+     * Очищает текущую очередь заданий
+     */
+    void clear();
+    Future<void> asyncClear();
+
+private:
+    class Impl;
+    std::unique_ptr<Impl> m_impl;
+};
+
+}   // namespace nhope::asyncs

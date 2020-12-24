@@ -343,4 +343,18 @@ Future<R> toThread(Fn&& fn, Args&&... args)
     return Future<R>(boost::async(boost::launch::async, std::forward<Fn>(fn), std::forward<Args>(args)...));
 }
 
+template<typename T, typename... Args>
+void resolvePromises(std::list<Promise<T>>& promises, Args&&... args)
+{
+    for (auto& p : promises) {
+        if constexpr (std::is_void_v<T>) {
+            p.setValue();
+        } else {
+            T val(std::forward<Args>(args)...);
+            p.setValue(std::move(val));
+        }
+    }
+    promises.clear();
+}
+
 }   // namespace nhope::asyncs
