@@ -305,3 +305,28 @@ TEST(Scheduler, ThreadRace)   // NOLINT
     EXPECT_EQ(scheduler.getActiveTaskId(), std::nullopt);
     EXPECT_EQ(counter, 200);
 }
+
+TEST(Scheduler, CancellingByDestruction)   // NOLINT
+{
+    thread_local int localCounter{0};
+    constexpr auto threadCounter{100};
+    std::atomic_int counter = 0;
+
+    auto f1 = [&counter](auto& ctx) {
+        while (ctx.checkPoint()) {
+            std::this_thread::sleep_for(10ms);
+            if (localCounter++ == threadCounter) {
+                FAIL() << "failed";
+                break;
+            }
+        }
+    };
+
+    {
+        Scheduler scheduler;
+        scheduler.push(f1);
+        scheduler.push(f1);
+        scheduler.push(f1);
+        std::this_thread::sleep_for(10ms);
+    }
+}
