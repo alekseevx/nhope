@@ -13,14 +13,6 @@
 namespace {
 using namespace nhope::asyncs;
 
-void resolvePromises(std::list<Promise<void>>& promises)
-{
-    for (auto& p : promises) {
-        p.setValue();
-    }
-    promises.clear();
-}
-
 class ManageableTaskImpl final
   : public ManageableTask
   , public ManageableTaskCtx

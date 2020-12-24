@@ -97,3 +97,33 @@ TEST(Future, skipThenException)   // NOLINT
 
     EXPECT_EQ(future.get(), std::to_string(testValue));
 }
+
+TEST(Future, promiseResolving)   // NOLINT
+{
+    std::list<Promise<std::string>> l;
+    auto future1 = l.emplace_back().future();
+    auto future2 = l.emplace_back().future();
+
+    resolvePromises(l, "10");
+    EXPECT_EQ(future1.get(), std::to_string(testValue));
+    EXPECT_EQ(future2.get(), std::to_string(testValue));
+    EXPECT_TRUE(l.empty());
+
+    std::list<Promise<int>> lints;
+    auto future3 = lints.emplace_back().future();
+    auto future4 = lints.emplace_back().future();
+
+    resolvePromises(lints, testValue);
+    EXPECT_EQ(future3.get(), testValue);
+    EXPECT_EQ(future4.get(), testValue);
+    EXPECT_TRUE(lints.empty());
+
+    std::list<Promise<void>> lvoids;
+    auto future5 = lvoids.emplace_back().future();
+    auto future6 = lvoids.emplace_back().future();
+    resolvePromises(lvoids);
+
+    EXPECT_EQ(future5.state(), FutureState::ready);
+    EXPECT_EQ(future6.state(), FutureState::ready);
+    EXPECT_TRUE(lvoids.empty());
+}
