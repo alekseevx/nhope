@@ -51,17 +51,22 @@ public:
     bool write(T&& value, std::chrono::nanoseconds timeout)
     {
         std::unique_lock lock(m_mutex);
-        if (m_wcv.wait_for(lock, timeout, [this] {
-                return m_closed || m_values.size() < m_capacity;
-            })) {
-            if (m_closed) {
-                return false;
-            }
-            m_values.emplace_back(std::forward<T>(value));
-            m_rcv.notify_one();
-            return true;
+
+        const bool waitSuccess = m_wcv.wait_for(lock, timeout, [this] {
+            return m_closed || m_values.size() < m_capacity;
+        });
+
+        if (!waitSuccess) {
+            return false;
         }
-        return false;
+
+        if (m_closed == true) {
+            return false;
+        }
+
+        m_values.emplace_back(std::forward<T>(value));
+        m_rcv.notify_one();
+        return true;
     }
 
     bool read(T& value)
@@ -72,14 +77,14 @@ public:
             return m_closed || !m_values.empty();
         });
 
-        if (!m_values.empty()) {
-            value = std::move(m_values.front());
-            m_values.pop_front();
-            m_wcv.notify_one();
-            return true;
+        if (m_values.empty()) {
+            return false;
         }
 
-        return false;
+        value = std::move(m_values.front());
+        m_values.pop_front();
+        m_wcv.notify_one();
+        return true;
     }
 
     std::optional<T> read()
@@ -89,31 +94,36 @@ public:
             return m_closed || !m_values.empty();
         });
 
-        if (!m_values.empty()) {
-            std::optional retval = std::move(m_values.front());
-            m_values.pop_front();
-            m_wcv.notify_one();
-            return retval;
+        if (m_values.empty()) {
+            return std::nullopt;
         }
 
-        return std::nullopt;
+        std::optional retval = std::move(m_values.front());
+        m_values.pop_front();
+        m_wcv.notify_one();
+        return retval;
     }
 
     bool read(T& value, std::chrono::nanoseconds timeout)
     {
         std::unique_lock lock(m_mutex);
-        if (m_rcv.wait_for(lock, timeout, [this] {
-                return m_closed || !m_values.empty();
-            })) {
-            if (!m_values.empty()) {
-                value = std::move(m_values.front());
-                m_values.pop_front();
-                m_wcv.notify_one();
-                return true;
-            }
+
+        const bool waitSuccess = m_rcv.wait_for(lock, timeout, [this] {
+            return m_closed || !m_values.empty();
+        });
+
+        if (!waitSuccess) {
+            return false;
         }
 
-        return false;
+        if (m_values.empty()) {
+            return false;
+        }
+
+        value = std::move(m_values.front());
+        m_values.pop_front();
+        m_wcv.notify_one();
+        return true;
     }
 
     [[nodiscard]] std::size_t size() const
