@@ -138,7 +138,7 @@ public:
 
         for (auto it = m_queue.rbegin(); it != m_queue.rend(); it++) {
             std::unique_ptr<ManageableTask>& task = (*it)->task;
-            future = future.thenValue([&task]() mutable {
+            future = future.thenValue(m_ao, [&task]() mutable {
                 task->asyncStop();
                 return task->asyncWaitForStopped();
             });
@@ -215,9 +215,10 @@ private:
     TaskList m_queue;
     std::unique_ptr<Task> m_activeTask;
     TaskId m_idCounter{0};
+    std::list<Promise<void>> m_waitStopPromises;
+
     ThreadExecutor m_executor;
     AOContext m_ao;
-    std::list<Promise<void>> m_waitStopPromises;
 };
 
 Scheduler::Scheduler()
