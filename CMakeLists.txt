@@ -12,4 +12,6 @@ target_compile_definitions(${BASTARD_PACKAGE_NAME}
     PUBLIC BOOST_THREAD_VERSION=5
 )
 
-add_subdirectory(tests)
+if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
+    add_subdirectory(tests)
+endif()

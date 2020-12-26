@@ -1,0 +1,21 @@
+stages:
+  - build
+  - test
+
+build-job:
+  stage: build
+  image: ubuntu:20.04-build
+  script:
+    - mkdir build && cd build
+    - cmake .. -DCMAKE_BUILD_TYPE=Release
+    - cmake --build .
+  artifacts:
+    paths:
+      - build/libnhope.a
+      - build/tests/nhope-tests
+
+test-job:
+  stage: test
+  image: ubuntu:20.04-build
+  script:
+    - ./build/tests/nhope-tests
