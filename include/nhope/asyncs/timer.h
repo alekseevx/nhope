@@ -4,11 +4,15 @@
 #include <functional>
 #include <system_error>
 
+#include "future.h"
+
 namespace nhope::asyncs {
 
 class AOContext;
 
 void setTimeout(AOContext& aoCtx, std::chrono::nanoseconds timeout,
                 std::function<void(const std::error_code&)>&& handler);
+
+Future<void> setTimeout(AOContext& aoCtx, std::chrono::nanoseconds timeout);
 
 }   // namespace nhope::asyncs

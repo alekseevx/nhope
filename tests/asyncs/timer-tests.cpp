@@ -1,3 +1,4 @@
+#include "nhope/asyncs/future.h"
 #include <chrono>
 #include <memory>
 #include <thread>
@@ -13,7 +14,7 @@ using namespace std::literals;
 
 using time_point = std::chrono::steady_clock::time_point;
 
-TEST(SetTimeout, AsyncWait)   // NOLINT
+TEST(SetTimeout, CallbackWait)   // NOLINT
 {
     auto executor = ThreadExecutor();
     auto aoCtx = AOContext(executor);
@@ -22,35 +23,59 @@ TEST(SetTimeout, AsyncWait)   // NOLINT
     time_point stopTime;
 
     setTimeout(aoCtx, 1000ms, [&stopTime](const std::error_code& code) {
-        GTEST_CHECK_(!code) << code;
+        EXPECT_TRUE(!code) << code;
         stopTime = std::chrono::steady_clock::now();
     });
 
     std::this_thread::sleep_for(1250ms);
 
-    GTEST_CHECK_(stopTime != time_point()) << "The timer was not triggered";
+    EXPECT_TRUE(stopTime != time_point()) << "The timer was not triggered";
 
     const auto duration = stopTime - startTime;
-    GTEST_CHECK_(duration >= 1000ms && duration < 1100ms) << "The timer worket at the wrong time";
+    EXPECT_TRUE(duration >= 1000ms && duration < 1500ms) << "The timer worket at the wrong time";
 }
 
-TEST(SetTimeout, Canceling)   // NOLINT
+TEST(SetTimeout, CallbackCancel)   // NOLINT
 {
     auto executor = ThreadExecutor();
 
-    bool cancelableTimerTriggered = false;
-    auto cancelableTimerAOCtx = std::make_unique<AOContext>(executor);
-    setTimeout(*cancelableTimerAOCtx, 1250ms, [&cancelableTimerTriggered](const std::error_code& /*unused*/) {
-        cancelableTimerTriggered = true;
+    bool timerTriggered = false;
+    auto aoCtx = std::make_unique<AOContext>(executor);
+    setTimeout(*aoCtx, 250ms, [&timerTriggered](const std::error_code& /*unused*/) {
+        timerTriggered = true;
     });
 
-    auto timerAOCtx = AOContext(executor);
-    setTimeout(timerAOCtx, 1000ms, [&cancelableTimerAOCtx](const std::error_code& code) {
-        GTEST_CHECK_(!code) << code;
-        cancelableTimerAOCtx.reset();
-    });
+    // Destroying the aoCtx must cancel all timers.
+    aoCtx.reset();
 
-    std::this_thread::sleep_for(1250ms);
+    std::this_thread::sleep_for(500ms);
 
-    ASSERT_FALSE(cancelableTimerTriggered);
+    EXPECT_FALSE(timerTriggered);
+}
+
+TEST(SetTimeout, FutureWait)   // NOLINT
+{
+    auto executor = ThreadExecutor();
+    auto aoCtx = AOContext(executor);
+
+    auto timeoutFuture = setTimeout(aoCtx, 250ms);
+    auto status = timeoutFuture.waitFor(500ms);
+
+    EXPECT_EQ(status, FutureStatus::ready);
+    EXPECT_FALSE(timeoutFuture.hasException());
+}
+
+TEST(SetTimeout, FutureCancel)   // NOLINT
+{
+    auto executor = ThreadExecutor();
+
+    auto aoCtx = std::make_unique<AOContext>(executor);
+    auto timeoutFuture = setTimeout(*aoCtx, 250ms);
+
+    // Destroying the aoCtx must cancel all timers.
+    aoCtx.reset();
+
+    auto status = timeoutFuture.waitFor(500ms);
+    EXPECT_EQ(status, FutureStatus::ready);
+    EXPECT_THROW(timeoutFuture.get(), AsyncOperationWasCancelled);   // NOLINT
 }
