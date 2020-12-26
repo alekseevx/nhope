@@ -41,6 +41,18 @@ public:
     void clear();
     Future<void> asyncClear();
 
+    /*!
+     * отложить задачу
+     */
+    void deactivate(TaskId id);
+    Future<void> asyncDeactivate(TaskId id);
+
+    /*!
+     * Планирует восстановление задачи
+     */
+    void activate(TaskId id);
+    Future<void> asyncActivate(TaskId id);
+
 private:
     class Impl;
     std::unique_ptr<Impl> m_impl;
