@@ -11,7 +11,7 @@ add_executable(nhope-tests
     asyncs/scheduler-tests.cpp
     asyncs/notifier-tests.cpp
     asyncs/timer-tests.cpp
-    asyncs/ts-queue.cpp
+    asyncs/ts-queue-tests.cpp
 
     utils/exception_ptr_tests.cpp
 )
