@@ -282,6 +282,11 @@ public:
         m_impl.set_value(std::forward<R>(r));
     }
 
+    void setValue(const R& r)
+    {
+        m_impl.set_value(r);
+    }
+
     void setException(const std::exception_ptr& ex)
     {
         m_impl.set_exception(utils::toBoostExceptionPtr(ex));
