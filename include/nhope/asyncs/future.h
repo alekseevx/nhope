@@ -173,8 +173,8 @@ public:
             }
         };
         std::function cancel = [promise] {
-            auto ex = boost::copy_exception(AsyncOperationWasCancelled());
-            promise->m_impl.set_exception(ex);
+            auto exPtr = std::make_exception_ptr(AsyncOperationWasCancelled());
+            promise->setException(exPtr);
         };
         std::function safeThenHandler = aoCtx.newAsyncOperation(std::move(thenHandler), std::move(cancel));
 

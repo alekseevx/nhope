@@ -33,6 +33,16 @@ AsyncOperationWasCancelled::AsyncOperationWasCancelled()
   : std::runtime_error("AsyncOperationWasCancelled")
 {}
 
+AsyncOperationWasCancelled* AsyncOperationWasCancelled::clone() const
+{
+    return new AsyncOperationWasCancelled(*this);   // NOLINT
+}
+
+void AsyncOperationWasCancelled::rethrow() const
+{
+    throw *this;
+}
+
 class AOContext::Impl : public std::enable_shared_from_this<AOContext::Impl>
 {
 public:

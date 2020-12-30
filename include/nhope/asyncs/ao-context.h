@@ -6,14 +6,24 @@
 #include <stdexcept>
 #include <utility>
 
+// FIXME: get rid of boost::exception_detail::clone_base
+#include <boost/exception/exception.hpp>
+
 namespace nhope::asyncs {
 
 class ThreadExecutor;
 
-class AsyncOperationWasCancelled : public std::runtime_error
+class AsyncOperationWasCancelled
+  : public std::runtime_error
+  // FIXME: get rid of boost::exception_detail::clone_base
+  , public virtual boost::exception_detail::clone_base
 {
 public:
     AsyncOperationWasCancelled();
+
+public:   // FIXME: get rid of boost::exception_detail::clone_base
+    [[nodiscard]] AsyncOperationWasCancelled* clone() const override;
+    void rethrow() const override;
 };
 
 /**

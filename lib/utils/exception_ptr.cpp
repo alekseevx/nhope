@@ -1,3 +1,4 @@
+#include <boost/smart_ptr/shared_ptr.hpp>
 #include <exception>
 #include <memory>
 #include <utility>
@@ -10,7 +11,9 @@
 
 namespace {
 
-class StdExceptionPtrWrapper final : public boost::exception_detail::clone_base
+using clone_base = boost::exception_detail::clone_base;
+
+class StdExceptionPtrWrapper final : public clone_base
 {
 public:
     explicit StdExceptionPtrWrapper(std::exception_ptr ptr)
@@ -44,6 +47,13 @@ std::exception_ptr nhope::utils::toStdExceptionPtr(const boost::exception_ptr& e
 
 boost::exception_ptr nhope::utils::toBoostExceptionPtr(const std::exception_ptr& ex)
 {
-    auto w = boost::make_shared<StdExceptionPtrWrapper>(ex);
-    return boost::exception_ptr(w);
+    try {
+        std::rethrow_exception(ex);
+    } catch (const boost::exception_detail::clone_base& ex) {
+        const auto p = boost::shared_ptr<const clone_base>(ex.clone());
+        return boost::exception_ptr(p);
+    } catch (...) {
+        const auto w = boost::make_shared<StdExceptionPtrWrapper>(ex);
+        return boost::exception_ptr(w);
+    }
 }
