@@ -5,7 +5,7 @@
 #include <string>
 #include <thread>
 
-#include <nhope/asyncs/lockable-value.h>
+#include <nhope/async/lockable-value.h>
 
 using namespace nhope;
 using namespace std::chrono_literals;

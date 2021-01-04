@@ -2,8 +2,8 @@
 
 #include <gtest/gtest.h>
 
-#include <nhope/asyncs/chan.h>
-#include <nhope/asyncs/func-produser.h>
+#include <nhope/seq/chan.h>
+#include <nhope/seq/func-produser.h>
 
 namespace {
 using namespace nhope;

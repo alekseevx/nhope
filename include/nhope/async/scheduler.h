@@ -6,7 +6,7 @@
 
 #include <boost/noncopyable.hpp>
 
-#include <nhope/asyncs/manageable-task.h>
+#include <nhope/async/manageable-task.h>
 
 namespace nhope {
 

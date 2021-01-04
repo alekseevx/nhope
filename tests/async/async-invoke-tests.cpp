@@ -5,9 +5,9 @@
 #include <string>
 #include <thread>
 
-#include <nhope/asyncs/ao-context.h>
-#include <nhope/asyncs/async-invoke.h>
-#include <nhope/asyncs/thread-executor.h>
+#include <nhope/async/ao-context.h>
+#include <nhope/async/async-invoke.h>
+#include <nhope/async/thread-executor.h>
 
 #include <gtest/gtest.h>
 

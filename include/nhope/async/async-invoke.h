@@ -3,7 +3,7 @@
 #include <functional>
 #include <utility>
 
-#include "nhope/asyncs/future.h"
+#include "nhope/async/future.h"
 
 namespace nhope {
 

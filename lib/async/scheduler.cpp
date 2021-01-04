@@ -2,11 +2,11 @@
 #include <memory>
 #include <optional>
 
-#include <nhope/asyncs/async-invoke.h>
-#include <nhope/asyncs/ao-context.h>
-#include <nhope/asyncs/thread-executor.h>
-#include <nhope/asyncs/scheduler.h>
-#include <nhope/asyncs/future.h>
+#include <nhope/async/async-invoke.h>
+#include <nhope/async/ao-context.h>
+#include <nhope/async/thread-executor.h>
+#include <nhope/async/scheduler.h>
+#include <nhope/async/future.h>
 
 namespace nhope {
 

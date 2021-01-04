@@ -8,8 +8,9 @@
 #include <optional>
 #include <utility>
 
+#include "../async/ts-queue.h"
+
 #include "produser.h"
-#include "ts-queue.h"
 
 namespace nhope {
 

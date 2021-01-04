@@ -4,7 +4,7 @@
 
 #include <gtest/gtest.h>
 
-#include <nhope/asyncs/manageable-task.h>
+#include <nhope/async/manageable-task.h>
 
 using namespace nhope;
 using namespace std::literals;

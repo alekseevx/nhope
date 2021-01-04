@@ -12,7 +12,7 @@
 #include <boost/thread/futures/future_status.hpp>
 #include <boost/thread/futures/launch.hpp>
 
-#include "nhope/asyncs/ao-context.h"
+#include "nhope/async/ao-context.h"
 #include "nhope/utils/exception_ptr.h"
 
 namespace nhope {

@@ -1,8 +1,8 @@
 #include <chrono>
 #include <gtest/gtest.h>
 
-#include <nhope/asyncs/ts-queue.h>
-#include <nhope/asyncs/thread-executor.h>
+#include <nhope/async/ts-queue.h>
+#include <nhope/async/thread-executor.h>
 #include <thread>
 
 using namespace std::chrono_literals;

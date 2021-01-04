@@ -3,16 +3,16 @@ set(CMAKE_CXX_STANDARD 17)
 add_executable(nhope-tests
     main.cpp
 
-    asyncs/async-invoke-tests.cpp
-    asyncs/chan-tests.cpp
-    asyncs/future-tests.cpp
-    asyncs/lockable-value-tests.cpp
-    asyncs/manageable-task-tests.cpp
-    asyncs/scheduler-tests.cpp
-    asyncs/notifier-tests.cpp
-    asyncs/timer-tests.cpp
-    asyncs/ts-queue-tests.cpp
-    asyncs/take-tests.cpp
+    async/async-invoke-tests.cpp
+    async/future-tests.cpp
+    async/lockable-value-tests.cpp
+    async/manageable-task-tests.cpp
+    async/scheduler-tests.cpp
+    async/timer-tests.cpp
+    async/ts-queue-tests.cpp
+    
+    seq/chan-tests.cpp
+    seq/notifier-tests.cpp
 
     utils/exception_ptr_tests.cpp
 )

@@ -4,9 +4,9 @@
 
 #include <gtest/gtest.h>
 
-#include <nhope/asyncs/ao-context.h>
-#include <nhope/asyncs/future.h>
-#include <nhope/asyncs/thread-executor.h>
+#include <nhope/async/ao-context.h>
+#include <nhope/async/future.h>
+#include <nhope/async/thread-executor.h>
 
 namespace {
 

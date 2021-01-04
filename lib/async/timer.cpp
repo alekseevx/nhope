@@ -6,10 +6,10 @@
 
 #include <boost/asio/steady_timer.hpp>
 
-#include "nhope/asyncs/ao-context.h"
-#include "nhope/asyncs/future.h"
-#include "nhope/asyncs/thread-executor.h"
-#include "nhope/asyncs/timer.h"
+#include "nhope/async/ao-context.h"
+#include "nhope/async/future.h"
+#include "nhope/async/thread-executor.h"
+#include "nhope/async/timer.h"
 
 using namespace nhope;
 

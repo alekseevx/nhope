@@ -3,7 +3,7 @@
 
 #include <boost/asio/executor_work_guard.hpp>
 
-#include "nhope/asyncs/thread-executor.h"
+#include "nhope/async/thread-executor.h"
 
 using namespace nhope;
 

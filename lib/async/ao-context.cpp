@@ -6,9 +6,9 @@
 #include <memory>
 #include <mutex>
 
-#include "nhope/asyncs/ao-context.h"
-#include "nhope/asyncs/reverse_lock.h"
-#include "nhope/asyncs/thread-executor.h"
+#include "nhope/async/ao-context.h"
+#include "nhope/async/reverse_lock.h"
+#include "nhope/async/thread-executor.h"
 
 namespace {
 

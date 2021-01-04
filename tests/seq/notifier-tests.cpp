@@ -4,8 +4,8 @@
 
 #include <boost/asio.hpp>
 
-#include <nhope/asyncs/notifier.h>
-#include <nhope/asyncs/func-produser.h>
+#include <nhope/seq/notifier.h>
+#include <nhope/seq/func-produser.h>
 
 using namespace nhope;
 

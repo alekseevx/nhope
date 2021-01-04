@@ -6,9 +6,9 @@
 #include <thread>
 #include <utility>
 
-#include "nhope/asyncs/future.h"
-#include "nhope/asyncs/reverse_lock.h"
-#include "nhope/asyncs/manageable-task.h"
+#include "nhope/async/future.h"
+#include "nhope/async/reverse_lock.h"
+#include "nhope/async/manageable-task.h"
 
 namespace {
 using namespace nhope;
