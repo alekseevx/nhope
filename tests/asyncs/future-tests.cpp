@@ -21,13 +21,13 @@ constexpr int invalidValue = -1;
 TEST(Future, simpleChain)   // NOLINT
 {
     auto future = makeReadyFuture()
-                    .thenValue([] {
+                    .then([] {
                         return toThread<int>([] {
                             std::this_thread::sleep_for(1s);
                             return testValue;
                         });
                     })
-                    .thenValue([](int value) {
+                    .then([](int value) {
                         return std::to_string(value);
                     });
 
@@ -37,10 +37,10 @@ TEST(Future, simpleChain)   // NOLINT
 TEST(Future, notCaughtException)   // NOLINT
 {
     auto future = makeReadyFuture()
-                    .thenValue([]() -> int {
+                    .then([]() -> int {
                         throw std::runtime_error("TestTest");
                     })
-                    .thenValue([](int /*unused*/) -> int {
+                    .then([](int /*unused*/) -> int {
                         ADD_FAILURE() << "This thenValue must not been called";
                         return 0;
                     });
@@ -51,12 +51,12 @@ TEST(Future, notCaughtException)   // NOLINT
 TEST(Future, caughtException)   // NOLINT
 {
     auto future = makeReadyFuture()
-                    .thenValue([] {
+                    .then([] {
                         return toThread<int>([]() -> int {
                             throw std::runtime_error("TestTest");
                         });
                     })
-                    .thenException([](std::exception_ptr ex) -> int {
+                    .fail([](std::exception_ptr ex) -> int {
                         EXPECT_THROW(std::rethrow_exception(ex), std::runtime_error);   // NOLINT
                         return invalidValue;
                     });
@@ -67,14 +67,14 @@ TEST(Future, caughtException)   // NOLINT
 TEST(Future, caughtException2)   // NOLINT
 {
     auto future = makeReadyFuture()
-                    .thenValue([]() -> int {
+                    .then([]() -> int {
                         throw std::runtime_error("TestTest");
                     })
-                    .thenException([](std::exception_ptr ex) -> int {
+                    .fail([](std::exception_ptr ex) -> int {
                         EXPECT_THROW(std::rethrow_exception(ex), std::runtime_error);   // NOLINT
                         return invalidValue;
                     })
-                    .thenValue([](int value) {
+                    .then([](int value) {
                         EXPECT_EQ(value, invalidValue);
                         return testValue;
                     });
@@ -85,14 +85,14 @@ TEST(Future, caughtException2)   // NOLINT
 TEST(Future, skipThenException)   // NOLINT
 {
     auto future = makeReadyFuture()
-                    .thenValue([] {
+                    .then([] {
                         return testValue;
                     })
-                    .thenException([](const std::exception_ptr& /*ex*/) -> int {
+                    .fail([](const std::exception_ptr& /*ex*/) -> int {
                         ADD_FAILURE() << "This thenValue must not been called";
                         return invalidValue;
                     })
-                    .thenValue([](int value) {
+                    .then([](int value) {
                         EXPECT_EQ(value, testValue);
                         return std::to_string(testValue);
                     });
@@ -137,13 +137,13 @@ TEST(Future, simpleChainWithAOCtx)   // NOLINT
     auto aoCtx = AOContext(executor);
 
     auto future = makeReadyFuture()
-                    .thenValue([] {
+                    .then([] {
                         return toThread<int>([] {
                             std::this_thread::sleep_for(1s);
                             return testValue;
                         });
                     })
-                    .thenValue(aoCtx, [executorThreadId](int value) {
+                    .then(aoCtx, [executorThreadId](int value) {
                         EXPECT_EQ(executorThreadId, std::this_thread::get_id());
                         return std::to_string(value);
                     });
@@ -157,10 +157,10 @@ TEST(Future, notCaughtExceptionWithAOCtx)   // NOLINT
     AOContext aoCtx(executor);
 
     auto future = makeReadyFuture()
-                    .thenValue([]() -> int {
+                    .then([]() -> int {
                         throw std::runtime_error("TestTest");
                     })
-                    .thenValue(aoCtx, [](int /*unused*/) -> int {
+                    .then(aoCtx, [](int /*unused*/) -> int {
                         ADD_FAILURE() << "This thenValue must not been called";
                         return 0;
                     });
@@ -175,12 +175,12 @@ TEST(Future, caughtExceptionWithAOCtx)   // NOLINT
     auto aoCtx = AOContext(executor);
 
     auto future = makeReadyFuture()
-                    .thenValue([] {
+                    .then([] {
                         return toThread<int>([]() -> int {
                             throw std::runtime_error("TestTest");
                         });
                     })
-                    .thenException(aoCtx, [executorThreadId](std::exception_ptr ex) -> int {
+                    .fail(aoCtx, [executorThreadId](std::exception_ptr ex) -> int {
                         EXPECT_EQ(executorThreadId, std::this_thread::get_id());
                         EXPECT_THROW(std::rethrow_exception(ex), std::runtime_error);   // NOLINT
 
@@ -197,17 +197,17 @@ TEST(Future, caughtException2WithAOCtx)   // NOLINT
     auto aoCtx = AOContext(executor);
 
     auto future = makeReadyFuture()
-                    .thenValue([]() -> int {
+                    .then([]() -> int {
                         throw std::runtime_error("TestTest");
                     })
-                    .thenException(aoCtx,
-                                   [executorThreadId](std::exception_ptr ex) -> int {
-                                       EXPECT_THROW(std::rethrow_exception(ex), std::runtime_error);   // NOLINT
-                                       EXPECT_EQ(executorThreadId, std::this_thread::get_id());
+                    .fail(aoCtx,
+                          [executorThreadId](std::exception_ptr ex) -> int {
+                              EXPECT_THROW(std::rethrow_exception(ex), std::runtime_error);   // NOLINT
+                              EXPECT_EQ(executorThreadId, std::this_thread::get_id());
 
-                                       return invalidValue;
-                                   })
-                    .thenValue([](int value) {
+                              return invalidValue;
+                          })
+                    .then([](int value) {
                         EXPECT_EQ(value, invalidValue);
                         return testValue;
                     });
@@ -222,15 +222,15 @@ TEST(Future, skipThenExceptionWithAOCtx)   // NOLINT
     auto aoCtx = AOContext(executor);
 
     auto future = makeReadyFuture()
-                    .thenValue([] {
+                    .then([] {
                         return testValue;
                     })
-                    .thenException(aoCtx,
-                                   [](const std::exception_ptr& /*ex*/) -> int {
-                                       ADD_FAILURE() << "This thenValue must not been called";
-                                       return invalidValue;
-                                   })
-                    .thenValue([](int value) {
+                    .fail(aoCtx,
+                          [](const std::exception_ptr& /*ex*/) -> int {
+                              ADD_FAILURE() << "This thenValue must not been called";
+                              return invalidValue;
+                          })
+                    .then([](int value) {
                         EXPECT_EQ(value, testValue);
                         return std::to_string(testValue);
                     });

@@ -159,7 +159,7 @@ public:
 
         for (auto it = m_waitedTasks.rbegin(); it != m_waitedTasks.rend(); it++) {
             std::unique_ptr<ManageableTask>& task = (*it)->taskController;
-            future = future.thenValue(m_ao, [&task]() mutable {
+            future = future.then(m_ao, [&task]() mutable {
                 task->asyncStop();
                 return task->asyncWaitForStopped();
             });
@@ -252,7 +252,7 @@ private:
 
         // finished task processing
         auto taskFinished = newTask->taskController->asyncWaitForStopped();
-        taskFinished.thenValue(m_ao, [this, finishedId = newTask->id] {
+        taskFinished.then(m_ao, [this, finishedId = newTask->id] {
             if (finishedId != m_activeTask->id) {
                 eraseTask(finishedId);
 

@@ -135,13 +135,13 @@ public:
     }
 
     template<typename Fn>
-    auto thenValue(Fn&& fn)
+    auto then(Fn&& fn)
     {
-        return this->thenValue(m_impl.launch_policy(), std::forward<Fn>(fn));
+        return this->then(m_impl.launch_policy(), std::forward<Fn>(fn));
     }
 
     template<typename Fn>
-    auto thenValue(Launch launch, Fn&& fn)
+    auto then(Launch launch, Fn&& fn)
     {
         auto boostFuture = m_impl.then(launch, [fn](boost::future<R> boostFuture) mutable {
             return callThenHandler(std::move(fn), std::move(boostFuture));
@@ -151,7 +151,7 @@ public:
     }
 
     template<typename Fn>
-    auto thenValue(AOContext& aoCtx, Fn&& fn)
+    auto then(AOContext& aoCtx, Fn&& fn)
     {
         return this->thenForAOCtx(aoCtx, [fn](boost::future<R> finishedFuture) mutable {
             return callThenHandler(std::move(fn), std::move(finishedFuture));
@@ -159,13 +159,13 @@ public:
     }
 
     template<typename Fn>
-    Future<R> thenException(Fn&& fn)
+    Future<R> fail(Fn&& fn)
     {
-        return this->thenException(m_impl.launch_policy(), std::forward<Fn>(fn));
+        return this->fail(m_impl.launch_policy(), std::forward<Fn>(fn));
     }
 
     template<typename Fn>
-    Future<R> thenException(Launch launch, Fn&& fn)
+    Future<R> fail(Launch launch, Fn&& fn)
     {
         auto boostFuture = m_impl.then(launch, [fn](boost::future<R> finishedFuture) mutable {
             return callErrorHandler(std::move(fn), std::move(finishedFuture));
@@ -175,9 +175,9 @@ public:
     }
 
     template<typename Fn>
-    Future<R> thenException(AOContext& aoCtx, Fn&& fn)
+    Future<R> fail(AOContext& aoCtx, Fn&& fn)
     {
-        return this->thenForAOCtx(aoCtx, [fn](boost::future<R> finishedFuture) {
+        return this->thenForAOCtx(aoCtx, [fn](boost::future<R> finishedFuture) mutable {
             return callErrorHandler(std::move(fn), std::move(finishedFuture));
         });
     }
