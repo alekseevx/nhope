@@ -4,7 +4,9 @@
 
 #include <gtest/gtest.h>
 
+#include <nhope/asyncs/ao-context.h>
 #include <nhope/asyncs/future.h>
+#include <nhope/asyncs/thread-executor.h>
 
 namespace {
 
@@ -126,4 +128,112 @@ TEST(Future, promiseResolving)   // NOLINT
     EXPECT_EQ(future5.state(), FutureState::ready);
     EXPECT_EQ(future6.state(), FutureState::ready);
     EXPECT_TRUE(lvoids.empty());
+}
+
+TEST(Future, simpleChainWithAOCtx)   // NOLINT
+{
+    auto executor = ThreadExecutor();
+    auto executorThreadId = executor.getThreadId();
+    auto aoCtx = AOContext(executor);
+
+    auto future = makeReadyFuture()
+                    .thenValue([] {
+                        return toThread<int>([] {
+                            std::this_thread::sleep_for(1s);
+                            return testValue;
+                        });
+                    })
+                    .thenValue(aoCtx, [executorThreadId](int value) {
+                        EXPECT_EQ(executorThreadId, std::this_thread::get_id());
+                        return std::to_string(value);
+                    });
+
+    EXPECT_EQ(future.get(), std::to_string(testValue));
+}
+
+TEST(Future, notCaughtExceptionWithAOCtx)   // NOLINT
+{
+    ThreadExecutor executor;
+    AOContext aoCtx(executor);
+
+    auto future = makeReadyFuture()
+                    .thenValue([]() -> int {
+                        throw std::runtime_error("TestTest");
+                    })
+                    .thenValue(aoCtx, [](int /*unused*/) -> int {
+                        ADD_FAILURE() << "This thenValue must not been called";
+                        return 0;
+                    });
+
+    EXPECT_THROW(int v = future.get(), std::runtime_error);   // NOLINT
+}
+
+TEST(Future, caughtExceptionWithAOCtx)   // NOLINT
+{
+    auto executor = ThreadExecutor();
+    auto executorThreadId = executor.getThreadId();
+    auto aoCtx = AOContext(executor);
+
+    auto future = makeReadyFuture()
+                    .thenValue([] {
+                        return toThread<int>([]() -> int {
+                            throw std::runtime_error("TestTest");
+                        });
+                    })
+                    .thenException(aoCtx, [executorThreadId](std::exception_ptr ex) -> int {
+                        EXPECT_EQ(executorThreadId, std::this_thread::get_id());
+                        EXPECT_THROW(std::rethrow_exception(ex), std::runtime_error);   // NOLINT
+
+                        return invalidValue;
+                    });
+
+    EXPECT_EQ(future.get(), invalidValue);
+}
+
+TEST(Future, caughtException2WithAOCtx)   // NOLINT
+{
+    auto executor = ThreadExecutor();
+    auto executorThreadId = executor.getThreadId();
+    auto aoCtx = AOContext(executor);
+
+    auto future = makeReadyFuture()
+                    .thenValue([]() -> int {
+                        throw std::runtime_error("TestTest");
+                    })
+                    .thenException(aoCtx,
+                                   [executorThreadId](std::exception_ptr ex) -> int {
+                                       EXPECT_THROW(std::rethrow_exception(ex), std::runtime_error);   // NOLINT
+                                       EXPECT_EQ(executorThreadId, std::this_thread::get_id());
+
+                                       return invalidValue;
+                                   })
+                    .thenValue([](int value) {
+                        EXPECT_EQ(value, invalidValue);
+                        return testValue;
+                    });
+
+    EXPECT_EQ(future.get(), testValue);
+}
+
+TEST(Future, skipThenExceptionWithAOCtx)   // NOLINT
+{
+    auto executor = ThreadExecutor();
+    auto executorThreadId = executor.getThreadId();
+    auto aoCtx = AOContext(executor);
+
+    auto future = makeReadyFuture()
+                    .thenValue([] {
+                        return testValue;
+                    })
+                    .thenException(aoCtx,
+                                   [](const std::exception_ptr& /*ex*/) -> int {
+                                       ADD_FAILURE() << "This thenValue must not been called";
+                                       return invalidValue;
+                                   })
+                    .thenValue([](int value) {
+                        EXPECT_EQ(value, testValue);
+                        return std::to_string(testValue);
+                    });
+
+    EXPECT_EQ(future.get(), std::to_string(testValue));
 }

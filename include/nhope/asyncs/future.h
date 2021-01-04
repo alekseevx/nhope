@@ -137,77 +137,87 @@ public:
     template<typename Fn>
     auto thenValue(Fn&& fn)
     {
-        return thenValue(m_impl.launch_policy(), std::forward<Fn>(fn));
+        return this->thenValue(m_impl.launch_policy(), std::forward<Fn>(fn));
     }
 
     template<typename Fn>
     auto thenValue(Launch launch, Fn&& fn)
     {
-        auto boostFuture = m_impl.then(launch, [fn = std::move(fn)](boost::future<R> boostFuture) mutable {
-            return callThenHandler(std::forward<Fn>(fn), std::move(boostFuture));
+        auto boostFuture = m_impl.then(launch, [fn](boost::future<R> boostFuture) mutable {
+            return callThenHandler(std::move(fn), std::move(boostFuture));
         });
 
-        auto unwrappedBoostFuture = unwrapBoostFuture(std::move(boostFuture));
-
-        using UnwrappedBoostFuture = decltype(unwrappedBoostFuture);
-        using UnwrappedResult = typename FutureResult<UnwrappedBoostFuture>::Type;
-        return Future<UnwrappedResult>(std::move(unwrappedBoostFuture));
+        return fromBoostFuture(std::move(boostFuture));
     }
 
     template<typename Fn>
     auto thenValue(AOContext& aoCtx, Fn&& fn)
     {
-        auto promise = std::make_shared<Promise<R>>();
-        auto retval = promise->future().thenValue(Launch::sync, std::forward<Fn>(fn));
-
-        std::function thenHandler = [promise](std::shared_ptr<boost::future<R>> boostFuturePtr) {
-            if (boostFuturePtr->has_value()) {
-                if constexpr (std::is_void_v<R>) {
-                    promise->setValue();
-                } else {
-                    promise->setValue(boostFuturePtr->get());
-                }
-            } else {
-                auto exPtr = boostFuturePtr->get_exception_ptr();
-                promise->setException(utils::toStdExceptionPtr(exPtr));
-            }
-        };
-        std::function cancel = [promise] {
-            auto exPtr = std::make_exception_ptr(AsyncOperationWasCancelled());
-            promise->setException(exPtr);
-        };
-        std::function safeThenHandler = aoCtx.newAsyncOperation(std::move(thenHandler), std::move(cancel));
-
-        m_impl.then([safeThenHandler](boost::future<R> boostFuture) {
-            auto boostFuturePtr = std::make_shared<boost::future<R>>(std::move(boostFuture));
-            safeThenHandler(boostFuturePtr);
+        return this->thenForAOCtx(aoCtx, [fn](boost::future<R> finishedFuture) mutable {
+            return callThenHandler(std::move(fn), std::move(finishedFuture));
         });
-
-        return retval;
     }
 
     template<typename Fn>
-    auto thenException(Fn&& fn)
+    Future<R> thenException(Fn&& fn)
     {
-        auto boostFuture = m_impl.then([fn = std::move(fn)](boost::future<R> boostFuture) {
-            if (!boostFuture.has_exception()) {
-                return boostFuture.get();
-            }
-
-            return fn(utils::toStdExceptionPtr(boostFuture.get_exception_ptr()));
-        });
-
-        auto unwrappedBoostFuture = unwrap(std::move(boostFuture));
-        return Future<R>(std::move(unwrappedBoostFuture));
+        return this->thenException(m_impl.launch_policy(), std::forward<Fn>(fn));
     }
 
     template<typename Fn>
-    auto thenException(AOContext& aoCtx, Fn&& fn)
+    Future<R> thenException(Launch launch, Fn&& fn)
     {
-        return this->thenValue(aoCtx.newAsyncOperation(std::function(fn), nullptr));
+        auto boostFuture = m_impl.then(launch, [fn](boost::future<R> finishedFuture) mutable {
+            return callErrorHandler(std::move(fn), std::move(finishedFuture));
+        });
+
+        return fromBoostFuture(std::move(boostFuture));
+    }
+
+    template<typename Fn>
+    Future<R> thenException(AOContext& aoCtx, Fn&& fn)
+    {
+        return this->thenForAOCtx(aoCtx, [fn](boost::future<R> finishedFuture) {
+            return callErrorHandler(std::move(fn), std::move(finishedFuture));
+        });
     }
 
 private:
+    template<typename Then>
+    auto thenForAOCtx(AOContext& aoCtx, Then&& then)
+    {
+        using ResultOfThen = std::invoke_result_t<Then, boost::future<R>>;
+
+        auto boostPromise = std::make_shared<boost::promise<ResultOfThen>>();
+        auto boostFuture = boostPromise->get_future();
+
+        std::function thenWrapper = [then, boostPromise](std::shared_ptr<boost::future<R>> boostFuturePtr) mutable {
+            try {
+                if constexpr (std::is_void_v<ResultOfThen>) {
+                    then(std::move(*boostFuturePtr));
+                    boostPromise->set_value();
+                } else {
+                    boostPromise->set_value(then(std::move(*boostFuturePtr)));
+                }
+            } catch (...) {
+                auto exPtr = boost::current_exception();
+                boostPromise->set_exception(exPtr);
+            }
+        };
+        std::function cancel = [boostPromise] {
+            auto exPtr = std::make_exception_ptr(AsyncOperationWasCancelled());
+            boostPromise->set_exception(utils::toBoostExceptionPtr(exPtr));
+        };
+        std::function safeThenWrapper = aoCtx.newAsyncOperation(std::move(thenWrapper), std::move(cancel));
+
+        m_impl.then([safeThenWrapper](boost::future<R> boostFuture) {
+            auto boostFuturePtr = std::make_shared<boost::future<R>>(std::move(boostFuture));
+            safeThenWrapper(boostFuturePtr);
+        });
+
+        return fromBoostFuture(std::move(boostFuture));
+    }
+
     template<typename Rp>
     static auto unwrapBoostFuture(boost::future<Rp>&& future)
     {
@@ -236,6 +246,16 @@ private:
         }
     }
 
+    template<typename Rp>
+    static auto fromBoostFuture(boost::future<Rp> boostFuture)
+    {
+        auto unwrappedBoostFuture = unwrapBoostFuture(std::move(boostFuture));
+
+        using UnwrappedBoostFuture = decltype(unwrappedBoostFuture);
+        using UnwrappedResult = typename FutureResult<UnwrappedBoostFuture>::Type;
+        return Future<UnwrappedResult>(std::move(unwrappedBoostFuture));
+    }
+
     template<typename Fn>
     static auto callThenHandler(Fn&& fn, boost::future<R> finishedFuture)
     {
@@ -260,6 +280,17 @@ private:
                 return unwrap(fn(finishedFuture.get()));
             }
         }
+    }
+
+    template<typename Fn>
+    static R callErrorHandler(Fn&& fn, boost::future<R> finishedFuture)
+    {
+        if (!finishedFuture.has_exception()) {
+            return finishedFuture.get();
+        }
+
+        auto exPtr = finishedFuture.get_exception_ptr();
+        return fn(utils::toStdExceptionPtr(exPtr));
     }
 
 private:

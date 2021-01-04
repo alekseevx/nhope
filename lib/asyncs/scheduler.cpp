@@ -1,12 +1,12 @@
 #include <algorithm>
 #include <memory>
+#include <optional>
 
 #include <nhope/asyncs/async-invoke.h>
 #include <nhope/asyncs/ao-context.h>
 #include <nhope/asyncs/thread-executor.h>
 #include <nhope/asyncs/scheduler.h>
 #include <nhope/asyncs/future.h>
-#include <optional>
 
 namespace nhope::asyncs {
 
