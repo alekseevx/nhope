@@ -6,7 +6,7 @@
 #include <thread>
 
 using namespace std::chrono_literals;
-using namespace nhope::asyncs;
+using namespace nhope;
 
 TEST(QueueTests, OneWriterManyReaders)   // NOLINT
 {

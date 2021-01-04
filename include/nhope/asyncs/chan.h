@@ -11,7 +11,7 @@
 #include "produser.h"
 #include "ts-queue.h"
 
-namespace nhope::asyncs {
+namespace nhope {
 
 template<typename T>
 class Chan final
@@ -103,4 +103,4 @@ private:
     std::shared_ptr<Prv> m_d;
 };
 
-}   // namespace nhope::asyncs
+}   // namespace nhope

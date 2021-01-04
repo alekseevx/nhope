@@ -12,7 +12,7 @@
 
 namespace {
 
-using namespace nhope::asyncs;
+using namespace nhope;
 using CancelHandler = AOContext::CancelHandler;
 
 enum class AOContextState

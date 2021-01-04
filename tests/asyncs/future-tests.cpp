@@ -10,7 +10,7 @@
 
 namespace {
 
-using namespace nhope::asyncs;
+using namespace nhope;
 using namespace std::literals;
 
 constexpr int testValue = 10;

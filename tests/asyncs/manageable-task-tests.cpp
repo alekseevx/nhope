@@ -6,7 +6,7 @@
 
 #include <nhope/asyncs/manageable-task.h>
 
-using namespace nhope::asyncs;
+using namespace nhope;
 using namespace std::literals;
 
 TEST(ManageableTask, checkAsyncWaitForStopped)   // NOLINT

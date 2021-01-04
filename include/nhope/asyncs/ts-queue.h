@@ -9,7 +9,7 @@
 #include <optional>
 #include <utility>
 
-namespace nhope::asyncs {
+namespace nhope {
 
 template<typename T>
 class TSQueue final
@@ -149,4 +149,4 @@ private:
     std::list<T> m_values;
 };
 
-}   // namespace nhope::asyncs
+}   // namespace nhope

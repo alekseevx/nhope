@@ -5,7 +5,7 @@
 #include <type_traits>
 #include <utility>
 
-namespace nhope::asyncs {
+namespace nhope {
 
 template<typename T>
 class LockableValue final
@@ -112,4 +112,4 @@ using ReadAccess = typename LockableValue<T>::ReadAccess;
 template<typename T>
 using WriteAccess = typename LockableValue<T>::WriteAccess;
 
-}   // namespace nhope::asyncs
+}   // namespace nhope

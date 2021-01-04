@@ -10,7 +10,7 @@
 #include <nhope/asyncs/thread-executor.h>
 
 using namespace std::literals;
-using namespace nhope::asyncs;
+using namespace nhope;
 
 class ThreadStub
 {

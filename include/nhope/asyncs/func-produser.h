@@ -10,7 +10,7 @@
 #include "consumer-list.h"
 #include "produser.h"
 
-namespace nhope::asyncs {
+namespace nhope {
 
 template<typename T>
 class FuncProduser final : public Produser<T>
@@ -89,4 +89,4 @@ private:
     ConsumerList<T> m_consumerList;
 };
 
-}   // namespace nhope::asyncs
+}   // namespace nhope

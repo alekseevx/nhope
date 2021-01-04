@@ -13,7 +13,7 @@
 
 namespace {
 
-using namespace nhope::asyncs;
+using namespace nhope;
 using namespace std::literals;
 
 std::string testArgValue(int invokeNum)

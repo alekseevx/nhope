@@ -11,7 +11,7 @@
 #include "nhope/asyncs/manageable-task.h"
 
 namespace {
-using namespace nhope::asyncs;
+using namespace nhope;
 
 class ManageableTaskImpl final
   : public ManageableTask

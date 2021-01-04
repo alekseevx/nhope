@@ -9,7 +9,7 @@
 // FIXME: get rid of boost::exception_detail::clone_base
 #include <boost/exception/exception.hpp>
 
-namespace nhope::asyncs {
+namespace nhope {
 
 class ThreadExecutor;
 
@@ -86,4 +86,4 @@ private:
     std::shared_ptr<Impl> m_d;
 };
 
-}   // namespace nhope::asyncs
+}   // namespace nhope

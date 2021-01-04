@@ -6,7 +6,7 @@
 
 #include "future.h"
 
-namespace nhope::asyncs {
+namespace nhope {
 
 class AOContext;
 
@@ -15,4 +15,4 @@ void setTimeout(AOContext& aoCtx, std::chrono::nanoseconds timeout,
 
 Future<void> setTimeout(AOContext& aoCtx, std::chrono::nanoseconds timeout);
 
-}   // namespace nhope::asyncs
+}   // namespace nhope

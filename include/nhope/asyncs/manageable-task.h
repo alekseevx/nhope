@@ -7,7 +7,7 @@
 
 #include "nhope/asyncs/future.h"
 
-namespace nhope::asyncs {
+namespace nhope {
 
 class ManageableTaskCtx
 {
@@ -61,4 +61,4 @@ public:
     static std::unique_ptr<ManageableTask> create(TaskFunction&& function);
 };
 
-}   // namespace nhope::asyncs
+}   // namespace nhope

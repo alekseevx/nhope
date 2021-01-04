@@ -11,10 +11,10 @@
 #include "nhope/asyncs/thread-executor.h"
 #include "nhope/asyncs/timer.h"
 
-using namespace nhope::asyncs;
+using namespace nhope;
 
-void nhope::asyncs::setTimeout(AOContext& aoCtx, std::chrono::nanoseconds timeout,
-                               std::function<void(const std::error_code&)>&& handler)
+void nhope::setTimeout(AOContext& aoCtx, std::chrono::nanoseconds timeout,
+                       std::function<void(const std::error_code&)>&& handler)
 {
     auto& executor = aoCtx.executor();
     auto& ioCtx = executor.getContext();
@@ -28,7 +28,7 @@ void nhope::asyncs::setTimeout(AOContext& aoCtx, std::chrono::nanoseconds timeou
     timer->async_wait(aoCtx.newAsyncOperation(std::move(handler), std::move(cancel)));
 }
 
-Future<void> nhope::asyncs::setTimeout(AOContext& aoCtx, std::chrono::nanoseconds timeout)
+Future<void> nhope::setTimeout(AOContext& aoCtx, std::chrono::nanoseconds timeout)
 {
     auto promise = std::make_shared<Promise<void>>();
     auto future = promise->future();

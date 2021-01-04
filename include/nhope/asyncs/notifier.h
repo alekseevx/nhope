@@ -8,7 +8,7 @@
 #include "consumer.h"
 #include "produser.h"
 
-namespace nhope::asyncs {
+namespace nhope {
 
 template<typename T, typename Executor>
 class Notifier final
@@ -100,4 +100,4 @@ private:
     std::shared_ptr<Prv> m_d;
 };
 
-}   // namespace nhope::asyncs
+}   // namespace nhope

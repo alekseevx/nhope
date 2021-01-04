@@ -9,7 +9,7 @@
 
 #include <gtest/gtest.h>
 
-using namespace nhope::asyncs;
+using namespace nhope;
 using namespace std::literals;
 
 using time_point = std::chrono::steady_clock::time_point;

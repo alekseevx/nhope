@@ -6,7 +6,7 @@
 #include <nhope/asyncs/func-produser.h>
 
 namespace {
-using namespace nhope::asyncs;
+using namespace nhope;
 
 int sum(Chan<int>& chan, int n = INT_MAX)
 {

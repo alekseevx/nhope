@@ -7,7 +7,7 @@
 #include <nhope/asyncs/notifier.h>
 #include <nhope/asyncs/func-produser.h>
 
-using namespace nhope::asyncs;
+using namespace nhope;
 
 TEST(NotifierTests, CreateDestroyNotifier)   // NOLINT
 {

@@ -7,7 +7,7 @@
 #include <boost/asio/post.hpp>
 #include <boost/noncopyable.hpp>
 
-namespace nhope::asyncs {
+namespace nhope {
 
 class ThreadExecutor final : boost::noncopyable
 {
@@ -33,4 +33,4 @@ private:
     std::thread m_thread;
 };
 
-}   // namespace nhope::asyncs
+}   // namespace nhope

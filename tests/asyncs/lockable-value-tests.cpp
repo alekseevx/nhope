@@ -7,7 +7,7 @@
 
 #include <nhope/asyncs/lockable-value.h>
 
-using namespace nhope::asyncs;
+using namespace nhope;
 using namespace std::chrono_literals;
 using LockableMap = LockableValue<std::map<std::string, int>>;
 

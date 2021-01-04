@@ -1,6 +1,6 @@
 #pragma once
 
-namespace nhope::asyncs {
+namespace nhope {
 
 template<typename T>
 class Consumer
@@ -21,4 +21,4 @@ public:
     virtual Status consume(const T& value) = 0;
 };
 
-}   // namespace nhope::asyncs
+}   // namespace nhope

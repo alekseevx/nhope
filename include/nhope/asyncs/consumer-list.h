@@ -7,7 +7,7 @@
 
 #include "consumer.h"
 
-namespace nhope::asyncs {
+namespace nhope {
 
 template<typename T>
 class ConsumerList final : public Consumer<T>
@@ -66,4 +66,4 @@ private:
     List m_list;
 };
 
-}   // namespace nhope::asyncs
+}   // namespace nhope

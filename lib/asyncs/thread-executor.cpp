@@ -5,7 +5,7 @@
 
 #include "nhope/asyncs/thread-executor.h"
 
-using namespace nhope::asyncs;
+using namespace nhope;
 
 ThreadExecutor::ThreadExecutor()
 {

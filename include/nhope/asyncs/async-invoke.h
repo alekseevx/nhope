@@ -5,7 +5,7 @@
 
 #include "nhope/asyncs/future.h"
 
-namespace nhope::asyncs {
+namespace nhope {
 
 class AOContext;
 
@@ -23,4 +23,4 @@ auto invoke(AOContext& aoCtx, Fn&& fn, Args&&... args)
     return future.get();
 }
 
-}   // namespace nhope::asyncs
+}   // namespace nhope

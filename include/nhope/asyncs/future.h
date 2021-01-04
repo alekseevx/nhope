@@ -15,7 +15,7 @@
 #include "nhope/asyncs/ao-context.h"
 #include "nhope/utils/exception_ptr.h"
 
-namespace nhope::asyncs {
+namespace nhope {
 
 using FutureStatus = boost::future_status;
 using FutureState = boost::future_state::state;
@@ -393,4 +393,4 @@ void resolvePromises(std::list<Promise<T>>& promises, Args&&... args)
     promises.clear();
 }
 
-}   // namespace nhope::asyncs
+}   // namespace nhope

@@ -1,6 +1,6 @@
 #pragma once
 
-namespace nhope::asyncs {
+namespace nhope {
 
 /* Borrowed from git@github.com:bsazonov/rethread.git */
 template<typename Lock>
@@ -22,4 +22,4 @@ private:
     Lock& m_lock;
 };
 
-}   // namespace nhope::asyncs
+}   // namespace nhope

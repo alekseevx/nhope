@@ -8,7 +8,7 @@
 #include <nhope/asyncs/scheduler.h>
 #include <nhope/asyncs/future.h>
 
-namespace nhope::asyncs {
+namespace nhope {
 
 class Scheduler::Impl
 {
@@ -398,4 +398,4 @@ void Scheduler::activate(TaskId id)
     asyncActivate(id).get();
 }
 
-}   // namespace nhope::asyncs
+}   // namespace nhope

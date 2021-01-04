@@ -3,7 +3,7 @@
 #include <memory>
 #include "consumer.h"
 
-namespace nhope::asyncs {
+namespace nhope {
 
 template<typename T>
 class Produser
@@ -18,4 +18,4 @@ public:
     virtual void attachConsumer(std::unique_ptr<Consumer<T>> consumer) = 0;
 };
 
-}   // namespace nhope::asyncs
+}   // namespace nhope

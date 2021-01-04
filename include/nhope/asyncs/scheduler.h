@@ -8,7 +8,7 @@
 
 #include <nhope/asyncs/manageable-task.h>
 
-namespace nhope::asyncs {
+namespace nhope {
 
 class Scheduler : boost::noncopyable
 {
@@ -58,4 +58,4 @@ private:
     std::unique_ptr<Impl> m_impl;
 };
 
-}   // namespace nhope::asyncs
+}   // namespace nhope
