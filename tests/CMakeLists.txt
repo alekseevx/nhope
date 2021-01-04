@@ -13,6 +13,7 @@ add_executable(nhope-tests
     
     seq/chan-tests.cpp
     seq/notifier-tests.cpp
+    seq/take-tests.cpp
 
     utils/exception_ptr_tests.cpp
 )
