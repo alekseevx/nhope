@@ -1,40 +1,45 @@
+#---------------------------------------------------
+# Базовый setup файл пакетного менеджера bastard
+# Наличие этого файла - минимальное и достаточное требование для поддержки bastard
+#---------------------------------------------------
+
+# если пакетный менеджер уже был установлен
+# P.S. должно выполняться для всех подзависимостей
 if(NOT ${BASTARD_DIR} STREQUAL "")
     include("${BASTARD_DIR}/bastard.cmake")
     return()
 endif()
 
-#---------------------------------------------------
-# поиск пакетного менеджера
-execute_process(
-        COMMAND bastard version
-        OUTPUT_VARIABLE _BASTARD_VERSION
-        OUTPUT_STRIP_TRAILING_WHITESPACE
-        RESULT_VARIABLE exit_code
-    )
+set(BASTARD_SETUP_VERSION "0.3.0")
+set(BASTARD_GIT_URI "git@gitlab.olimp.lan:cmake/bastard.git")
+set(BASTARD_CACHE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/.deps/bastard")
 
-if(NOT exit_code EQUAL "0")
-    message(FATAL_ERROR "Failed to run bastard")
+#---------------------------------------------------
+# if the bastard was cached
+if (EXISTS "${BASTARD_CACHE_DIR}/cmake/bastard.cmake")
+    message("Using bastard from cache: ${BASTARD_CACHE_DIR}")
+    set(BASTARD_DIR "${BASTARD_CACHE_DIR}/cmake")
+    include("${BASTARD_DIR}/bastard.cmake")
+    message("Bastard version: ${BASTARD_VERSION}")
+    return()
 endif()
 
-message("Bastard version: ${_BASTARD_VERSION}")
-
 #---------------------------------------------------
-# получение каталога с исходниками
+# load bastard from server
+message("Trying to load bastard from server...")
+message("Bastard uri: ${BASTARD_GIT_URI}")
 execute_process(
-        COMMAND bastard location
-        OUTPUT_VARIABLE _BASTARD_DIR
-        OUTPUT_STRIP_TRAILING_WHITESPACE
-        RESULT_VARIABLE exit_code
-    )
-
-if(NOT exit_code EQUAL "0")
-    message(FATAL_ERROR "Failed to run bastard")
+    COMMAND bash -c "git clone --depth 1 ${BASTARD_GIT_URI} ${BASTARD_CACHE_DIR}"
+    RESULT_VARIABLE exit_code
+)
+if(exit_code EQUAL "0")
+    message("The bastard has been loaded: ${BASTARD_CACHE_DIR}")
+    set(BASTARD_DIR "${BASTARD_CACHE_DIR}/cmake")
+else()
+    message(FATAL_ERROR "Failed to load bastard from server")
 endif()
 
-message("Bastard location: ${_BASTARD_DIR}")
-
 #---------------------------------------------------
-# включение файла bastard_setup.cmake
-set(BASTARD_DIR ${_BASTARD_DIR})
+# include bastard.cmake
 include("${BASTARD_DIR}/bastard.cmake")
-#include("${CMAKE_CURRENT_SOURCE_DIR}/../../cmake/bastard.cmake")
+message("Bastard version: ${BASTARD_VERSION}")
