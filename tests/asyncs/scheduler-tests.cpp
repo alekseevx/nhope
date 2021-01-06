@@ -1,6 +1,7 @@
 #include <thread>
 #include <functional>
 #include <gtest/gtest.h>
+// #include <iostream>
 
 #include <nhope/asyncs/async-invoke.h>
 #include <nhope/asyncs/ao-context.h>
@@ -283,7 +284,7 @@ TEST(Scheduler, ThreadRace)   // NOLINT
 
     auto f1 = [&counter](auto& ctx) {
         while (ctx.checkPoint()) {
-            std::this_thread::sleep_for(10ms);
+            std::this_thread::sleep_for(5ms);
             if (localCounter++ == threadCounter) {
                 break;
             }
@@ -329,4 +330,144 @@ TEST(Scheduler, CancellingByDestruction)   // NOLINT
         scheduler.push(f1);
         std::this_thread::sleep_for(10ms);
     }
+}
+
+TEST(Scheduler, DeactivateTask)   // NOLINT
+{
+    thread_local int localCounter{0};
+    constexpr auto threadCounter{100};
+    std::atomic_int counter = 0;
+
+    auto f1 = [&counter](auto& ctx) {
+        // std::cout << "start f1" << std::endl;
+        ctx.setBeforePause([] {
+            // std::cout << "pausing f1" << std::endl;
+            return true;
+        });
+        ctx.setAfterPause([] {
+            // std::cout << "resuming f1" << std::endl;
+        });
+
+        while (ctx.checkPoint()) {
+            std::this_thread::sleep_for(10ms);
+            if (localCounter++ == threadCounter) {
+                break;
+            }
+        }
+        // std::cout << "finish f1" << std::endl;
+    };
+
+    auto f2 = [&counter](auto& ctx) {
+        // std::cout << "start f2" << std::endl;
+        ctx.setBeforePause([] {
+            // std::cout << "pausing f2" << std::endl;
+            return true;
+        });
+        ctx.setAfterPause([] {
+            // std::cout << "resuming f2" << std::endl;
+        });
+
+        while (ctx.checkPoint()) {
+            std::this_thread::sleep_for(10ms);
+            if (localCounter++ == threadCounter) {
+                break;
+            }
+        }
+        // std::cout << "finish f2" << std::endl;
+    };
+
+    auto f3 = [&counter](auto& ctx) {
+        // std::cout << "start f3" << std::endl;
+        ctx.setBeforePause([] {
+            // std::cout << "pausing f3" << std::endl;
+            return true;
+        });
+        ctx.setAfterPause([] {
+            // std::cout << "resuming f3" << std::endl;
+        });
+
+        while (ctx.checkPoint()) {
+            std::this_thread::sleep_for(10ms);
+            if (localCounter++ == threadCounter) {
+                break;
+            }
+        }
+        // std::cout << "finish f3" << std::endl;
+    };
+
+    Scheduler scheduler;
+    scheduler.push(f1, 1);
+    scheduler.push(f2);
+    scheduler.push(f3);
+
+    std::this_thread::sleep_for(50ms);
+    scheduler.deactivate(0);
+    std::this_thread::sleep_for(50ms);
+    scheduler.activate(0);
+    std::this_thread::sleep_for(10ms);
+    scheduler.deactivate(1);
+    scheduler.wait(0);
+    std::this_thread::sleep_for(10ms);
+    scheduler.deactivate(2);
+
+    scheduler.activate(1);
+    scheduler.wait(1);
+    std::this_thread::sleep_for(100ms);
+    scheduler.activate(2);
+
+    scheduler.waitAll();
+}
+
+TEST(Scheduler, WaitDeactivatedTask)   // NOLINT
+{
+    thread_local int localCounter{0};
+    constexpr auto threadCounter{100};
+    std::atomic_int counter = 0;
+
+    auto f1 = [&counter](auto& ctx) {
+        while (ctx.checkPoint()) {
+            std::this_thread::sleep_for(10ms);
+            if (localCounter++ == threadCounter) {
+                break;
+            }
+        }
+    };
+
+    Scheduler scheduler;
+    scheduler.push(f1);
+
+    std::this_thread::sleep_for(10ms);
+    scheduler.deactivate(0);
+    EXPECT_EQ(scheduler.getActiveTaskId(), std::nullopt);
+    auto f = scheduler.asyncWait(0);
+    std::this_thread::sleep_for(100ms);
+    ASSERT_FALSE(f.isReady());
+    scheduler.activate(0);
+    f.get();
+    ASSERT_TRUE(f.isReady());
+}
+
+TEST(Scheduler, CancelDeactivatedTask)   // NOLINT
+{
+    thread_local int localCounter{0};
+    constexpr auto threadCounter{100};
+    std::atomic_int counter = 0;
+
+    auto f1 = [&counter](auto& ctx) {
+        while (ctx.checkPoint()) {
+            std::this_thread::sleep_for(10ms);
+            if (localCounter++ == threadCounter) {
+                FAIL() << "was not cancelled";
+                break;
+            }
+        }
+    };
+
+    Scheduler scheduler;
+    scheduler.push(f1);
+
+    std::this_thread::sleep_for(10ms);
+    scheduler.deactivate(0);
+    EXPECT_EQ(scheduler.getActiveTaskId(), std::nullopt);
+    scheduler.cancel(0);
 }

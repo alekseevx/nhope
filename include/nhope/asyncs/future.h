@@ -165,7 +165,7 @@ public:
                 if constexpr (std::is_void_v<R>) {
                     promise->setValue();
                 } else {
-                    promise->setValue(boostFuturePtr.get());
+                    promise->setValue(boostFuturePtr->get());
                 }
             } else {
                 auto exPtr = boostFuturePtr->get_exception_ptr();
