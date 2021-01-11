@@ -115,12 +115,7 @@ public:
 
     R get()
     {
-        if constexpr (std::is_void_v<R>) {
-            m_impl.get();
-            return;
-        } else {
-            return m_impl.get();
-        }
+        return m_impl.get();
     }
 
     [[nodiscard]] bool hasException() const
