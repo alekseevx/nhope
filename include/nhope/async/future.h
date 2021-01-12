@@ -195,7 +195,7 @@ private:
                     boostPromise->set_value(then(std::move(*boostFuturePtr)));
                 }
             } catch (...) {
-                auto exPtr = boost::current_exception();
+                auto exPtr = utils::toBoostExceptionPtr(std::current_exception());
                 boostPromise->set_exception(exPtr);
             }
         };

@@ -5,6 +5,8 @@
 #include <gtest/gtest.h>
 
 #include <nhope/utils/exception_ptr.h>
+#include <nhope/async/thread-executor.h>
+#include "nhope/async/async-invoke.h"
 
 using namespace nhope::utils;
 using namespace std::literals;
@@ -51,4 +53,16 @@ TEST(ExceptionPtr, toBoostExceptionPtr)   // NOLINT
     } catch (...) {
         FAIL() << "Exception type not saved";
     }
+}
+
+TEST(ExceptionPtr, customException)   // NOLINT
+{
+    nhope::ThreadExecutor executor;
+    nhope::AOContext ctx(executor);
+
+    EXPECT_THROW(nhope::invoke(ctx,   //NOLINT
+                               [] {
+                                   throw TestException("test");
+                               }),
+                 TestException);
 }
