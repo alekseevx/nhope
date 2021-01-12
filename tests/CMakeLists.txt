@@ -4,6 +4,7 @@ add_executable(nhope-tests
     main.cpp
 
     async/async-invoke-tests.cpp
+    utils/exception_ptr_tests.cpp
     async/future-tests.cpp
     async/lockable-value-tests.cpp
     async/manageable-task-tests.cpp
@@ -15,7 +16,6 @@ add_executable(nhope-tests
     seq/notifier-tests.cpp
     seq/take-tests.cpp
 
-    utils/exception_ptr_tests.cpp
 )
 target_link_libraries(nhope-tests gtest nhope)
 
