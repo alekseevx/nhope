@@ -254,26 +254,30 @@ private:
     template<typename Fn>
     static auto callThenHandler(Fn&& fn, boost::future<R> finishedFuture)
     {
-        if constexpr (std::is_void_v<R>) {
-            using ResultOfFn = std::invoke_result_t<Fn>;
+        try {
+            if constexpr (std::is_void_v<R>) {
+                using ResultOfFn = std::invoke_result_t<Fn>;
 
-            if constexpr (std::is_void_v<ResultOfFn>) {
-                finishedFuture.get();
-                fn();
-                return;
+                if constexpr (std::is_void_v<ResultOfFn>) {
+                    finishedFuture.get();
+                    fn();
+                    return;
+                } else {
+                    finishedFuture.get();
+                    return unwrap(fn());
+                }
             } else {
-                finishedFuture.get();
-                return unwrap(fn());
-            }
-        } else {
-            using ResultOfFn = std::invoke_result_t<Fn, R>;
+                using ResultOfFn = std::invoke_result_t<Fn, R>;
 
-            if constexpr (std::is_void_v<ResultOfFn>) {
-                fn(finishedFuture.get());
-                return;
-            } else {
-                return unwrap(fn(finishedFuture.get()));
+                if constexpr (std::is_void_v<ResultOfFn>) {
+                    fn(finishedFuture.get());
+                    return;
+                } else {
+                    return unwrap(fn(finishedFuture.get()));
+                }
             }
+        } catch (...) {
+            utils::rethrowCurrExceptionCompatibleWithBoost();
         }
     }
 

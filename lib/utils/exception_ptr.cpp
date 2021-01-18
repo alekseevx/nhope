@@ -13,6 +13,7 @@ namespace {
 
 using clone_base = boost::exception_detail::clone_base;
 
+/* Allows to keep a type of exception when going through the Boost  */
 class StdExceptionPtrWrapper final : public clone_base
 {
 public:
@@ -35,6 +36,14 @@ private:
 };
 
 }   // namespace
+
+void nhope::utils::rethrowCurrExceptionCompatibleWithBoost()
+{
+    auto exPtr = std::current_exception();
+    assert(exPtr != nullptr);   // NOLINT
+
+    throw StdExceptionPtrWrapper(exPtr);
+}
 
 std::exception_ptr nhope::utils::toStdExceptionPtr(const boost::exception_ptr& ex)
 {
