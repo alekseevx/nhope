@@ -55,7 +55,7 @@ TEST(ExceptionPtr, toBoostExceptionPtr)   // NOLINT
     }
 }
 
-TEST(ExceptionPtr, customException)   // NOLINT
+TEST(ExceptionPtr, aoctxException)   // NOLINT
 {
     nhope::ThreadExecutor executor;
     nhope::AOContext ctx(executor);
@@ -65,4 +65,12 @@ TEST(ExceptionPtr, customException)   // NOLINT
                                    throw TestException("test");
                                }),
                  TestException);
+}
+
+TEST(ExceptionPtr, thenException)   // NOLINT
+{
+    auto f = nhope::makeReadyFuture().then([] {
+        throw TestException("test");
+    });
+    EXPECT_THROW(f.get(), TestException);   //NOLINT
 }
