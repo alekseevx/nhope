@@ -36,7 +36,7 @@ TEST(DelayedProperty, exception)   // NOLINT
     auto f = prop.setNewValue(1);
     EXPECT_TRUE(prop.hasNewValue());
     auto f2 = prop.setNewValue(1);
-    EXPECT_THROW(f.get(), std::runtime_error);   //NOLINT
+    EXPECT_THROW(f.get(), nhope::AsyncOperationWasCancelled);   //NOLINT
     prop.applyNewValue();
     f2.get();
     EXPECT_EQ(prop.getCurrentValue(), 1);
