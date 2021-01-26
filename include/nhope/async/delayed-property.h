@@ -1,13 +1,20 @@
 #pragma once
 
-#include "nhope/async/future.h"
-#include "nhope/async/lockable-value.h"
-#include "nhope/async/reverse_lock.h"
+#include <condition_variable>
 #include <exception>
 #include <mutex>
+#include <chrono>
+
+#include "nhope/async/future.h"
+#include "nhope/async/lockable-value.h"
+#include <nhope/async/ao-context.h>
+#include "nhope/async/reverse_lock.h"
 
 namespace nhope {
+using namespace std::string_view_literals;
 
+// Потокобезопасное свойство с возможностью отложенной установки
+// Свойство будет применено только после вызова метода applyNewValue
 template<typename T>
 class DelayedProperty final
 {
@@ -25,17 +32,33 @@ public:
       : m_value(std::forward<Args>(args)...)
     {}
 
-    Future<T> setNewValue(T&& value)
+    Future<void> setNewValue(const T& value)
     {
-        std::unique_lock lock(m_mutex);
+        std::scoped_lock lock(m_mutex);
 
         if (m_promise.has_value()) {
-            auto ex = std::make_exception_ptr(std::runtime_error("previous value was ignored"));
+            auto ex = std::make_exception_ptr(AsyncOperationWasCancelled("previous value was ignored"sv));
             m_promise.value().setException(ex);
-            m_promise = std::nullopt;
         }
 
-        m_promise = Promise<T>();
+        m_promise = Promise<void>();
+        m_newValue = value;
+
+        m_newValCw.notify_all();
+
+        return m_promise.value().future();
+    }
+
+    Future<void> setNewValue(T&& value)
+    {
+        std::scoped_lock lock(m_mutex);
+
+        if (m_promise.has_value()) {
+            auto ex = std::make_exception_ptr(AsyncOperationWasCancelled("previous value was ignored"sv));
+            m_promise.value().setException(ex);
+        }
+
+        m_promise = Promise<void>();
         m_newValue = std::move(value);
 
         m_newValCw.notify_all();
@@ -45,17 +68,25 @@ public:
 
     [[nodiscard]] bool hasNewValue() const noexcept
     {
-        std::unique_lock lock(m_mutex);
+        std::scoped_lock lock(m_mutex);
         return m_promise.has_value();
     }
 
-    void applyNewValue(std::function<void(const T&)>&& applyHandler = nullptr)
+    bool waitNewValue(std::chrono::milliseconds timeout)
     {
-        while (!hasNewValue()) {
-            std::unique_lock lock(m_mutex);
-            m_newValCw.wait(lock);
-        }
         std::unique_lock lock(m_mutex);
+        return m_newValCw.wait_for(lock, timeout, [this] {
+            return m_promise.has_value();
+        });
+    }
+
+    void applyNewValue(std::function<void(const T&)> applyHandler = nullptr)
+    {
+        std::unique_lock lock(m_mutex);
+        if (!m_promise.has_value()) {
+            return;
+        }
+        auto apply = std::move(applyHandler);
 
         assert(m_promise.has_value());   // NOLINT
 
@@ -65,20 +96,20 @@ public:
         m_promise = std::nullopt;
 
         try {
-            if (applyHandler != nullptr) {
+            if (apply != nullptr) {
                 ReverseLock unlock(lock);
-                applyHandler(newVal);
+                apply(newVal);
             }
             m_value = newVal;
-            promise.setValue(newVal);
+            promise.setValue();
         } catch (...) {
             promise.setException(std::current_exception());
         }
     }
 
-    T getCurValue() const
+    T getValue() const
     {
-        std::unique_lock lock(m_mutex);
+        std::scoped_lock lock(m_mutex);
         return m_value;
     }
 
@@ -86,7 +117,7 @@ private:
     T m_value;
 
     std::optional<T> m_newValue{std::nullopt};
-    std::optional<Promise<T>> m_promise{std::nullopt};
+    std::optional<Promise<void>> m_promise{std::nullopt};
 
     mutable std::mutex m_mutex;
     std::condition_variable m_newValCw;
