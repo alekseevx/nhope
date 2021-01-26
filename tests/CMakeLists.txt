@@ -6,6 +6,7 @@ add_executable(nhope-tests
     async/async-invoke-tests.cpp
     utils/exception_ptr_tests.cpp
     async/future-tests.cpp
+    async/delayed-property-test.cpp
     async/lockable-value-tests.cpp
     async/manageable-task-tests.cpp
     async/scheduler-tests.cpp
