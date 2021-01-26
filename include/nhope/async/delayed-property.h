@@ -32,7 +32,8 @@ public:
       : m_value(std::forward<Args>(args)...)
     {}
 
-    Future<void> setNewValue(const T& value)
+    template<typename V>
+    Future<void> setNewValue(V&& value)
     {
         std::scoped_lock lock(m_mutex);
 
@@ -42,24 +43,7 @@ public:
         }
 
         m_promise = Promise<void>();
-        m_newValue = value;
-
-        m_newValCw.notify_all();
-
-        return m_promise.value().future();
-    }
-
-    Future<void> setNewValue(T&& value)
-    {
-        std::scoped_lock lock(m_mutex);
-
-        if (m_promise.has_value()) {
-            auto ex = std::make_exception_ptr(AsyncOperationWasCancelled("previous value was ignored"sv));
-            m_promise.value().setException(ex);
-        }
-
-        m_promise = Promise<void>();
-        m_newValue = std::move(value);
+        m_newValue = std::forward<V>(value);
 
         m_newValCw.notify_all();
 
