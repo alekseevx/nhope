@@ -21,7 +21,7 @@ class AsyncOperationWasCancelled
 {
 public:
     AsyncOperationWasCancelled();
-    AsyncOperationWasCancelled(std::string_view errMessage);
+    explicit AsyncOperationWasCancelled(std::string_view errMessage);
 
 public:   // FIXME: get rid of boost::exception_detail::clone_base
     [[nodiscard]] AsyncOperationWasCancelled* clone() const override;
