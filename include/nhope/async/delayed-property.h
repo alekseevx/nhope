@@ -72,6 +72,14 @@ public:
         return m_promise.has_value();
     }
 
+    void waitNewValue()
+    {
+        std::unique_lock lock(m_mutex);
+        m_newValCw.wait(lock, [this] {
+            return m_promise.has_value();
+        });
+    }
+
     bool waitNewValue(std::chrono::milliseconds timeout)
     {
         std::unique_lock lock(m_mutex);
@@ -80,14 +88,13 @@ public:
         });
     }
 
-    void applyNewValue(std::function<void(const T&)> applyHandler = nullptr)
+    template<typename Fn>
+    void applyNewValue(Fn applyHandler)
     {
         std::unique_lock lock(m_mutex);
         if (!m_promise.has_value()) {
             return;
         }
-        auto apply = std::move(applyHandler);
-
         assert(m_promise.has_value());   // NOLINT
 
         auto newVal = m_newValue.value();
@@ -96,9 +103,9 @@ public:
         m_promise = std::nullopt;
 
         try {
-            if (apply != nullptr) {
+            {
                 ReverseLock unlock(lock);
-                apply(newVal);
+                applyHandler(newVal);
             }
             m_value = newVal;
             promise.setValue();
@@ -107,7 +114,14 @@ public:
         }
     }
 
-    T getValue() const
+    void applyNewValue()
+    {
+        constexpr auto nullhandler = [](const auto& /*unused*/) {
+        };
+        applyNewValue(nullhandler);
+    }
+
+    T getCurrentValue() const
     {
         std::scoped_lock lock(m_mutex);
         return m_value;

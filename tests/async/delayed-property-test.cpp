@@ -17,14 +17,14 @@ using namespace std::literals;
 TEST(DelayedProperty, simpleSet)   // NOLINT
 {
     DelayedProperty prop(0);
+
+    auto f = prop.setNewValue(testValue);
     auto t = std::thread([&] {
         prop.applyNewValue([&](const int& v) mutable {
             EXPECT_FALSE(prop.hasNewValue());
             EXPECT_EQ(v, testValue);
         });
     });
-
-    auto f = prop.setNewValue(testValue);
     t.join();
     f.get();
     EXPECT_FALSE(prop.hasNewValue());
@@ -39,20 +39,30 @@ TEST(DelayedProperty, exception)   // NOLINT
     EXPECT_THROW(f.get(), std::runtime_error);   //NOLINT
     prop.applyNewValue();
     f2.get();
-    EXPECT_EQ(prop.getValue(), 1);
+    EXPECT_EQ(prop.getCurrentValue(), 1);
 }
 
-TEST(DelayedProperty, waitProp)   // NOLINT
+TEST(DelayedProperty, waitPropertyTimeout)   // NOLINT
 {
     DelayedProperty prop(0);
     auto t = std::thread([&] {
-        EXPECT_TRUE(prop.waitNewValue(2s));
+        EXPECT_TRUE(prop.waitNewValue(20ms));
         prop.applyNewValue();
-        EXPECT_EQ(prop.getValue(), testValue);
+        EXPECT_EQ(prop.getCurrentValue(), testValue);
     });
-    std::this_thread::sleep_for(1s);
+    std::this_thread::sleep_for(10ms);
     prop.setNewValue(testValue);
 
     t.join();
-    EXPECT_EQ(prop.getValue(), testValue);
+    EXPECT_EQ(prop.getCurrentValue(), testValue);
+
+    std::thread([&] {
+        std::this_thread::sleep_for(5ms);
+        prop.setNewValue(1);
+    }).detach();
+
+    prop.waitNewValue();
+    prop.applyNewValue();
+
+    EXPECT_EQ(prop.getCurrentValue(), 1);
 }
