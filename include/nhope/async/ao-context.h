@@ -5,6 +5,7 @@
 #include <memory>
 #include <stdexcept>
 #include <utility>
+#include <string_view>
 
 // FIXME: get rid of boost::exception_detail::clone_base
 #include <boost/exception/exception.hpp>
@@ -20,6 +21,7 @@ class AsyncOperationWasCancelled
 {
 public:
     AsyncOperationWasCancelled();
+    explicit AsyncOperationWasCancelled(std::string_view errMessage);
 
 public:   // FIXME: get rid of boost::exception_detail::clone_base
     [[nodiscard]] AsyncOperationWasCancelled* clone() const override;
