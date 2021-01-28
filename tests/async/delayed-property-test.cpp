@@ -66,3 +66,13 @@ TEST(DelayedProperty, waitPropertyTimeout)   // NOLINT
 
     EXPECT_EQ(prop.getCurrentValue(), 1);
 }
+
+TEST(DelayedProperty, setEqualValue)   // NOLINT
+{
+    DelayedProperty prop(testValue);
+
+    auto f = prop.setNewValue(testValue);
+    EXPECT_FALSE(prop.hasNewValue());
+    f.get();
+    EXPECT_EQ(prop.getCurrentValue(), testValue);
+}
