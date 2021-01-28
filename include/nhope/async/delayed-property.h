@@ -37,6 +37,10 @@ public:
     {
         std::scoped_lock lock(m_mutex);
 
+        if (m_value == value) {
+            return makeReadyFuture();
+        }
+
         if (m_promise.has_value()) {
             auto ex = std::make_exception_ptr(AsyncOperationWasCancelled("previous value was ignored"sv));
             m_promise.value().setException(ex);
