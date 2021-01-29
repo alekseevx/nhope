@@ -35,7 +35,7 @@ public:
     explicit DelayedProperty(Args&&... args)
       : m_d(std::make_shared<Prv>())
     {
-        m_d->currentValue(std::forward<Args>(args)...);
+        m_d->currentValue = {std::forward<Args>(args)...};
     }
 
     DelayedProperty(const DelayedProperty&) = delete;
