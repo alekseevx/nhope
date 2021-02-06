@@ -177,10 +177,10 @@ public:
 
             resumeNextTask();
 
-        } else if (auto&& [task, _it] = findTaskById(m_waitedTasks, id); task != nullptr) {
-            future = task->pausePromises.emplace_back().future();
-        } else if (auto&& [task, _it] = findTaskById(m_delayedTasks, id); task != nullptr) {
-            future = task->pausePromises.emplace_back().future();
+        } else if (auto&& [waitedTask, _itw] = findTaskById(m_waitedTasks, id); waitedTask != nullptr) {
+            future = waitedTask->pausePromises.emplace_back().future();
+        } else if (auto&& [delayedTask, _it] = findTaskById(m_delayedTasks, id); delayedTask != nullptr) {
+            future = delayedTask->pausePromises.emplace_back().future();
         }
         return future;
     }
