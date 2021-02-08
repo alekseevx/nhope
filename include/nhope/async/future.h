@@ -145,8 +145,8 @@ public:
         return fromBoostFuture(std::move(boostFuture));
     }
 
-    template<typename Fn>
-    auto then(AOContext& aoCtx, Fn&& fn)
+    template<typename Fn, class Executor>
+    auto then(BaseAOContext<Executor>& aoCtx, Fn&& fn)
     {
         return this->thenForAOCtx(aoCtx, [fn](boost::future<R> finishedFuture) mutable {
             return callThenHandler(std::move(fn), std::move(finishedFuture));
@@ -169,8 +169,8 @@ public:
         return fromBoostFuture(std::move(boostFuture));
     }
 
-    template<typename Fn>
-    Future<R> fail(AOContext& aoCtx, Fn&& fn)
+    template<typename Fn, class Executor>
+    Future<R> fail(BaseAOContext<Executor>& aoCtx, Fn&& fn)
     {
         return this->thenForAOCtx(aoCtx, [fn](boost::future<R> finishedFuture) mutable {
             return callErrorHandler(std::move(fn), std::move(finishedFuture));
@@ -178,8 +178,8 @@ public:
     }
 
 private:
-    template<typename Then>
-    auto thenForAOCtx(AOContext& aoCtx, Then&& then)
+    template<typename Then, class Executor>
+    auto thenForAOCtx(BaseAOContext<Executor>& aoCtx, Then&& then)
     {
         using ResultOfThen = std::invoke_result_t<Then, boost::future<R>>;
 
