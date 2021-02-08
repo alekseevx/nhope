@@ -21,6 +21,47 @@ std::string testArgValue(int invokeNum)
     return "test string " + std::to_string(invokeNum);
 }
 
+class TestOneFuncExecutor
+{
+public:
+    TestOneFuncExecutor()
+      : m_thread([this] {
+          std::unique_lock lock(m_mutex);
+          m_cv.wait(lock, [this] {
+              return m_execFunc != nullptr;
+          });
+
+          try {
+              m_execFunc();
+          } catch (const std::exception&) {
+          }
+      })
+    {}
+
+    ~TestOneFuncExecutor()
+    {
+        m_thread.join();
+    }
+
+    [[nodiscard]] std::thread::id getThreadId() const noexcept
+    {
+        return m_thread.get_id();
+    }
+
+    template<typename Fn, typename... Args>
+    void post(Fn fn, Args&&... args)
+    {
+        m_execFunc = std::bind(fn, std::forward<Args>(args)...);
+        m_cv.notify_one();
+    }
+
+private:
+    std::function<void()> m_execFunc{nullptr};
+    std::mutex m_mutex;
+    std::condition_variable m_cv;
+    std::thread m_thread;
+};
+
 // Пример потокобезопасного класса
 class TestClass final
 {
@@ -30,7 +71,7 @@ public:
     {}
 
 public:   // Функции, вызываемые из внешних потоков
-    Future<int> asynFunc(const std::string& retval, std::chrono::nanoseconds sleepTime = 0s)
+    Future<int> asyncFunc(const std::string& retval, std::chrono::nanoseconds sleepTime = 0s)
     {
         return asyncInvoke(m_aoCtx, &TestClass::funcImpl, this, retval, sleepTime);
     }
@@ -92,9 +133,9 @@ TEST(AsyncInvoke, AsyncInvokeObject)   // NOLINT
     {
         TestClass object(executor);
         for (int invokeNum = 0; invokeNum < iterCount; ++invokeNum) {
-            auto future = object.asynFunc(testArgValue(invokeNum));
-            auto retrunedInvokeNum = future.get();
-            EXPECT_EQ(retrunedInvokeNum, invokeNum);
+            auto future = object.asyncFunc(testArgValue(invokeNum));
+            auto returnedInvokeNum = future.get();
+            EXPECT_EQ(returnedInvokeNum, invokeNum);
         }
     }
 
@@ -118,8 +159,8 @@ TEST(AsyncInvoke, SyncInvokeObject)   // NOLINT
     {
         TestClass object(executor);
         for (int invokeNum = 0; invokeNum < iterCount; ++invokeNum) {
-            auto retrunedInvokeNum = object.func(testArgValue(invokeNum));
-            EXPECT_EQ(retrunedInvokeNum, invokeNum);
+            auto returnedInvokeNum = object.func(testArgValue(invokeNum));
+            EXPECT_EQ(returnedInvokeNum, invokeNum);
         }
     }
 
@@ -131,7 +172,7 @@ TEST(AsyncInvoke, SyncInvokeObject)   // NOLINT
     }
 }
 
-TEST(AsyncInvoke, DesctructionObjectWhenInvokeInQueue)   // NOLINT
+TEST(AsyncInvoke, DestructionObjectWhenInvokeInQueue)   // NOLINT
 {
     constexpr int iterCount = 10;
 
@@ -143,14 +184,14 @@ TEST(AsyncInvoke, DesctructionObjectWhenInvokeInQueue)   // NOLINT
 
         {
             TestClass object(executor);
-            future = object.asynFunc("test string");
+            future = object.asyncFunc("test string");
         }
 
         EXPECT_THROW(future.get(), AsyncOperationWasCancelled);   // NOLINT
     }
 }
 
-TEST(AsyncInvoke, DesctructionObjectWhenInvokeActive)   // NOLINT
+TEST(AsyncInvoke, DestructionObjectWhenInvokeActive)   // NOLINT
 {
     constexpr int iterCount = 10;
     constexpr int expectedInvokeNum = 0;
@@ -161,7 +202,7 @@ TEST(AsyncInvoke, DesctructionObjectWhenInvokeActive)   // NOLINT
 
         {
             TestClass object(executor);
-            future = object.asynFunc(testArgValue(expectedInvokeNum), 100ms);
+            future = object.asyncFunc(testArgValue(expectedInvokeNum), 100ms);
 
             // Подождем немного, чтобы метод успел вызваться
             std::this_thread::sleep_for(10ms);
@@ -170,4 +211,22 @@ TEST(AsyncInvoke, DesctructionObjectWhenInvokeActive)   // NOLINT
         int actualInvokeNum = future.get();
         EXPECT_EQ(actualInvokeNum, expectedInvokeNum);
     }
+}
+
+TEST(AsyncInvoke, CustomAOContext)   // NOLINT
+{
+    TestOneFuncExecutor executor;
+    BaseAOContext ctx(executor);
+
+    int value = 4;
+    constexpr auto multiply{10};
+
+    auto f = nhope::asyncInvoke(ctx, [&] {
+                 return value * multiply;
+                 EXPECT_EQ(executor.getThreadId(), std::this_thread::get_id());
+             }).then([](auto v) {
+        return v + 2;
+    });
+
+    EXPECT_EQ(f.get(), 42);
 }
