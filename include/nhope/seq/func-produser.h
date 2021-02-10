@@ -6,6 +6,7 @@
 #include <memory>
 #include <thread>
 #include <utility>
+#include <atomic>
 
 #include "consumer-list.h"
 #include "produser.h"

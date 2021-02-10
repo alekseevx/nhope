@@ -2,11 +2,13 @@
 name = "nhope"
 
 [lib]
-name = "nhope"
 lang = "c++17"
 
+[dependencies]
+asio = { git = "git@gitlab.olimp.lan:github/standalone-asio.git", tag = "asio-1-18-1", interface = "asio/include" }
+
 [sys-dependencies.Boost]
-components = [ "chrono", "system", "thread" ]
+components = [ "thread" ]
 
 [dev-dependencies]
 gtest = { git = "git@gitlab.olimp.lan:google/googletest.git" }

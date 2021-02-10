@@ -4,7 +4,7 @@
 #include <system_error>
 #include <utility>
 
-#include <boost/asio/steady_timer.hpp>
+#include <asio/steady_timer.hpp>
 
 #include "nhope/async/ao-context.h"
 #include "nhope/async/future.h"
@@ -19,7 +19,7 @@ void nhope::setTimeout(AOContext& aoCtx, std::chrono::nanoseconds timeout,
     auto& executor = aoCtx.executor();
     auto& ioCtx = executor.getContext();
 
-    auto timer = std::make_shared<boost::asio::steady_timer>(ioCtx);
+    auto timer = std::make_shared<asio::steady_timer>(ioCtx);
     auto cancel = [timer] {
         timer->cancel();
     };
@@ -36,7 +36,7 @@ Future<void> nhope::setTimeout(AOContext& aoCtx, std::chrono::nanoseconds timeou
     auto& executor = aoCtx.executor();
     auto& ioCtx = executor.getContext();
 
-    auto timer = std::make_shared<boost::asio::steady_timer>(ioCtx);
+    auto timer = std::make_shared<asio::steady_timer>(ioCtx);
     std::function handler = [promise](const std::error_code& err) {
         if (err) {
             auto exPtr = std::make_exception_ptr(std::system_error(err));

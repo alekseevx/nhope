@@ -1,13 +1,9 @@
-
 [package]
 name = nhope
-
-[lib]
-name = nhope
-lang = c++17
+cmake = 3.18.5
+bastard = 0.8.8
 
 [dependencies]
 gtest = { git = "git@gitlab.olimp.lan:google/googletest.git", rev = "8ffb7e5c" }
+asio = { git = "git@gitlab.olimp.lan:github/standalone-asio.git", rev = "b84e6c16", interface = "asio/include" }
 
-[sys-dependencies]
-Boost = { components = [ "chrono", "system", "thread" ] }

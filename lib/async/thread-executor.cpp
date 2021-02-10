@@ -1,7 +1,7 @@
 #include <cassert>
 #include <thread>
 
-#include <boost/asio/executor_work_guard.hpp>
+#include <asio/executor_work_guard.hpp>
 
 #include "nhope/async/thread-executor.h"
 
@@ -10,7 +10,7 @@ using namespace nhope;
 ThreadExecutor::ThreadExecutor()
 {
     m_thread = std::thread([this] {
-        auto workGuard = boost::asio::make_work_guard(m_ioCtx);
+        auto workGuard = asio::make_work_guard(m_ioCtx);
         m_ioCtx.run();
     });
 }
@@ -28,7 +28,7 @@ ThreadExecutor::Id ThreadExecutor::getThreadId() const noexcept
     return m_thread.get_id();
 }
 
-boost::asio::io_context& ThreadExecutor::getContext() noexcept
+asio::io_context& ThreadExecutor::getContext() noexcept
 {
     return m_ioCtx;
 }
