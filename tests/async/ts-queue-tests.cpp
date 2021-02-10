@@ -1,6 +1,8 @@
 #include <chrono>
+#include <condition_variable>
 #include <gtest/gtest.h>
 
+#include <mutex>
 #include <nhope/async/ts-queue.h>
 #include <nhope/async/thread-executor.h>
 #include <thread>
@@ -125,6 +127,29 @@ TEST(QueueTests, ReadFor)   // NOLINT
     }
 }
 
+// FIXME: Move to sync
+struct Event
+{
+    std::mutex mutex;
+    bool signaled = false;
+    std::condition_variable cv;
+};
+
+static void set(Event& event)
+{
+    std::unique_lock lock(event.mutex);
+    event.signaled = true;
+    event.cv.notify_one();
+}
+
+static void wait(Event& event)
+{
+    std::unique_lock lock(event.mutex);
+    event.cv.wait(lock, [&event] {
+        return event.signaled;
+    });
+}
+
 TEST(QueueTests, GenerateAndRead)   // NOLINT
 {
     constexpr int iterCount = 100;
@@ -132,22 +157,33 @@ TEST(QueueTests, GenerateAndRead)   // NOLINT
 
     TSQueue<int> queue;
 
-    {
-        ThreadExecutor writeThread;
-        ThreadExecutor readThread;
-        for (int i = 0; i < iterCount; ++i) {
-            writeThread.post([&] {
-                std::this_thread::sleep_for(4ms);
-                queue.write(int(writeValue));
+    Event writterFinishedEvent;
+    Event readerFinishedEvent;
+
+    ThreadExecutor writeThread;
+    ThreadExecutor readThread;
+    for (int i = 0; i < iterCount; ++i) {
+        writeThread.post([&] {
+            std::this_thread::sleep_for(4ms);
+            queue.write(int(writeValue));
+        });
+        if (i < (iterCount / 2)) {
+            readThread.post([&] {
+                auto readed = queue.read();
+                EXPECT_EQ(readed.value(), writeValue);
             });
-            if (i < (iterCount / 2)) {
-                readThread.post([&] {
-                    auto readed = queue.read();
-                    EXPECT_EQ(readed.value(), writeValue);
-                });
-            }
         }
     }
+
+    writeThread.post([&] {
+        set(writterFinishedEvent);
+    });
+    readThread.post([&] {
+        set(readerFinishedEvent);
+    });
+
+    wait(writterFinishedEvent);
+    wait(readerFinishedEvent);
 
     EXPECT_EQ(queue.size(), iterCount / 2);
     int readVal{0};
