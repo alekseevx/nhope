@@ -35,9 +35,9 @@ int count(Chan<int>& chan, int n = INT_MAX)
 
 TEST(ChanTest, OneToOne)   //NOLINT
 {
-    constexpr int MaxProduseCount = 1'000'000;
-    constexpr int ChanCapacity = 100;
-    constexpr int SumLimit = 1000;
+    static constexpr int MaxProduseCount = 1'000'000;
+    static constexpr int ChanCapacity = 100;
+    static constexpr int SumLimit = 1000;
 
     FuncProduser<int> numProduser([m = 0](int& value) mutable -> bool {
         if (m >= MaxProduseCount) {
@@ -58,9 +58,9 @@ TEST(ChanTest, OneToOne)   //NOLINT
 
 TEST(ChanTest, ManyToOne)   // NOLINT
 {
-    constexpr int MaxProduseCount = 1'000'000;
-    constexpr int ChanCapacity = 10;
-    constexpr int CountLimit = 100'000;
+    static constexpr int MaxProduseCount = 1'000'000;
+    static constexpr int ChanCapacity = 10;
+    static constexpr int CountLimit = 100'000;
 
     FuncProduser<int> evenNumProduser([m = 0](int& value) mutable -> bool {
         if (m >= MaxProduseCount) {
@@ -92,9 +92,9 @@ TEST(ChanTest, ManyToOne)   // NOLINT
 
 TEST(ChanTest, OneToMany)   // NOLINT
 {
-    constexpr int MaxProduseCount = 1'000;
-    constexpr int ChanCapacity = 100;
-    constexpr int Chan2Capacity = 100;
+    static constexpr int MaxProduseCount = 1'000;
+    static constexpr int ChanCapacity = 100;
+    static constexpr int Chan2Capacity = 100;
 
     FuncProduser<int> numProduser([m = 0](int& value) mutable -> bool {
         if (m >= MaxProduseCount) {

@@ -45,7 +45,7 @@ TEST(Future, notCaughtException)   // NOLINT
                         return 0;
                     });
 
-    EXPECT_THROW(int v = future.get(), std::runtime_error);   // NOLINT
+    EXPECT_THROW(future.get(), std::runtime_error);   // NOLINT
 }
 
 TEST(Future, caughtException)   // NOLINT

@@ -222,8 +222,8 @@ TEST(AsyncInvoke, CustomAOContext)   // NOLINT
     constexpr auto multiply{10};
 
     auto f = nhope::asyncInvoke(ctx, [&] {
-                 return value * multiply;
                  EXPECT_EQ(executor.getThreadId(), std::this_thread::get_id());
+                 return value * multiply;
              }).then([](auto v) {
         return v + 2;
     });

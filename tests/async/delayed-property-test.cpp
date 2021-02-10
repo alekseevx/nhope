@@ -52,7 +52,7 @@ TEST(DelayedProperty, waitPropertyTimeout)   // NOLINT
 {
     DelayedProperty prop(0);
     auto t = std::thread([&] {
-        EXPECT_TRUE(prop.waitNewValue(20ms));
+        EXPECT_TRUE(prop.waitNewValue(100ms));
         prop.applyNewValue(nullHandler);
         EXPECT_EQ(prop.getCurrentValue(), testValue);
     });

@@ -31,7 +31,7 @@ static bool isChanged(std::atomic<int>& value)
     using namespace std::chrono;
 
     int currentValue = value;
-    auto stop = steady_clock::now() + 10ms;
+    auto stop = steady_clock::now() + 100ms;
     while (steady_clock::now() < stop) {
         if (currentValue != value) {
             return true;
@@ -43,8 +43,8 @@ static bool isChanged(std::atomic<int>& value)
 
 TEST(ManageableTask, checkAsyncPauseResume)   // NOLINT
 {
-    constexpr int iterCount = 100;
-    constexpr int sleepInterval = 1000;
+    static constexpr int iterCount = 100;
+    static constexpr int sleepInterval = 1000;
 
     std::atomic<int> counter = 0;
 
@@ -79,7 +79,7 @@ TEST(ManageableTask, checkAsyncPauseResume)   // NOLINT
 
 TEST(ManageableTask, checkStopPausedTask)   // NOLINT
 {
-    constexpr int sleepInterval = 1000;
+    static constexpr int sleepInterval = 1000;
     std::atomic<int> counter = 0;
 
     auto task = ManageableTask::start([&counter](auto& ctx) {
@@ -131,7 +131,7 @@ TEST(ManageableTask, checkEnableDisablePause)   // NOLINT
     ASSERT_EQ(task->state(), ManageableTask::State::Pausing);
 
     pauseEnable = true;
-    ASSERT_EQ(pauseFuture.waitFor(10ms), FutureStatus::ready);
+    ASSERT_EQ(pauseFuture.waitFor(100ms), FutureStatus::ready);
     ASSERT_EQ(task->state(), ManageableTask::State::Paused);
 }
 

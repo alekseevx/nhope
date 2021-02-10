@@ -11,8 +11,8 @@ using namespace nhope;
 
 TEST(NotifierTests, CreateDestroyNotifier)   // NOLINT
 {
-    constexpr int IterCount = 100;
-    constexpr int MaxNotifyCount = 1000;
+    static constexpr int IterCount = 100;
+    static constexpr int MaxNotifyCount = 1000;
 
     FuncProduser<int> numProduser([m = 0](int& value) mutable -> bool {
         value = m++;

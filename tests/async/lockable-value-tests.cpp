@@ -13,7 +13,7 @@ using LockableMap = LockableValue<std::map<std::string, int>>;
 
 TEST(LockableValue, ReadWrite)   // NOLINT
 {
-    constexpr int MaxCounter = 100;
+    static constexpr int MaxCounter = 100;
 
     LockableMap lockableMap;
 
@@ -45,9 +45,9 @@ TEST(LockableValue, ReadWrite)   // NOLINT
 
 TEST(LockableValue, CopyValue)   // NOLINT
 {
-    constexpr int StartValue = 42;
-    constexpr int MaxValueForWritter = 80;
-    constexpr int MaxValueForReader = 77;
+    static constexpr int StartValue = 42;
+    static constexpr int MaxValueForWritter = 80;
+    static constexpr int MaxValueForReader = 77;
 
     LockableValue<int> lockInt(StartValue);
     auto writter = std::thread([&lockInt]() {

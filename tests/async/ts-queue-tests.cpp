@@ -72,7 +72,7 @@ TEST(QueueTests, WriteWithTimeout)   // NOLINT
     ThreadExecutor writeThread;
     for (int i = 0; i < iterCount; ++i) {
         writeThread.post([&] {
-            queue.write(int(writeValue), 100ms);
+            queue.write(writeValue, 100ms);
         });
     }
     std::this_thread::sleep_for(4ms);
@@ -118,7 +118,7 @@ TEST(QueueTests, ReadFor)   // NOLINT
             std::this_thread::sleep_for(2ms);
             queue.write(int(writeValue));
         });
-        bool readed = queue.read(readValue, 4ms);
+        bool readed = queue.read(readValue, 50ms);
 
         EXPECT_TRUE(readed);
         EXPECT_EQ(readValue, writeValue);
@@ -132,22 +132,22 @@ TEST(QueueTests, GenerateAndRead)   // NOLINT
 
     TSQueue<int> queue;
 
-    ThreadExecutor writeThread;
-    ThreadExecutor readThread;
-    for (int i = 0; i < iterCount; ++i) {
-        writeThread.post([&] {
-            std::this_thread::sleep_for(4ms);
-            queue.write(int(writeValue));
-        });
-        if (i < (iterCount / 2)) {
-            readThread.post([&] {
-                auto readed = queue.read();
-                EXPECT_EQ(readed.value(), writeValue);
+    {
+        ThreadExecutor writeThread;
+        ThreadExecutor readThread;
+        for (int i = 0; i < iterCount; ++i) {
+            writeThread.post([&] {
+                std::this_thread::sleep_for(4ms);
+                queue.write(int(writeValue));
             });
+            if (i < (iterCount / 2)) {
+                readThread.post([&] {
+                    auto readed = queue.read();
+                    EXPECT_EQ(readed.value(), writeValue);
+                });
+            }
         }
     }
-
-    std::this_thread::sleep_for(1s);
 
     EXPECT_EQ(queue.size(), iterCount / 2);
     int readVal{0};

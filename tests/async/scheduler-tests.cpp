@@ -84,7 +84,7 @@ TEST(Scheduler, SimpleTaskChain)   // NOLINT
 TEST(Scheduler, PriorityTask)   // NOLINT
 {
     thread_local int localCounter{0};
-    constexpr auto threadCounter{100};
+    static constexpr auto threadCounter{100};
     std::atomic_int counter = 0;
     Scheduler scheduler;
 
@@ -133,7 +133,7 @@ TEST(Scheduler, PriorityTask)   // NOLINT
 TEST(Scheduler, CancelTask)   // NOLINT
 {
     thread_local int localCounter{0};
-    constexpr auto threadCounter{100};
+    static constexpr auto threadCounter{100};
     std::atomic_int counter = 0;
     Scheduler scheduler;
 
@@ -185,7 +185,7 @@ TEST(Scheduler, CancelTask)   // NOLINT
 TEST(Scheduler, ClearTask)   // NOLINT
 {
     thread_local int localCounter{0};
-    constexpr auto threadCounter{100};
+    static constexpr auto threadCounter{100};
     std::atomic_int counter = 0;
     Scheduler scheduler;
 
@@ -278,7 +278,7 @@ TEST(Scheduler, TaskWait)   // NOLINT
 TEST(Scheduler, ThreadRace)   // NOLINT
 {
     thread_local int localCounter{0};
-    constexpr auto threadCounter{100};
+    static constexpr auto threadCounter{100};
     std::atomic_int counter = 0;
     Scheduler scheduler;
 
@@ -310,7 +310,7 @@ TEST(Scheduler, ThreadRace)   // NOLINT
 TEST(Scheduler, CancellingByDestruction)   // NOLINT
 {
     thread_local int localCounter{0};
-    constexpr auto threadCounter{100};
+    static constexpr auto threadCounter{100};
     std::atomic_int counter = 0;
 
     auto f1 = [&counter](auto& ctx) {
@@ -335,7 +335,7 @@ TEST(Scheduler, CancellingByDestruction)   // NOLINT
 TEST(Scheduler, DeactivateTask)   // NOLINT
 {
     thread_local int localCounter{0};
-    constexpr auto threadCounter{100};
+    static constexpr auto threadCounter{100};
     std::atomic_int counter = 0;
 
     auto f1 = [&counter](auto& ctx) {
@@ -421,7 +421,7 @@ TEST(Scheduler, DeactivateTask)   // NOLINT
 TEST(Scheduler, WaitDeactivatedTask)   // NOLINT
 {
     thread_local int localCounter{0};
-    constexpr auto threadCounter{100};
+    static constexpr auto threadCounter{100};
     std::atomic_int counter = 0;
 
     auto f1 = [&counter](auto& ctx) {
@@ -450,7 +450,7 @@ TEST(Scheduler, WaitDeactivatedTask)   // NOLINT
 TEST(Scheduler, CancelDeactivatedTask)   // NOLINT
 {
     thread_local int localCounter{0};
-    constexpr auto threadCounter{100};
+    static constexpr auto threadCounter{100};
     std::atomic_int counter = 0;
 
     auto f1 = [&counter](auto& ctx) {
