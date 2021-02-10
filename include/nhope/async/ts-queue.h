@@ -32,7 +32,8 @@ public:
         m_wcv.notify_all();
     }
 
-    bool write(T&& value)
+    template<typename Tv>
+    bool write(Tv&& value)
     {
         std::unique_lock lock(m_mutex);
         m_wcv.wait(lock, [this] {
@@ -43,12 +44,13 @@ public:
             return false;
         }
 
-        m_values.emplace_back(std::forward<T>(value));
+        m_values.emplace_back(std::forward<Tv>(value));
         m_rcv.notify_one();
         return true;
     }
 
-    bool write(T&& value, std::chrono::nanoseconds timeout)
+    template<typename Tv>
+    bool write(Tv&& value, std::chrono::nanoseconds timeout)
     {
         std::unique_lock lock(m_mutex);
 
@@ -64,7 +66,7 @@ public:
             return false;
         }
 
-        m_values.emplace_back(std::forward<T>(value));
+        m_values.emplace_back(std::forward<Tv>(value));
         m_rcv.notify_one();
         return true;
     }
