@@ -2,10 +2,10 @@ set(CMAKE_CXX_STANDARD 17)
 
 add_executable(nhope-tests
     main.cpp
-
     async/async-invoke-tests.cpp
     utils/exception_ptr_tests.cpp
     async/future-tests.cpp
+    async/state-obeserver-test.cpp
     async/delayed-property-test.cpp
     async/lockable-value-tests.cpp
     async/manageable-task-tests.cpp
