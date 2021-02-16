@@ -95,7 +95,7 @@ public:
     }
 
     template<typename Fn>
-    ObservableState& value(Fn fn)
+    const ObservableState& value(Fn fn) const
     {
         if (m_state.index() == 0) {
             fn(std::get<0>(m_state));
@@ -104,7 +104,7 @@ public:
     }
 
     template<typename Fn>
-    ObservableState& fail(Fn fn)
+    const ObservableState& fail(Fn fn) const
     {
         if (m_state.index() == 1) {
             fn(std::get<1>(m_state));
