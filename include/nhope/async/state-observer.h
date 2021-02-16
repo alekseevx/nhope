@@ -18,6 +18,18 @@
 namespace nhope {
 using namespace std::literals;
 
+template<typename T, typename U, class>
+struct has_equal_impl : std::false_type
+{};
+
+template<typename T, typename U>
+struct has_equal_impl<T, U, decltype(std::declval<T>() == std::declval<U>(), void())> : std::true_type
+{};
+
+template<typename T, typename U>
+struct has_equal : has_equal_impl<T, U, void>
+{};
+
 class StateUninitialized : public std::runtime_error
 {
 public:
@@ -47,11 +59,14 @@ public:
     template<typename V>
     bool operator==(V&& rhs) const
     {
-        if constexpr (std::is_same_v<std::decay_t<V>, ObservableState<T>>) {
+        using Vtype = std::decay_t<V>;
+        if constexpr (std::is_same_v<Vtype, ObservableState<T>>) {
             return m_state == rhs.m_state;
-        } else if constexpr (std::is_same_v<std::decay_t<V>, std::exception_ptr>) {
+        } else if constexpr (std::is_same_v<Vtype, std::exception_ptr>) {
             return hasException() && std::get<1>(m_state) == rhs;
         } else {
+            static_assert(has_equal<Vtype, T>::value, "need implement operator== ");
+
             return hasValue() && std::get<0>(m_state) == rhs;
         }
     }
@@ -152,12 +167,12 @@ public:
     void setState(V&& v)
     {
         std::scoped_lock lock(m_mutex);
-        T newVal = std::forward<V>(v);
-        m_state = newVal;
+
+        setNewState(v);
 
         m_aoCtx = std::make_unique<AOContext>(m_executor);
         asyncInvoke(*m_aoCtx,
-                    [this, newVal]() mutable {
+                    [this, newVal = std::forward<V>(v)]() mutable {
                         setRemoteState(std::move(newVal));
                     })
           .fail(*m_aoCtx,
