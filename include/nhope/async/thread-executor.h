@@ -3,8 +3,8 @@
 #include <thread>
 #include <utility>
 
-#include <boost/asio/io_context.hpp>
-#include <boost/asio/post.hpp>
+#include <asio/io_context.hpp>
+#include <asio/post.hpp>
 #include <boost/noncopyable.hpp>
 
 namespace nhope {
@@ -20,16 +20,16 @@ public:
 
     [[nodiscard]] Id getThreadId() const noexcept;
 
-    [[nodiscard]] boost::asio::io_context& getContext() noexcept;
+    [[nodiscard]] asio::io_context& getContext() noexcept;
 
     template<typename Fn, typename... Args>
     void post(Fn fn, Args&&... args)
     {
-        boost::asio::post(m_ioCtx, std::forward<Fn>(fn), std::forward<Args>(args)...);
+        asio::post(m_ioCtx, std::forward<Fn>(fn), std::forward<Args>(args)...);
     }
 
 private:
-    boost::asio::io_context m_ioCtx;
+    asio::io_context m_ioCtx;
     std::thread m_thread;
 };
 
