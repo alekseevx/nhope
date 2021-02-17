@@ -11,22 +11,34 @@ namespace {
 using namespace std::literals;
 using IntConsumer = nhope::ObservableState<int>;
 
-class StateObserverTest final : public nhope::StateObserver<int>
+class StateObserverTest final
 {
     int m_value{};
+    nhope::StateObserver<int> m_state;
 
 public:
     StateObserverTest(nhope::ThreadExecutor& e)
-      : nhope::StateObserver<int>(e)
+      : m_state(
+          [this](auto&& v) {
+              return setRemoteState(std::move(v));
+          },
+          [this] {
+              return getRemoteState();
+          },
+          e)
     {}
+    nhope::StateObserver<int>& observer()
+    {
+        return m_state;
+    }
 
-    nhope::Future<void> setRemoteState(int&& newVal) override
+    nhope::Future<void> setRemoteState(int&& newVal)
     {
         m_value = newVal;
         return nhope::makeReadyFuture();
     }
 
-    nhope::Future<int> getRemoteState() override
+    [[nodiscard]] nhope::Future<int> getRemoteState() const
     {
         return nhope::makeReadyFuture(int(m_value));
     }
@@ -62,9 +74,9 @@ TEST(StateObserver, SimpleObserver)   // NOLINT
               FAIL();
           });
     });
-    observer.attachConsumer(std::move(consumer));
-    observer.setState(value);
-    EXPECT_EQ(observer.getState().value(), value);
+    observer.observer().attachConsumer(std::move(consumer));
+    observer.observer().setState(value);
+    EXPECT_EQ(observer.observer().getState().value(), value);
     std::this_thread::sleep_for(200ms);
 }
 
@@ -75,7 +87,14 @@ TEST(StateObserver, ObserverState)   // NOLINT
     nhope::ObservableState<int> state2;
     EXPECT_TRUE(state.hasValue());
     EXPECT_TRUE(state2.hasException());
-    EXPECT_THROW(std::rethrow_exception(state2.exception()), nhope::StateUninitialized); //NOLINT
+    EXPECT_THROW(std::rethrow_exception(state2.exception()), nhope::StateUninitialized);   //NOLINT
 
     EXPECT_NE(state, state2);
+}
+
+TEST(StateObserver, ObserverFailConstruct)   // NOLINT
+{
+    nhope::ThreadExecutor e;
+    EXPECT_THROW(nhope::StateObserver<int> observer(nullptr, nullptr, e), nhope::StateUninitialized);   //NOLINT
+
 }

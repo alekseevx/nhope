@@ -137,13 +137,23 @@ template<typename T>
 class StateObserver : public nhope::Produser<ObservableState<T>>
 {
 public:
+    using StateSetter = std::function<Future<void>(T&&)>;
+    using StateGetter = std::function<Future<T>()>;
+
     static constexpr auto defaultPollTime = 100ms;
 
-    explicit StateObserver(ThreadExecutor& executor, std::chrono::nanoseconds pollTime = defaultPollTime)
-      : m_pollTime(pollTime)
+    explicit StateObserver(StateSetter setter, StateGetter getter, ThreadExecutor& executor,
+                           std::chrono::nanoseconds pollTime = defaultPollTime)
+      : m_setter(setter)
+      , m_getter(getter)
+      , m_pollTime(pollTime)
       , m_executor(executor)
       , m_aoCtx(std::make_unique<AOContext>(executor))
     {
+        if (!(getter && setter)) {
+            throw StateUninitialized("getter and setter must be set"sv);
+        }
+
         setTimeout(*m_aoCtx, pollTime, [this](auto /*unused*/) {
             updateState();
         });
@@ -173,7 +183,7 @@ public:
         m_aoCtx = std::make_unique<AOContext>(m_executor);
         asyncInvoke(*m_aoCtx,
                     [this, newVal = std::forward<V>(v)]() mutable {
-                        setRemoteState(std::move(newVal));
+                        m_setter(std::move(newVal));
                     })
           .fail(*m_aoCtx,
                 [this](auto exception) {
@@ -184,15 +194,11 @@ public:
           });
     }
 
-protected:
-    virtual Future<void> setRemoteState(T&&) = 0;
-    virtual Future<T> getRemoteState() = 0;
-
 private:
     void updateState()
     {
         std::scoped_lock lock(m_mutex);
-        getRemoteState()
+        m_getter()
           .then(*m_aoCtx,
                 [this](T state) {
                     setNewState(state);
@@ -218,6 +224,9 @@ private:
     }
 
 private:
+    StateSetter m_setter;
+    StateGetter m_getter;
+
     std::mutex m_mutex;
     std::chrono::nanoseconds m_pollTime;
 
