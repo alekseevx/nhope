@@ -16,6 +16,7 @@ add_executable(nhope-tests
     seq/chan-tests.cpp
     seq/notifier-tests.cpp
     seq/take-tests.cpp
+    seq/weak-list-tests.cpp
 
 )
 target_link_libraries(nhope-tests gtest nhope)
