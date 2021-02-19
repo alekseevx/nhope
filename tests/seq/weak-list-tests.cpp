@@ -34,6 +34,38 @@ TEST(WeakList, simpleList)   //NOLINT
     ASSERT_TRUE(weak.empty());
 }
 
+TEST(WeakList, find)   //NOLINT
+{
+    static constexpr int size = 1000;
+    constexpr int needle{42};
+
+    WeakList<int> weak;
+    EXPECT_TRUE(weak.empty());
+
+    std::vector<std::shared_ptr<int>> temp;
+    temp.reserve(size);
+
+    for (size_t i = 0; i < size; i++) {
+        auto t = std::make_shared<int>(i);
+        temp.emplace_back(t);
+        weak.emplace_back(t);
+    }
+    ASSERT_EQ(size, weak.size());
+
+    ASSERT_EQ(needle, *weak.find(needle));
+
+    auto needleSearcher = [&](const int& x) {
+        return x == needle;
+    };
+
+    ASSERT_EQ(needle, *weak.find_if(needleSearcher));
+
+    temp.erase(temp.begin() + needle);
+
+    ASSERT_EQ(nullptr, weak.find(needle));
+    ASSERT_EQ(nullptr, weak.find_if(needleSearcher));
+}
+
 TEST(WeakList, sharedList)   //NOLINT
 {
     static constexpr int size = 1000;

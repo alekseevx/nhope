@@ -3,7 +3,7 @@
 #include <iterator>
 #include <list>
 #include <memory>
-#include <mutex>
+#include <functional>
 
 #include "nhope/async/lockable-value.h"
 #include "nhope/async/reverse_lock.h"
@@ -41,20 +41,19 @@ class WeakList
                 return *this;
             }
 
-            m_pos++;
-            m_current = findCur();
+            m_current = next();
 
             while (m_current == nullptr && m_pos != m_list.end()) {
-                m_pos++;
-                m_current = findCur();
+                m_current = next();
             }
 
             return *this;
         }
 
     private:
-        std::shared_ptr<T> findCur() const
+        std::shared_ptr<T> next() const
         {
+            m_pos++;
             if (m_pos == m_list.end()) {
                 return std::shared_ptr<T>();
             }
@@ -77,6 +76,33 @@ public:
         for (const auto& ptr : m_list) {
             fn(ptr.lock());
         }
+    }
+
+    template<typename V>
+    std::shared_ptr<T> find(V&& val)
+    {
+        clearExpired();
+        if (auto it = std::find_if(m_list.begin(), m_list.end(),
+                                   [&](const auto& v) {
+                                       return *v.lock() == val;
+                                   });
+            it != m_list.end()) {
+            return it->lock();
+        }
+        return std::shared_ptr<T>();
+    }
+
+    std::shared_ptr<T> find_if(std::function<bool(const T&)> fn)
+    {
+        clearExpired();
+        if (auto it = std::find_if(m_list.begin(), m_list.end(),
+                                   [&](const auto& v) {
+                                       return fn(*v.lock());
+                                   });
+            it != m_list.end()) {
+            return it->lock();
+        }
+        return std::shared_ptr<T>();
     }
 
     void clearExpired()
