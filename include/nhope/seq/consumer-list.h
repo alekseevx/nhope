@@ -6,6 +6,7 @@
 #include <memory>
 
 #include "consumer.h"
+#include "nhope/async/reverse_lock.h"
 
 namespace nhope {
 
@@ -38,21 +39,22 @@ public:   // Consumer
             return Consumer<T>::Status::Closed;
         }
         List list = std::move(m_list);
-        lock.unlock();
 
-        auto it = list.begin();
-        while (it != list.end()) {
-            switch ((*it)->consume(value)) {
-            case Consumer<T>::Status::Ok:
-                it++;
-                break;
-            case Consumer<T>::Status::Closed:
-                it = list.erase(it);
-                break;
+        {
+            nhope::ReverseLock unlock(lock);
+            auto it = list.begin();
+            while (it != list.end()) {
+                switch ((*it)->consume(value)) {
+                case Consumer<T>::Status::Ok:
+                    it++;
+                    break;
+                case Consumer<T>::Status::Closed:
+                    it = list.erase(it);
+                    break;
+                }
             }
         }
 
-        lock.lock();
         m_list.splice(m_list.begin(), list);
         return Consumer<T>::Status::Ok;
     }
