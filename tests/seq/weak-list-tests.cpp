@@ -51,16 +51,14 @@ TEST(WeakList, sharedList)   //NOLINT
     for (auto x : weak) {
         counter++;
     }
-
+    EXPECT_EQ(counter, size);
+    weak.clearExpired();
     ASSERT_EQ(size, weak.size());
     temp.clear();
-    weak.clearExpired();
-
-    EXPECT_EQ(counter, size);
 
     for (auto x : weak) {
         FAIL() << "list expired ";
     }
-
+    weak.clearExpired();
     ASSERT_TRUE(weak.empty());
 }
