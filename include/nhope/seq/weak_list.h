@@ -18,39 +18,35 @@ class WeakList
 
     struct WeakIterator
     {
-        List& list;
-        mutable ListIterator pos{};
-        std::shared_ptr<T> current;
-
         WeakIterator(List& l, ListIterator pos)
-          : list(l)
-          , pos(pos)
+          : m_list(l)
+          , m_pos(pos)
         {
-            current = pos != list.end() ? pos->lock() : nullptr;
+            m_current = pos != m_list.end() ? pos->lock() : nullptr;
         }
 
         bool operator!=(const WeakIterator& o) const noexcept
         {
-            return pos != o.pos && current != nullptr;
+            return m_pos != o.m_pos && m_current != nullptr;
         }
 
         std::shared_ptr<T> operator*() const noexcept
         {
-            return current;
+            return m_current;
         }
 
         WeakIterator& operator++() noexcept
         {
-            if (pos == list.end()) {
+            if (m_pos == m_list.end()) {
                 return *this;
             }
 
-            pos++;
-            current = findCur();
+            m_pos++;
+            m_current = findCur();
 
-            while (current == nullptr && pos != list.end()) {
-                pos++;
-                current = findCur();
+            while (m_current == nullptr && m_pos != m_list.end()) {
+                m_pos++;
+                m_current = findCur();
             }
 
             return *this;
@@ -59,12 +55,16 @@ class WeakList
     private:
         std::shared_ptr<T> findCur() const
         {
-            if (pos == list.end()) {
+            if (m_pos == m_list.end()) {
                 return std::shared_ptr<T>();
             }
-            auto ptr = pos->lock();
+            auto ptr = m_pos->lock();
             return ptr;
         }
+
+        List& m_list;
+        mutable ListIterator m_pos{};
+        std::shared_ptr<T> m_current;
     };
 
 public:
@@ -129,29 +129,30 @@ class TSWeakList
 
     struct TSWeakIterator
     {
-        typename LockableValue<List>::ReadAccess ra;
-        mutable ListIterator pos{};
-
         TSWeakIterator(LockableValue<List>& l, ListIterator pos)
-          : ra(l.readAccess())
-          , pos(pos)
+          : m_ra(l.readAccess())
+          , m_pos(pos)
         {}
 
         bool operator!=(const TSWeakIterator& o) const noexcept
         {
-            return pos != o.pos;
+            return m_pos != o.m_pos;
         }
 
         std::shared_ptr<T> operator*() const noexcept
         {
-            return *pos;
+            return *m_pos;
         }
 
         TSWeakIterator& operator++() noexcept
         {
-            ++pos;
+            ++m_pos;
             return *this;
         }
+
+    private:
+        typename LockableValue<List>::ReadAccess m_ra;
+        mutable ListIterator m_pos{};
     };
 
 public:
