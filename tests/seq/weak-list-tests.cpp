@@ -10,6 +10,32 @@
 namespace {
 using namespace nhope;
 
+struct TsSafeData
+{
+    TsSafeData(int d)
+      : data(d)
+    {}
+
+    bool operator==(const int& rhs) const
+    {
+        return data.copy() == rhs;
+    }
+
+    TsSafeData& operator=(const int& rhs)
+    {
+        auto wa = data.writeAccess();
+        *wa = rhs;
+        return *this;
+    }
+
+    bool operator==(const TsSafeData& rhs) const
+    {
+        return data.copy() == rhs.data.copy();
+    }
+
+    LockableValue<int> data;
+};
+
 }   // namespace
 
 TEST(WeakList, simpleList)   //NOLINT
@@ -37,7 +63,7 @@ TEST(WeakList, simpleList)   //NOLINT
 TEST(WeakList, find)   //NOLINT
 {
     static constexpr int size = 1000;
-    constexpr int needle{42};
+    static constexpr int needle{42};
 
     WeakList<int> weak;
     EXPECT_TRUE(weak.empty());
@@ -242,4 +268,37 @@ TEST(TSWeakList, ForEach)   //NOLINT
     }
     weak.clearExpired();
     ASSERT_TRUE(weak.empty());
+}
+
+TEST(TSWeakList, find)   //NOLINT
+{
+    static constexpr int size = 1000;
+    static constexpr int needle{42};
+
+    TSWeakList<TsSafeData> weak;
+    EXPECT_TRUE(weak.empty());
+
+    std::vector<std::shared_ptr<TsSafeData>> temp;
+    temp.reserve(size);
+
+    for (size_t i = 0; i < size; i++) {
+        auto t = std::make_shared<TsSafeData>(0);
+        temp.emplace_back(t);
+        weak.emplace_back(t);
+    }
+
+    std::thread t1([&, c = 0]() mutable {
+        while (weak.find(needle) == nullptr) {
+            c++;
+        }
+        EXPECT_GE(c, 1);
+    });
+    constexpr auto waitTime = std::chrono::milliseconds(100);
+    std::this_thread::sleep_for(waitTime);
+     *temp[needle] = needle;
+    t1.join();
+
+    temp.erase(temp.begin() + needle);
+
+    EXPECT_EQ(nullptr, weak.find(needle));
 }

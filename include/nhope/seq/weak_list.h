@@ -72,19 +72,23 @@ public:
     template<typename Fn>
     void forEach(Fn fn)
     {
-        clearExpired();
         for (const auto& ptr : m_list) {
-            fn(ptr.lock());
+            if (auto pre = ptr.lock(); pre != nullptr) {
+                fn(pre);
+            }
         }
     }
 
     template<typename V>
     std::shared_ptr<T> find(V&& val)
     {
-        clearExpired();
         if (auto it = std::find_if(m_list.begin(), m_list.end(),
                                    [&](const auto& v) {
-                                       return *v.lock() == val;
+                                       auto ptr = v.lock();
+                                       if (ptr != nullptr) {
+                                           return *ptr == val;
+                                       }
+                                       return false;
                                    });
             it != m_list.end()) {
             return it->lock();
@@ -94,10 +98,12 @@ public:
 
     std::shared_ptr<T> find_if(std::function<bool(const T&)> fn)
     {
-        clearExpired();
         if (auto it = std::find_if(m_list.begin(), m_list.end(),
                                    [&](const auto& v) {
-                                       return fn(*v.lock());
+                                       if (auto ptr = v.lock(); ptr != nullptr) {
+                                           return fn(*ptr);
+                                       }
+                                       return false;
                                    });
             it != m_list.end()) {
             return it->lock();
@@ -192,7 +198,9 @@ public:
             copy = *ra;
         }
         for (const auto& ptr : copy) {
-            fn(ptr);
+            if (ptr != nullptr) {
+                fn(ptr);
+            }
         }
     }
 
@@ -232,9 +240,21 @@ public:
         return TSWeakIterator(m_locker, ra->end());
     }
 
+    template<typename V>
+    std::shared_ptr<T> find(V&& val)
+    {
+        auto wa = m_locker.writeAccess();
+        return wa->find(val);
+    }
+
+    std::shared_ptr<T> find_if(std::function<bool(const T&)> fn)
+    {
+        auto wa = m_locker.writeAccess();
+        return wa->find_if(std::move(fn));
+    }
+
 private:
-    List m_list;
-    LockableValue<List> m_locker{m_list};
+    LockableValue<List> m_locker;
 };
 
 }   // namespace nhope
