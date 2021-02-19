@@ -3,6 +3,10 @@
 #include <iterator>
 #include <list>
 #include <memory>
+#include <mutex>
+
+#include "nhope/async/lockable-value.h"
+#include "nhope/async/reverse_lock.h"
 
 namespace nhope {
 
@@ -64,6 +68,8 @@ class WeakList
     };
 
 public:
+    using iterator = WeakIterator;
+
     template<typename Fn>
     void forEach(Fn fn)
     {
@@ -113,6 +119,95 @@ public:
 
 private:
     mutable List m_list;
+};
+
+template<typename T>
+class TSWeakList
+{
+    using List = WeakList<T>;
+    using ListIterator = typename List::iterator;
+
+    struct TSWeakIterator
+    {
+        typename LockableValue<List>::ReadAccess ra;
+        mutable ListIterator pos{};
+
+        TSWeakIterator(LockableValue<List>& l, ListIterator pos)
+          : ra(l.readAccess())
+          , pos(pos)
+        {}
+
+        bool operator!=(const TSWeakIterator& o) const noexcept
+        {
+            return pos != o.pos;
+        }
+
+        std::shared_ptr<T> operator*() const noexcept
+        {
+            return *pos;
+        }
+
+        TSWeakIterator& operator++() noexcept
+        {
+            ++pos;
+            return *this;
+        }
+    };
+
+public:
+    template<typename Fn>
+    void forEach(Fn fn)
+    {
+        clearExpired();
+        List copy;
+        {
+            auto ra = m_locker.readAccess();
+            copy = *ra;
+        }
+        for (const auto& ptr : copy) {
+            fn(ptr);
+        }
+    }
+
+    void clearExpired()
+    {
+        auto wa = m_locker.writeAccess();
+        wa->clearExpired();
+    }
+
+    template<typename... Args>
+    void emplace_back(Args&&... args)
+    {
+        auto wa = m_locker.writeAccess();
+        wa->emplace_back(std::forward<Args>(args)...);
+    }
+
+    [[nodiscard]] size_t size() const noexcept
+    {
+        auto ra = m_locker.readAccess();
+        return ra->size();
+    }
+    [[nodiscard]] bool empty() const noexcept
+    {
+        auto ra = m_locker.readAccess();
+        return ra->empty();
+    }
+
+    TSWeakIterator begin()
+    {
+        auto ra = m_locker.readAccess();
+        return TSWeakIterator(m_locker, ra->begin());
+    }
+
+    TSWeakIterator end()
+    {
+        auto ra = m_locker.readAccess();
+        return TSWeakIterator(m_locker, ra->end());
+    }
+
+private:
+    List m_list;
+    LockableValue<List> m_locker{m_list};
 };
 
 }   // namespace nhope
