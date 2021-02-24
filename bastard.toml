@@ -4,6 +4,10 @@ name = "nhope"
 [lib]
 lang = "c++17"
 
+[[test]]
+lang = "c++17"
+path = "tests"
+
 [dependencies]
 asio = { git = "git@gitlab.olimp.lan:github/standalone-asio.git", tag = "asio-1-18-1", interface = "asio/include" }
 

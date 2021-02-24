@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.1)
+cmake_minimum_required(VERSION 3.11)
 
 include(cmake/enable_warnings.cmake)
 # add_compile_options(-fsanitize=thread -fsanitize-blacklist=${CMAKE_CURRENT_LIST_DIR}/sanitize-blacklist)
@@ -17,7 +17,3 @@ if (WIN32)
 endif()
 
 EnableWarnings(${BASTARD_PACKAGE_NAME})
-
-if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
-    add_subdirectory(tests)
-endif()
