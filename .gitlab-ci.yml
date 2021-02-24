@@ -11,10 +11,10 @@ build-job:
     - cmake --build .
   artifacts:
     paths:
-      - build/tests/nhope-tests
+      - build/tests
 
 test-job:
   stage: test
   image: ubuntu:20.04-build
   script:
-    - ./build/tests/nhope-tests
+    - ./build/tests

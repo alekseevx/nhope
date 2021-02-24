@@ -1,7 +1,7 @@
 [package]
 name = nhope
-cmake = 3.18.5
-bastard = 0.8.8
+cmake = 3.17.3
+bastard = 0.11.2
 
 [dependencies]
 gtest = { git = "git@gitlab.olimp.lan:google/googletest.git", rev = "8ffb7e5c" }
