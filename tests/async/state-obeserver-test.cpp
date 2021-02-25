@@ -40,7 +40,8 @@ public:
 
     [[nodiscard]] nhope::Future<int> getRemoteState() const
     {
-        return nhope::makeReadyFuture(int(m_value));
+        int value = m_value;
+        return nhope::makeReadyFuture(std::move(value));
     }
 };
 
@@ -96,5 +97,4 @@ TEST(StateObserver, ObserverFailConstruct)   // NOLINT
 {
     nhope::ThreadExecutor e;
     EXPECT_THROW(nhope::StateObserver<int> observer(nullptr, nullptr, e), nhope::StateUninitialized);   //NOLINT
-
 }
