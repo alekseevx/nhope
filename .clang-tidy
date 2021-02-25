@@ -4,6 +4,7 @@ Checks: >
     cert-*,
     clang-analyzer-*,
     cppcoreguidelines-*,-cppcoreguidelines-special-member-functions,
+      -cppcoreguidelines-avoid-magic-numbers,
     misc-*,-misc-non-private-member-variables-in-classes,
     modernize-*,-modernize-use-trailing-return-type,
     performance-*,

@@ -134,7 +134,7 @@ public:
 };
 
 template<typename T>
-class StateObserver : public nhope::Produser<ObservableState<T>>
+class StateObserver final : public nhope::Produser<ObservableState<T>>
 {
 public:
     using StateSetter = std::function<Future<void>(T&&)>;
