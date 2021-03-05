@@ -314,7 +314,7 @@ Scheduler::~Scheduler()
 
 Scheduler::TaskId Scheduler::push(ManageableTask::TaskFunction&& task, int priority)
 {
-    return invoke(m_impl->m_ao, [this, priority, &task] {
+    return invoke(m_impl->m_ao, [this, priority, task=std::move(task)] () mutable {
         return m_impl->push(priority, std::move(task));
     });
 }
