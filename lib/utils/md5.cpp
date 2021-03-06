@@ -309,7 +309,6 @@ MD5& MD5::update(gsl::span<const std::uint8_t> data)
     const auto partLen = static_cast<std::size_t>(blockSize - index);
 
     /* Transform as many times as possible. */
-    std::size_t i = 0;
     if (data.size() >= partLen) {
         std::memcpy(&m_context.buffer[index], data.data(), partLen);
         data = data.subspan(partLen);

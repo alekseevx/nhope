@@ -49,7 +49,6 @@ private:
     };
 
     Context m_context;
-    Digest m_digest{};
 };
 
 }   // namespace nhope::utils
