@@ -215,39 +215,6 @@ private:
     std::shared_ptr<State> m_state;
 };
 
-template<>
-class Promise<void> final
-{
-public:
-    Promise()
-      : m_state(std::make_shared<State>())
-    {}
-
-    Promise(Promise&&) noexcept = default;
-    Promise& operator=(Promise&&) noexcept = default;
-
-    void setValue()
-    {
-        m_state->setValue();
-    }
-
-    void setException(std::exception_ptr ex)
-    {
-        m_state->setException(std::move(ex));
-    }
-
-    Future<void> future()
-    {
-        return Future<void>(m_state);
-    }
-
-private:
-    using State = detail::FutureState<void>;
-
-private:
-    std::shared_ptr<State> m_state;
-};
-
 template<typename T>
 Future<T> makeReadyFuture(T&& value)
 {
