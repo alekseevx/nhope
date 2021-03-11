@@ -1,3 +1,4 @@
+#include <future>
 #include <stdexcept>
 #include <string>
 #include <thread>
@@ -17,6 +18,48 @@ constexpr int testValue = 10;
 constexpr int invalidValue = -1;
 
 }   // namespace
+
+TEST(Future, retrievedFlag)   // NOLINT
+{
+    Promise<void> p;
+    EXPECT_NO_THROW(p.future());                   // NOLINT
+    EXPECT_THROW(p.future(), std::future_error);   // NOLINT
+}
+
+TEST(Future, noState)   // NOLINT
+{
+    {
+        auto f = makeReadyFuture();
+        EXPECT_TRUE(f.valid());
+        EXPECT_TRUE(f.isReady());
+
+        EXPECT_NO_THROW(f.get());   // NOLINT
+
+        // Now future has no state
+
+        EXPECT_FALSE(f.valid());
+        EXPECT_THROW(f.get(), std::future_error);                // NOLINT
+        EXPECT_THROW(auto b = f.isReady(), std::future_error);   // NOLINT
+    }
+
+    {
+        auto executor = ThreadExecutor();
+        auto aoCtx = AOContext(executor);
+        auto f = makeReadyFuture();
+
+        EXPECT_TRUE(f.valid());
+        EXPECT_TRUE(f.isReady());
+
+        f.then(aoCtx, [] {});
+
+        // Now future has no state
+
+        EXPECT_FALSE(f.valid());
+        EXPECT_THROW(f.get(), std::future_error);                // NOLINT
+        EXPECT_THROW(f.then(aoCtx, [] {}), std::future_error);   // NOLINT
+        EXPECT_THROW(auto b = f.isReady(), std::future_error);   // NOLINT
+    }
+}
 
 TEST(Future, promiseResolving)   // NOLINT
 {
@@ -103,7 +146,9 @@ TEST(Future, caughtException)   // NOLINT
                           })
                     .fail(aoCtx, [executorThreadId](std::exception_ptr ex) -> int {
                         EXPECT_EQ(executorThreadId, std::this_thread::get_id());
-                        EXPECT_THROW(std::rethrow_exception(ex), std::runtime_error);   // NOLINT
+
+                        // NOLINTNEXTLINE
+                        EXPECT_THROW(std::rethrow_exception(ex), std::runtime_error);
 
                         return invalidValue;
                     });
@@ -124,9 +169,9 @@ TEST(Future, caughtException2)   // NOLINT
                           })
                     .fail(aoCtx,
                           [executorThreadId](std::exception_ptr ex) -> int {
-                              EXPECT_THROW(std::rethrow_exception(ex), std::runtime_error);   // NOLINT
+                              // NOLINTNEXTLINE
+                              EXPECT_THROW(std::rethrow_exception(ex), std::runtime_error);
                               EXPECT_EQ(executorThreadId, std::this_thread::get_id());
-
                               return invalidValue;
                           })
                     .then(aoCtx, [](int value) {
@@ -140,7 +185,6 @@ TEST(Future, caughtException2)   // NOLINT
 TEST(Future, skipThenExceptionWithAOCtx)   // NOLINT
 {
     auto executor = ThreadExecutor();
-    auto executorThreadId = executor.getThreadId();
     auto aoCtx = AOContext(executor);
 
     auto future = makeReadyFuture()
@@ -159,4 +203,43 @@ TEST(Future, skipThenExceptionWithAOCtx)   // NOLINT
                     });
 
     EXPECT_EQ(future.get(), std::to_string(testValue));
+}
+
+TEST(Future, dataRace)   // NOLINT
+{
+    static constexpr auto iterCount = 1000;
+
+    auto executor = ThreadExecutor();
+    auto aoCtx = AOContext(executor);
+
+    for (int i = 0; i < iterCount; ++i) {
+        auto promise = Promise<void>();
+        auto future = promise.future();
+        auto p1 = std::thread([promise = std::move(promise)]() mutable {
+            promise.setValue();
+        });
+
+        auto p2 = std::thread([&aoCtx, future = std::move(future)]() mutable {
+            future.then(aoCtx, [] {}).get();
+        });
+
+        p1.join();
+        p2.join();
+    }
+
+    for (int i = 0; i < iterCount; ++i) {
+        auto promise = Promise<void>();
+        auto future = promise.future();
+
+        auto p1 = std::thread([&aoCtx, future = std::move(future)]() mutable {
+            future.then(aoCtx, [] {}).get();
+        });
+
+        auto p2 = std::thread([promise = std::move(promise)]() mutable {
+            promise.setValue();
+        });
+
+        p1.join();
+        p2.join();
+    }
 }
