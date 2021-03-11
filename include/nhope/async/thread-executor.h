@@ -5,11 +5,12 @@
 
 #include <asio/io_context.hpp>
 #include <asio/post.hpp>
-#include <boost/noncopyable.hpp>
+
+#include <nhope/utils/noncopyable.h>
 
 namespace nhope {
 
-class ThreadExecutor final : boost::noncopyable
+class ThreadExecutor final : Noncopyable
 {
 public:
     using Id = std::thread::id;

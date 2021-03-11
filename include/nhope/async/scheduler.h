@@ -4,13 +4,12 @@
 #include <functional>
 #include <memory>
 
-#include <boost/noncopyable.hpp>
-
 #include <nhope/async/manageable-task.h>
+#include <nhope/utils/noncopyable.h>
 
 namespace nhope {
 
-class Scheduler : boost::noncopyable
+class Scheduler final : Noncopyable
 {
 public:
     using TaskId = uint64_t;
