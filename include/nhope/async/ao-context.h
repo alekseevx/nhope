@@ -13,27 +13,17 @@
 #include <mutex>
 #include <thread>
 
-#include "nhope/async/reverse_lock.h"
-
-// FIXME: get rid of boost::exception_detail::clone_base
-#include <boost/exception/exception.hpp>
+#include <nhope/async/reverse_lock.h>
 
 namespace nhope {
 
 class ThreadExecutor;
 
-class AsyncOperationWasCancelled
-  : public std::runtime_error
-  // FIXME: get rid of boost::exception_detail::clone_base
-  , public virtual boost::exception_detail::clone_base
+class AsyncOperationWasCancelled : public std::runtime_error
 {
 public:
     AsyncOperationWasCancelled();
     explicit AsyncOperationWasCancelled(std::string_view errMessage);
-
-public:   // FIXME: get rid of boost::exception_detail::clone_base
-    [[nodiscard]] AsyncOperationWasCancelled* clone() const override;
-    void rethrow() const override;
 };
 
 /**

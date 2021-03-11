@@ -13,13 +13,13 @@ using LockableMap = LockableValue<std::map<std::string, int>>;
 
 TEST(LockableValue, ReadWrite)   // NOLINT
 {
-    static constexpr int MaxCounter = 100;
+    static constexpr int maxCounter = 100;
 
     LockableMap lockableMap;
 
     auto writter = std::thread([&lockableMap]() {
         int counter = 0;
-        while (counter < MaxCounter) {
+        while (counter < maxCounter) {
             auto wa = lockableMap.writeAccess();
             (*wa)["counter"] = ++counter;
         }
@@ -31,7 +31,7 @@ TEST(LockableValue, ReadWrite)   // NOLINT
             auto ra = lockableMap.readAccess();
             auto i = ra->find("counter");
             if (i != ra->end()) {
-                if (i->second >= MaxCounter) {
+                if (i->second >= maxCounter) {
                     break;
                 }
             }
@@ -45,17 +45,17 @@ TEST(LockableValue, ReadWrite)   // NOLINT
 
 TEST(LockableValue, CopyValue)   // NOLINT
 {
-    static constexpr int StartValue = 42;
-    static constexpr int MaxValueForWritter = 80;
-    static constexpr int MaxValueForReader = 77;
+    static constexpr int startValue = 42;
+    static constexpr int maxValueForWritter = 80;
+    static constexpr int maxValueForReader = 77;
 
-    LockableValue<int> lockInt(StartValue);
+    LockableValue<int> lockInt(startValue);
     auto writter = std::thread([&lockInt]() {
         while (true) {
             std::this_thread::sleep_for(1ms);
             auto v = lockInt.copy();
             lockInt = ++v;
-            if (v == MaxValueForWritter) {
+            if (v == maxValueForWritter) {
                 break;
             }
         }
@@ -63,7 +63,7 @@ TEST(LockableValue, CopyValue)   // NOLINT
 
     auto reader = std::thread([&lockInt]() {
         while (true) {
-            if (lockInt.copy() > MaxValueForReader) {
+            if (lockInt.copy() > maxValueForReader) {
                 break;
             }
             std::this_thread::sleep_for(1ms);

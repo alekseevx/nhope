@@ -17,13 +17,11 @@ TEST(ManageableTask, checkAsyncWaitForStopped)   // NOLINT
 
     ASSERT_EQ(task->state(), ManageableTask::State::Running);
 
-    auto status = task->asyncWaitForStopped().waitFor(1s);
-    ASSERT_EQ(status, FutureStatus::ready);
+    ASSERT_TRUE(task->asyncWaitForStopped().waitFor(1s));
     ASSERT_EQ(task->state(), ManageableTask::State::Stopped);
 
     /* Повторный вызов допустим asyncWaitForStopped. */
-    status = task->asyncWaitForStopped().waitFor(0s);
-    ASSERT_EQ(status, FutureStatus::ready);
+    ASSERT_TRUE(task->asyncWaitForStopped().waitFor(0s));
 }
 
 static bool isChanged(std::atomic<int>& value)
@@ -64,12 +62,12 @@ TEST(ManageableTask, checkAsyncPauseResume)   // NOLINT
         auto taskState = task->state();
         ASSERT_TRUE(taskState == ManageableTask::State::Pausing || taskState == ManageableTask::State::Paused);
 
-        ASSERT_EQ(pauseFuture.waitFor(100ms), FutureStatus::ready);
+        ASSERT_TRUE(pauseFuture.waitFor(100ms));
         ASSERT_EQ(task->state(), ManageableTask::State::Paused);
         ASSERT_FALSE(isChanged(counter));
 
         auto resumeFuture = task->asyncResume();
-        ASSERT_EQ(resumeFuture.waitFor(100ms), FutureStatus::ready);
+        ASSERT_TRUE(resumeFuture.waitFor(100ms));
     }
 
     task->stop();
@@ -99,8 +97,7 @@ TEST(ManageableTask, checkStopPausedTask)   // NOLINT
     ASSERT_FALSE(isChanged(counter));
 
     task->asyncStop();
-    auto status = task->asyncWaitForStopped().waitFor(1s);
-    ASSERT_EQ(status, FutureStatus::ready);
+    ASSERT_TRUE(task->asyncWaitForStopped().waitFor(1s));
     ASSERT_EQ(task->state(), ManageableTask::State::Stopped);
     ASSERT_FALSE(isChanged(counter));
 }
@@ -127,11 +124,11 @@ TEST(ManageableTask, checkEnableDisablePause)   // NOLINT
 
     pauseEnable = false;
     auto pauseFuture = task->asyncPause();
-    ASSERT_EQ(pauseFuture.waitFor(10ms), FutureStatus::timeout);
+    ASSERT_FALSE(pauseFuture.waitFor(10ms));
     ASSERT_EQ(task->state(), ManageableTask::State::Pausing);
 
     pauseEnable = true;
-    ASSERT_EQ(pauseFuture.waitFor(100ms), FutureStatus::ready);
+    ASSERT_TRUE(pauseFuture.waitFor(100ms));
     ASSERT_EQ(task->state(), ManageableTask::State::Paused);
 }
 

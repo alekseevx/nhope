@@ -59,10 +59,8 @@ TEST(SetTimeout, FutureWait)   // NOLINT
     auto aoCtx = AOContext(executor);
 
     auto timeoutFuture = setTimeout(aoCtx, 250ms);
-    auto status = timeoutFuture.waitFor(500ms);
-
-    EXPECT_EQ(status, FutureStatus::ready);
-    EXPECT_FALSE(timeoutFuture.hasException());
+    EXPECT_TRUE(timeoutFuture.waitFor(500ms));
+    EXPECT_NO_THROW(timeoutFuture.get());   // NOLINT
 }
 
 TEST(SetTimeout, FutureCancel)   // NOLINT
@@ -75,7 +73,6 @@ TEST(SetTimeout, FutureCancel)   // NOLINT
     // Destroying the aoCtx must cancel all timers.
     aoCtx.reset();
 
-    auto status = timeoutFuture.waitFor(500ms);
-    EXPECT_EQ(status, FutureStatus::ready);
+    EXPECT_TRUE(timeoutFuture.waitFor(500ms));
     EXPECT_THROW(timeoutFuture.get(), AsyncOperationWasCancelled);   // NOLINT
 }

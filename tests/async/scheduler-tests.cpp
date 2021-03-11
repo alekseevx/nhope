@@ -444,7 +444,7 @@ TEST(Scheduler, WaitDeactivatedTask)   // NOLINT
     ASSERT_FALSE(f.isReady());
     scheduler.activate(0);
     f.get();
-    ASSERT_TRUE(f.isReady());
+    ASSERT_FALSE(f.valid());
 }
 
 TEST(Scheduler, CancelDeactivatedTask)   // NOLINT
