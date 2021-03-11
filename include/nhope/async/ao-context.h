@@ -65,7 +65,7 @@ class BaseAOContext final
           : executor(executor)
         {}
 
-        AsyncOperationId makeAsyncOperation(CancelHandler cancelHandler)
+        AsyncOperationId makeAsyncOperation(CancelHandler&& cancelHandler)
         {
             std::unique_lock lock(this->mutex);
 
@@ -230,24 +230,14 @@ public:
     CompletionHandler<CompletionArgs...> newAsyncOperation(CompletionHandler<CompletionArgs...> completionHandler,
                                                            CancelHandler cancelHandler)
     {
-        auto id = makeAsyncOperation(m_d, std::move(cancelHandler));
+        auto id = m_d->makeAsyncOperation(std::move(cancelHandler));
         return [id, d = this->m_d, ch = std::move(completionHandler)](CompletionArgs... args) mutable {
             auto packedCH = std::bind(std::move(ch), std::forward<CompletionArgs>(args)...);
-            asyncOperationFinished(d, id, std::move(packedCH));
+            d->asyncOperationFinished(id, std::move(packedCH));
         };
     }
 
 private:
-    static AsyncOperationId makeAsyncOperation(std::shared_ptr<Impl>& d, CancelHandler cancelHandler)
-    {
-        return d->makeAsyncOperation(std::move(cancelHandler));
-    }
-    static void asyncOperationFinished(std::shared_ptr<Impl>& d, AsyncOperationId id,
-                                       std::function<void()> completionHandler)
-    {
-        d->asyncOperationFinished(id, std::move(completionHandler));
-    }
-
     std::shared_ptr<Impl> m_d;
 };
 

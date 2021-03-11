@@ -1,4 +1,3 @@
-
 #include <nhope/async/ao-context.h>
 #include <nhope/async/thread-executor.h>
 
