@@ -157,35 +157,6 @@ template<typename T>
 class TSWeakList
 {
     using List = WeakList<T>;
-    using ListIterator = typename List::iterator;
-
-    struct TSWeakIterator
-    {
-        TSWeakIterator(LockableValue<List>& l, ListIterator pos)
-          : m_ra(l.readAccess())
-          , m_pos(pos)
-        {}
-
-        bool operator!=(const TSWeakIterator& o) const noexcept
-        {
-            return m_pos != o.m_pos;
-        }
-
-        std::shared_ptr<T> operator*() const noexcept
-        {
-            return *m_pos;
-        }
-
-        TSWeakIterator& operator++() noexcept
-        {
-            ++m_pos;
-            return *this;
-        }
-
-    private:
-        typename LockableValue<List>::ReadAccess m_ra;
-        mutable ListIterator m_pos{};
-    };
 
 public:
     template<typename Fn>
@@ -226,18 +197,6 @@ public:
     {
         auto ra = m_locker.readAccess();
         return ra->empty();
-    }
-
-    TSWeakIterator begin()
-    {
-        auto ra = m_locker.readAccess();
-        return TSWeakIterator(m_locker, ra->begin());
-    }
-
-    TSWeakIterator end()
-    {
-        auto ra = m_locker.readAccess();
-        return TSWeakIterator(m_locker, ra->end());
     }
 
     template<typename V>
