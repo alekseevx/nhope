@@ -141,17 +141,17 @@ TEST(TSWeakList, sharedList)   //NOLINT
     }
 
     int counter = 0;
-    for (auto x : weak) {
+    weak.forEach([&](auto /*unused*/) {
         counter++;
-    }
+    });
     EXPECT_EQ(counter, size);
     weak.clearExpired();
     ASSERT_EQ(size, weak.size());
     temp.clear();
 
-    for (auto x : weak) {
+    weak.forEach([](auto /*unused*/) {
         FAIL() << "list expired ";
-    }
+    });
     weak.clearExpired();
     ASSERT_TRUE(weak.empty());
 }
@@ -190,9 +190,9 @@ TEST(TSWeakList, ThreadRace)   //NOLINT
 
     auto t3 = std::thread([&] {
         while (!finished) {
-            for (auto x : weak) {
+            weak.forEach([&](auto /*unused*/) {
                 counter++;
-            }
+            });
             std::this_thread::sleep_for(std::chrono::milliseconds(4));
         }
     });
@@ -208,9 +208,9 @@ TEST(TSWeakList, ThreadRace)   //NOLINT
     t3.join();
     EXPECT_GE(counter, size);
 
-    for (auto x : weak) {
+    weak.forEach([](auto /*unused*/) {
         FAIL() << "list expired ";
-    }
+    });
     weak.clearExpired();
     ASSERT_TRUE(weak.empty());
 }
@@ -263,9 +263,9 @@ TEST(TSWeakList, ForEach)   //NOLINT
 
     EXPECT_GE(counter, size);
 
-    for (auto x : weak) {
+    weak.forEach([](auto /*unused*/) {
         FAIL() << "list expired ";
-    }
+    });
     weak.clearExpired();
     ASSERT_TRUE(weak.empty());
 }
@@ -295,7 +295,7 @@ TEST(TSWeakList, find)   //NOLINT
     });
     constexpr auto waitTime = std::chrono::milliseconds(100);
     std::this_thread::sleep_for(waitTime);
-     *temp[needle] = needle;
+    *temp[needle] = needle;
     t1.join();
 
     temp.erase(temp.begin() + needle);

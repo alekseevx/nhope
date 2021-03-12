@@ -4,7 +4,6 @@
 #include <nhope/seq/take.h>
 
 #include <gtest/gtest.h>
-#include <thread>
 
 using namespace nhope;
 
@@ -18,7 +17,7 @@ TEST(TakeOneFromProduser, Take)   // NOLINT
     });
 
     Future<int> future = takeOne(numProduser);
-    EXPECT_EQ(future.state(), FutureState::waiting);
+    EXPECT_FALSE(future.isReady());
 
     numProduser.start();
 

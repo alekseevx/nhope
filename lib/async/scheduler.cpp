@@ -7,12 +7,13 @@
 #include <nhope/async/thread-executor.h>
 #include <nhope/async/scheduler.h>
 #include <nhope/async/future.h>
+#include <nhope/utils/noncopyable.h>
 
 namespace nhope {
 
 class Scheduler::Impl
 {
-    struct Task : boost::noncopyable
+    struct Task final : Noncopyable
     {
         Task(TaskId id, std::unique_ptr<ManageableTask>&& ptr, int pr) noexcept
           : id(id)

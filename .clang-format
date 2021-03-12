@@ -2,7 +2,7 @@ BasedOnStyle: Mozilla
 IndentWidth: 4
 AccessModifierOffset: -4
 Language: Cpp
-Standard: Cpp11
+Standard: c++17
 AlignAfterOpenBracket: Align
 AlignConsecutiveAssignments: 'false'
 AlignConsecutiveDeclarations: 'false'
@@ -13,7 +13,7 @@ AllowAllParametersOfDeclarationOnNextLine: 'false'
 AllowShortBlocksOnASingleLine: 'false'
 AllowShortCaseLabelsOnASingleLine: 'false'
 AllowShortFunctionsOnASingleLine: 'false'
-AllowShortLambdasOnASingleLine: 'false'
+AllowShortLambdasOnASingleLine: 'Empty'
 AllowShortIfStatementsOnASingleLine: 'false'
 AllowShortLoopsOnASingleLine: 'false'
 AlwaysBreakAfterDefinitionReturnType: None
@@ -22,10 +22,10 @@ AlwaysBreakBeforeMultilineStrings: 'false'
 AlwaysBreakTemplateDeclarations: 'true'
 BinPackArguments: 'true'
 BinPackParameters: 'true'
-BreakBeforeBraces: Linux
 BreakBeforeInheritanceComma: 'false'
 BreakBeforeTernaryOperators: 'false'
 BreakConstructorInitializers: BeforeComma
+BreakStringLiterals: 'true'
 CompactNamespaces: 'false'
 Cpp11BracedListStyle: 'true'
 FixNamespaceComments: 'true'

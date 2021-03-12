@@ -1,6 +1,8 @@
 #include <chrono>
 #include <cstdio>
 #include <exception>
+#include <functional>
+#include <mutex>
 #include <stdexcept>
 #include <string>
 #include <thread>
@@ -21,25 +23,28 @@ std::string testArgValue(int invokeNum)
     return "test string " + std::to_string(invokeNum);
 }
 
-class TestOneFuncExecutor
+class TestExecutor
 {
 public:
-    TestOneFuncExecutor()
+    TestExecutor()
       : m_thread([this] {
-          std::unique_lock lock(m_mutex);
-          m_cv.wait(lock, [this] {
-              return m_execFunc != nullptr;
-          });
-
-          try {
-              m_execFunc();
-          } catch (const std::exception&) {
+          while (auto execFunc = this->next()) {
+              try {
+                  execFunc();
+              } catch (const std::exception&) {
+              }
           }
       })
     {}
 
-    ~TestOneFuncExecutor()
+    ~TestExecutor()
     {
+        {
+            std::unique_lock lock(m_mutex);
+            m_exit = true;
+            m_cv.notify_one();
+        }
+
         m_thread.join();
     }
 
@@ -51,14 +56,27 @@ public:
     template<typename Fn, typename... Args>
     void post(Fn fn, Args&&... args)
     {
+        std::unique_lock lock(m_mutex);
         m_execFunc = std::bind(fn, std::forward<Args>(args)...);
         m_cv.notify_one();
+    }
+
+private:
+    std::function<void()> next()
+    {
+        std::unique_lock lock(m_mutex);
+        m_cv.wait(lock, [this] {
+            return m_execFunc != nullptr || m_exit;
+        });
+
+        return m_exit ? nullptr : std::move(m_execFunc);
     }
 
 private:
     std::function<void()> m_execFunc{nullptr};
     std::mutex m_mutex;
     std::condition_variable m_cv;
+    bool m_exit = false;
     std::thread m_thread;
 };
 
@@ -215,7 +233,7 @@ TEST(AsyncInvoke, DestructionObjectWhenInvokeActive)   // NOLINT
 
 TEST(AsyncInvoke, CustomAOContext)   // NOLINT
 {
-    TestOneFuncExecutor executor;
+    TestExecutor executor;
     BaseAOContext ctx(executor);
 
     int value = 4;
@@ -224,7 +242,7 @@ TEST(AsyncInvoke, CustomAOContext)   // NOLINT
     auto f = nhope::asyncInvoke(ctx, [&] {
                  EXPECT_EQ(executor.getThreadId(), std::this_thread::get_id());
                  return value * multiply;
-             }).then([](auto v) {
+             }).then(ctx, [](auto v) {
         return v + 2;
     });
 
