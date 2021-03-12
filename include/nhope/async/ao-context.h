@@ -81,25 +81,24 @@ class BaseAOContext final
         void asyncOperationFinished(AsyncOperationId id, std::function<void()> completionHandler)
         {
             std::unique_lock lock(this->mutex);
-
             if (this->state != AOContextState::Open) {
                 return;
             }
 
-            if (!this->isThisThreadTheThreadExecutor()) {
-                // Let's transfer the call to the executor thread
-                auto self = this->shared_from_this();
-                this->executor.post([id, self, ch = std::move(completionHandler)]() mutable {
-                    self->asyncOperationFinished(id, std::move(ch));
-                });
-                return;
-            }
+            /* To avoid recursion, let's process end of operation in a delayed call */
+            auto self = this->shared_from_this();
+            this->executor.post([id, self, completionHandler = std::move(completionHandler)]() mutable {
+                std::unique_lock lock(self->mutex);
+                if (self->state != AOContextState::Open) {
+                    return;
+                }
 
-            if (!this->removeAsyncOperationRec(lock, id)) {
-                return;
-            }
+                if (!self->removeAsyncOperationRec(lock, id)) {
+                    return;
+                }
 
-            this->callCompletionHandler(lock, completionHandler);
+                self->callCompletionHandler(lock, completionHandler);
+            });
         }
 
         void close()
