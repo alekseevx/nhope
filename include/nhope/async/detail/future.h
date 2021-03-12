@@ -1,6 +1,5 @@
 #pragma once
 
-#include "nhope/async/ao-context.h"
 #include <condition_variable>
 #include <exception>
 #include <functional>
@@ -19,18 +18,6 @@ template<typename T>
 class Future;
 
 namespace detail {
-
-template<typename T>
-struct FutureResultType
-{
-    using Type = std::variant<T, std::exception_ptr>;
-};
-
-template<>
-struct FutureResultType<void>
-{
-    using Type = std::variant<std::monostate, std::exception_ptr>;
-};
 
 template<typename T>
 struct UnwrapFuture
@@ -62,15 +49,57 @@ inline constexpr bool isFuture = false;
 template<typename T>
 inline constexpr bool isFuture<Future<T>> = true;
 
+using Void = std::monostate;
+
+template<typename T>
+using FutureValue = std::conditional_t<std::is_void_v<T>, Void, T>;
+
+template<typename T>
+using FutureResult = std::variant<FutureValue<T>, std::exception_ptr>;
+
+template<typename T>
+inline constexpr bool isValue(const FutureResult<T>& result) noexcept
+{
+    return result.index() == 0;
+}
+
+template<typename T>
+inline constexpr bool isException(const FutureResult<T>& result) noexcept
+{
+    return result.index() == 1;
+}
+
+template<typename T>
+[[noreturn]] void rethrowException(const FutureResult<T>& result)
+{
+    std::rethrow_exception(std::get<1>(result));
+}
+
+template<typename T>
+T value(FutureResult<T>&& result)
+{
+    if constexpr (std::is_void_v<T>) {
+        return (void)std::get<0>(std::move(result));
+    } else {
+        return std::get<0>(std::move(result));
+    }
+}
+
+template<typename T>
+std::exception_ptr exception(FutureResult<T>&& result)
+{
+    return std::get<1>(std::move(result));
+}
+
 template<typename T>
 class FutureState final
 {
 public:
-    using Callback = std::function<void()>;
-
     using Type = T;
-    using Result = typename FutureResultType<T>::Type;
+    using Result = FutureResult<T>;
     using ResultStorage = std::optional<Result>;
+
+    using Callback = std::function<void()>;
 
     template<typename... Args>
     void setValue(Args&&... args)
@@ -86,7 +115,7 @@ public:
     void setResult(Result&& result)
     {
         std::unique_lock lock(m_mutex);
-        if (this->m_resultStorage != std::nullopt) {
+        if (m_resultStorage != std::nullopt) {
             throw std::future_error(std::future_errc::promise_already_satisfied);
         }
 
@@ -96,68 +125,39 @@ public:
         this->doCallback(lock);
     }
 
-    T getValue()
+    Result getResult()
     {
-        std::unique_lock lock(m_mutex);
-        if constexpr (std::is_void_v<T>) {
-            (void)std::get<0>(*m_resultStorage);
-            return;
-        } else {
-            return std::move(std::get<0>(*m_resultStorage));
-        }
-    }
-
-    std::exception_ptr getException()
-    {
-        std::unique_lock lock(m_mutex);
-        return std::move(std::get<1>(*m_resultStorage));
-    }
-
-    bool hasValue() const
-    {
-        std::unique_lock lock(m_mutex);
-        if (this->m_resultStorage == std::nullopt) {
-            return false;
-        }
-        return this->m_resultStorage->index() == 0;
+        std::scoped_lock lock(m_mutex);
+        return std::move(*m_resultStorage);
     }
 
     bool isReady() const
     {
-        std::unique_lock lock(m_mutex);
-        return this->m_resultStorage != std::nullopt;
-    }
-
-    bool hasException() const
-    {
-        std::unique_lock lock(m_mutex);
-        if (this->m_resultStorage == std::nullopt) {
-            return false;
-        }
-        return this->m_resultStorage->index() == 1;
+        std::scoped_lock lock(m_mutex);
+        return m_resultStorage != std::nullopt;
     }
 
     void wait() const
     {
         std::unique_lock lock(m_mutex);
         m_waiter.wait(lock, [this] {
-            return this->m_resultStorage != std::nullopt;
+            return m_resultStorage != std::nullopt;
         });
     }
 
     bool waitFor(std::chrono::nanoseconds time) const
     {
         std::unique_lock lock(m_mutex);
-        this->m_waiter.wait_for(lock, time, [this] {
-            return this->m_resultStorage != std::nullopt;
+        m_waiter.wait_for(lock, time, [this] {
+            return m_resultStorage != std::nullopt;
         });
-        return this->m_resultStorage != std::nullopt;
+        return m_resultStorage != std::nullopt;
     }
 
     void setCallback(Callback&& callback)
     {
         std::unique_lock lock(m_mutex);
-        this->m_callback = std::move(callback);
+        m_callback = std::move(callback);
 
         if (m_resultStorage != std::nullopt) {
             this->doCallback(lock);
@@ -166,11 +166,11 @@ public:
 
     void setRetrievedFlag()
     {
-        std::unique_lock lock(m_mutex);
-        if (this->m_retrievedFlag) {
+        std::scoped_lock lock(m_mutex);
+        if (m_retrievedFlag) {
             throw std::future_error(std::future_errc::future_already_retrieved);
         }
-        this->m_retrievedFlag = true;
+        m_retrievedFlag = true;
     }
 
 private:
@@ -202,16 +202,17 @@ void unwrapHelper(std::shared_ptr<detail::FutureState<T>> state,
                   std::shared_ptr<detail::FutureState<UnwrappedT>> unwrapState)
 {
     state->setCallback([state, unwrapState] {
-        if (state->hasException()) {
-            unwrapState->setException(state->getException());
+        auto result = state->getResult();
+        if (isException<T>(result)) {
+            unwrapState->setException(exception<T>(std::move(result)));
             return;
         }
 
         if constexpr (isFuture<T>) {
-            auto nextState = state->getValue().detachState();
+            auto nextState = value<T>(std::move(result)).detachState();
             unwrapHelper(nextState, unwrapState);
         } else if constexpr (!std::is_void_v<UnwrappedT>) {
-            unwrapState->setValue(state->getValue());
+            unwrapState->setValue(value<T>(std::move(result)));
         } else {
             unwrapState->setValue();
         }

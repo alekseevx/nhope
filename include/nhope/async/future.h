@@ -61,12 +61,13 @@ public:
 
         state->wait();
 
-        if (state->hasException()) {
-            std::rethrow_exception(state->getException());
+        auto result = state->getResult();
+        if (detail::isException<T>(result)) {
+            detail::rethrowException<T>(result);
         }
 
         if constexpr (!std::is_void_v<T>) {
-            return state->getValue();
+            return detail::value<T>(std::move(result));
         }
     }
 
@@ -87,16 +88,17 @@ public:
         auto nextState = std::make_shared<typename NextFuture<T, Fn>::State>();
 
         std::function callback = [state, nextState, fn]() mutable {
-            if (state->hasException()) {
-                nextState->setException(state->getException());
+            auto result = state->getResult();
+            if (detail::isException<T>(result)) {
+                nextState->setException(detail::exception<T>(std::move(result)));
                 return;
             }
 
-            detail::resolveState(*nextState, [fn = std::forward<Fn>(fn), state = std::move(state)]() mutable {
+            detail::resolveState(*nextState, [&fn, &result]() mutable {
                 if constexpr (std::is_void_v<T>) {
                     return fn();
                 } else {
-                    return fn(state->getValue());
+                    return fn(detail::value<T>(std::move(result)));
                 }
             });
         };
@@ -116,15 +118,16 @@ public:
         auto nextState = std::make_shared<Future::State>();
 
         std::function callback = [state, nextState, fn]() mutable {
-            if (state->hasValue()) {
-                detail::resolveState(*nextState, [state] {
-                    return state->getValue();
+            auto result = state->getResult();
+            if (detail::isValue<T>(result)) {
+                detail::resolveState(*nextState, [&result]() mutable {
+                    return detail::value<T>(std::move(result));
                 });
                 return;
             }
 
-            detail::resolveState(*nextState, [fn = std::forward<Fn>(fn), state = std::move(state)] {
-                return fn(state->getException());
+            detail::resolveState(*nextState, [&fn, &result] {
+                return fn(detail::exception<T>(std::move(result)));
             });
         };
         std::function cancel = [nextState] {
