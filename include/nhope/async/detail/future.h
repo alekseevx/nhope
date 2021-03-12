@@ -100,7 +100,8 @@ public:
     {
         std::unique_lock lock(m_mutex);
         if constexpr (std::is_void_v<T>) {
-            std::get<0>(*m_resultStorage);
+            (void)std::get<0>(*m_resultStorage);
+            return;
         } else {
             return std::move(std::get<0>(*m_resultStorage));
         }
