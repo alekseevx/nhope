@@ -9,13 +9,14 @@
 #include <fmt/format.h>
 #include <gsl/span>
 
-#include <ios>
 #include <istream>
-#include <nhope/utils/md5.h>
 #include <stdexcept>
 #include <string>
 #include <string_view>
 #include <system_error>
+
+#include <nhope/utils/bytes.h>
+#include <nhope/utils/md5.h>
 
 namespace {
 
@@ -102,24 +103,15 @@ constexpr void ii(std::uint32_t& a, std::uint32_t b, std::uint32_t c, std::uint3
     a += b;
 }
 
-constexpr void encode(gsl::span<std::uint8_t, 4> output, std::uint32_t input)
-{
-    output[0] = static_cast<std::uint8_t>(input);
-    output[1] = static_cast<std::uint8_t>(input >> 8);    // NOLINT(readability-magic-numbers)
-    output[2] = static_cast<std::uint8_t>(input >> 16);   // NOLINT(readability-magic-numbers)
-    output[3] = static_cast<std::uint8_t>(input >> 24);   // NOLINT(readability-magic-numbers)
-}
-
 // NOLINTNEXTLINE(readability-magic-numbers)
 constexpr void encode(gsl::span<std::uint8_t, 8> output, std::uint64_t input)
 {
-    encode(output.subspan<0, 4>(), static_cast<std::uint32_t>(input));
-    encode(output.subspan<4, 4>(), static_cast<std::uint32_t>(input >> 32));   // NOLINT(readability-magic-numbers)
+    nhope::toBytes(input, output, nhope::Endian::Little);
 }
 
 constexpr void encode(gsl::span<std::uint8_t, 4> output, gsl::span<const std::uint32_t, 1> input)
 {
-    encode(output, input[0]);
+    nhope::toBytes(input[0], output, nhope::Endian::Little);
 }
 
 template<std::size_t N, std::size_t M>
@@ -131,17 +123,9 @@ constexpr void encode(gsl::span<std::uint8_t, N> output, gsl::span<const std::ui
     encode(output.template last<N - 4>(), input.template last<M - 1>());
 }
 
-constexpr void decode(std::uint32_t& output, gsl::span<const std::uint8_t> input)
-{
-    output = static_cast<std::uint32_t>(input[0]) |           // NOLINT(readability-magic-numbers)
-             (static_cast<std::uint32_t>(input[1]) << 8) |    // NOLINT(readability-magic-numbers)
-             (static_cast<std::uint32_t>(input[2]) << 16) |   // NOLINT(readability-magic-numbers)
-             (static_cast<std::uint32_t>(input[3]) << 24);    // NOLINT(readability-magic-numbers)
-}
-
 constexpr void decode(gsl::span<std::uint32_t, 1> output, gsl::span<const std::uint8_t, 4> input)
 {
-    decode(output[0], input);
+    nhope::fromBytes(output[0], input, nhope::Endian::Little);
 }
 
 template<std::size_t N, std::size_t M>
