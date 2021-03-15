@@ -94,13 +94,13 @@ public:
                 return;
             }
 
-            detail::resolveState(*nextState, [&fn, &result]() mutable {
-                if constexpr (std::is_void_v<T>) {
-                    return fn();
-                } else {
+            if constexpr (std::is_void_v<T>) {
+                detail::resolveState(*nextState, std::forward<Fn>(fn));
+            } else {
+                detail::resolveState(*nextState, [&fn, &result]() {
                     return fn(detail::value<T>(std::move(result)));
-                }
-            });
+                });
+            }
         };
         std::function cancel = [nextState] {
             nextState->setException(std::make_exception_ptr(AsyncOperationWasCancelled()));
