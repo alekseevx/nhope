@@ -224,10 +224,10 @@ void resolveState(FutureState<T>& state, Fn&& fn, Args&&... args)
 {
     try {
         if constexpr (std::is_void_v<T>) {
-            fn(std::forward(args)...);
+            fn(std::forward<Args>(args)...);
             state.setValue();
         } else {
-            state.setValue(fn(std::forward(args)...));
+            state.setValue(fn(std::forward<Args>(args)...));
         }
     } catch (...) {
         state.setException(std::current_exception());

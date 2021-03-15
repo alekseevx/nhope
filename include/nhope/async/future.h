@@ -97,9 +97,7 @@ public:
             if constexpr (std::is_void_v<T>) {
                 detail::resolveState(*nextState, std::forward<Fn>(fn));
             } else {
-                detail::resolveState(*nextState, [&fn, &result]() {
-                    return fn(detail::value<T>(std::move(result)));
-                });
+                detail::resolveState(*nextState, std::forward<Fn>(fn), detail::value<T>(std::move(result)));
             }
         };
         std::function cancel = [nextState] {
@@ -126,9 +124,7 @@ public:
                 return;
             }
 
-            detail::resolveState(*nextState, [&fn, &result] {
-                return fn(detail::exception<T>(std::move(result)));
-            });
+            detail::resolveState(*nextState, std::forward<Fn>(fn), detail::exception<T>(std::move(result)));
         };
         std::function cancel = [nextState] {
             nextState->setException(std::make_exception_ptr(AsyncOperationWasCancelled()));
