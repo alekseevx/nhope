@@ -20,7 +20,6 @@ gtest = { git = "git@gitlab.olimp.lan:google/googletest.git" }
 path = "specific/windows"
 system = "Windows"
 
-
 [dependencies.com-discoverer-linux]
 path = "specific/linux"
 system = "Unix"
