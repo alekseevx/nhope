@@ -25,6 +25,9 @@ template<typename T, typename Fn>
 using NextFuture = typename detail::NextFuture<T, Fn>::Type;
 
 template<typename T>
+inline constexpr bool isFuture = detail::isFuture<T>;
+
+template<typename T>
 class Future final
 {
     friend Promise<T>;
@@ -82,8 +85,14 @@ public:
     }
 
     template<typename Executor, typename Fn>
-    UnwrapFuture<NextFuture<T, Fn>> then(BaseAOContext<Executor>& aoCtx, Fn&& fn)
+    auto then(BaseAOContext<Executor>& aoCtx, Fn&& fn)   // -> UnwrapFuture<NextFuture<T, Fn>>
     {
+        if constexpr (std::is_void_v<T>) {
+            static_assert(std::is_invocable_v<Fn>, "Fn must be function without arguments");
+        } else {
+            static_assert(std::is_invocable_v<Fn, T>, "Fn must accept a single argument of same type as the Future");
+        }
+
         auto state = this->detachState();
         auto nextState = std::make_shared<typename NextFuture<T, Fn>::State>();
 
@@ -112,6 +121,10 @@ public:
     template<typename Executor, typename Fn>
     Future fail(BaseAOContext<Executor>& aoCtx, Fn&& fn)
     {
+        static_assert(std::is_invocable_v<Fn, std::exception_ptr>, "Fn must take std::exception_ptr as argument");
+        static_assert(std::is_same_v<T, std::invoke_result_t<Fn, std::exception_ptr>>,
+                      "Fn must return a result of same type as the Future");
+
         auto state = this->detachState();
         auto nextState = std::make_shared<Future::State>();
 
