@@ -122,13 +122,15 @@ class BaseAOContext final
 
         void callCompletionHandler(std::unique_lock<std::mutex>& lock, std::function<void()>& completionHandler)
         {
-            assert(lock.owns_lock());   // NOLINT
+            assert(lock.owns_lock());                            // NOLINT
+            assert(this->hasActiveCompletionHandler == false);   // NOLINT
 
             if (completionHandler == nullptr) {
                 return;
             }
 
             this->hasActiveCompletionHandler = true;
+            this->executorThreadId = std::this_thread::get_id();
             lock.unlock();
 
             try {
@@ -146,7 +148,7 @@ class BaseAOContext final
         {
             assert(lock.owns_lock());   // NOLINT
 
-            if (this->isThisThreadTheThreadExecutor()) {
+            if (this->isThisThreadTheThreadExecutor(lock)) {
                 // we can't wait, we can get an infinite loop
                 return;
             }
@@ -177,10 +179,11 @@ class BaseAOContext final
             }
         }
 
-        [[nodiscard]] bool isThisThreadTheThreadExecutor() const
+        [[nodiscard]] bool isThisThreadTheThreadExecutor(std::unique_lock<std::mutex>& lock) const
         {
+            assert(lock.owns_lock());   // NOLINT
             const auto thisThreadId = std::this_thread::get_id();
-            return thisThreadId == this->executor.getThreadId();
+            return thisThreadId == executorThreadId;
         }
 
         Executor& executor;
@@ -189,6 +192,7 @@ class BaseAOContext final
 
         std::condition_variable noActiveCompletionHandlerCV;
         bool hasActiveCompletionHandler = false;
+        std::thread::id executorThreadId{};
 
         AOContextState state = AOContextState::Open;
         AsyncOperationId asyncOperationCounter = 0;
