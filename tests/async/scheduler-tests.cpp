@@ -471,3 +471,42 @@ TEST(Scheduler, CancelDeactivatedTask)   // NOLINT
     EXPECT_EQ(scheduler.getActiveTaskId(), std::nullopt);
     scheduler.cancel(0);
 }
+
+TEST(Scheduler, DeactivateByRequest)   // NOLINT
+{
+    thread_local int localCounter{0};
+    static constexpr auto threadCounter{100};
+
+    auto work = [counter = 0](auto& ctx) {
+        while (ctx.checkPoint()) {
+            std::this_thread::sleep_for(10ms);
+            if (localCounter++ == threadCounter) {
+                break;
+            }
+        }
+    };
+
+    nhope::Future<void> deactivated;
+    {
+        Scheduler scheduler;
+        auto firstWorkId = scheduler.push(work);
+
+        std::this_thread::sleep_for(10ms);
+        scheduler.deactivate(firstWorkId);
+        EXPECT_EQ(scheduler.getActiveTaskId(), std::nullopt);
+        deactivated = scheduler.asyncWait(firstWorkId);
+        std::this_thread::sleep_for(100ms);
+        ASSERT_FALSE(deactivated.isReady());
+
+        auto secondWorkId = scheduler.push(work);
+        auto activeWorkWaiter = scheduler.asyncWait(secondWorkId);
+
+        activeWorkWaiter.get();
+        ASSERT_FALSE(deactivated.waitFor(200ms));
+        
+    }
+
+    ASSERT_TRUE(deactivated.valid());
+    deactivated.get();
+    ASSERT_FALSE(deactivated.valid());
+}
