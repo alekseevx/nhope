@@ -97,10 +97,10 @@ public:
 
     [[nodiscard]] std::optional<TaskId> getActiveTaskId() const noexcept
     {
-        if (m_activeTask != nullptr) {
-            return m_activeTask->id;
+        if (m_activeTask == nullptr) {
+            return std::nullopt;
         }
-        return std::nullopt;
+        return m_activeTask->id;
     }
 
     Future<void> makeWaitAllPromise()
