@@ -165,6 +165,9 @@ public:
                 return task->asyncWaitForStopped();
             });
         };
+        future = future.then(m_ao, [this] {
+            m_waitedTasks.clear();
+        });
 
         return future;
     }
@@ -254,9 +257,8 @@ private:
         // finished task processing
         auto taskFinished = newTask->taskController->asyncWaitForStopped();
         taskFinished.then(m_ao, [this, finishedId = newTask->id] {
-            if (finishedId != m_activeTask->id) {
+            if (m_activeTask == nullptr || finishedId != m_activeTask->id) {
                 eraseTask(finishedId);
-
             } else {
                 assert(m_activeTask->taskController->state() == ManageableTask::State::Stopped);   //NOLINT
                 m_activeTask = nullptr;
@@ -315,7 +317,7 @@ Scheduler::~Scheduler()
 
 Scheduler::TaskId Scheduler::push(ManageableTask::TaskFunction&& task, int priority)
 {
-    return invoke(m_impl->m_ao, [this, priority, task=std::move(task)] () mutable {
+    return invoke(m_impl->m_ao, [this, priority, task = std::move(task)]() mutable {
         return m_impl->push(priority, std::move(task));
     });
 }
