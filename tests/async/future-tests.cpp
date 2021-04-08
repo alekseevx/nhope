@@ -19,6 +19,43 @@ constexpr int invalidValue = -1;
 
 }   // namespace
 
+TEST(Future, makeReadyFuture)   // NOLINT
+{
+    {
+        Future<void> future = makeReadyFuture();
+        EXPECT_TRUE(future.isReady());
+        EXPECT_TRUE(future.valid());
+    }
+
+    {
+        Future<void> future = makeReadyFuture<void>();
+        EXPECT_TRUE(future.isReady());
+        EXPECT_TRUE(future.valid());
+    }
+
+    {
+        Future<std::string> future = makeReadyFuture<std::string>("123"s);   // rvalue
+        EXPECT_TRUE(future.isReady());
+        EXPECT_TRUE(future.valid());
+        EXPECT_EQ(future.get(), "123");
+    }
+
+    {
+        const std::string value = "123";
+        Future<std::string> future = makeReadyFuture<std::string>(value);   // const ref
+        EXPECT_TRUE(future.isReady());
+        EXPECT_TRUE(future.valid());
+        EXPECT_EQ(future.get(), value);
+    }
+
+    {
+        Future<std::string> future = makeReadyFuture<std::string>("123", 3);   // variadic
+        EXPECT_TRUE(future.isReady());
+        EXPECT_TRUE(future.valid());
+        EXPECT_EQ(future.get(), "123");
+    }
+}
+
 TEST(Future, retrievedFlag)   // NOLINT
 {
     Promise<void> p;

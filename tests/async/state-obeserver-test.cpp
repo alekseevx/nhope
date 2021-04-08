@@ -41,7 +41,7 @@ public:
     [[nodiscard]] nhope::Future<int> getRemoteState() const
     {
         int value = m_value;
-        return nhope::makeReadyFuture(std::move(value));
+        return nhope::makeReadyFuture<int>(value);
     }
 };
 

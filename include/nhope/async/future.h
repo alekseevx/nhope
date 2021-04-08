@@ -227,21 +227,17 @@ private:
     std::shared_ptr<State> m_state;
 };
 
-template<typename T>
-Future<T> makeReadyFuture(T&& value)
+template<typename T, typename... Args>
+Future<T> makeReadyFuture(Args&&... args)
 {
     Promise<T> promise;
-    Future<T> future = promise.future();
-    promise.setValue(std::forward<T>(value));
-    return future;
+    promise.setValue(std::forward<Args>(args)...);
+    return promise.future();
 }
 
 inline Future<void> makeReadyFuture()
 {
-    Promise<void> promise;
-    Future<void> future = promise.future();
-    promise.setValue();
-    return future;
+    return makeReadyFuture<void>();
 }
 
 template<typename T, typename... Args>
