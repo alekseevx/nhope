@@ -1,25 +1,17 @@
 #pragma once
 
-#include <cstdint>
 #include <memory>
 #include <stdexcept>
 #include <utility>
 #include <string_view>
-#include <algorithm>
-#include <cassert>
-#include <condition_variable>
 #include <functional>
-#include <map>
-#include <mutex>
-#include <thread>
-
-#include <nhope/async/reverse_lock.h>
 
 namespace nhope {
 
-class ThreadExecutor;
+class Executor;
+class SequenceExecutor;
 
-class AsyncOperationWasCancelled : public std::runtime_error
+class AsyncOperationWasCancelled final : public std::runtime_error
 {
 public:
     AsyncOperationWasCancelled();
@@ -29,202 +21,40 @@ public:
 /**
  * @class AOContext
  *
- * @brief Контекст для выполнения асинхронных операций на заданном ThreadExecutor
+ * @brief Контекст для выполнения асинхронных операций на заданном Executor
  * 
  * AOContext решает следующие задачи:
- * - обеспечивает вызов CompletionHandler в ThreadExecutor
+ * - обеспечивает вызов обработчика асинхронной операции в заданном Executor-e
+ * - гарантирует, что все обработчики асинхронных операций, запущенные на одном AOContext-е,
+ *   будут выполнены последовательно
  * - гарантирует, что при уничтожении контекста все асинхронные операции, запущенные
- *   на контексте, будут отменены а их CompletionHandler вызваны не будут
+ *   на контексте, будут отменены а их обработчики вызваны не будут
  *
  */
-
-template<class Executor>
-class BaseAOContext final
+class AOContext final
 {
     template<typename... Args>
     using CompletionHandler = std::function<void(Args...)>;
     using CancelHandler = std::function<void()>;
     using AsyncOperationId = std::uint64_t;
 
-    class Impl : public std::enable_shared_from_this<Impl>
-    {
-        enum class AOContextState
-        {
-            Open,
-            Closing,
-            Closed
-        };
-
-        struct AsyncOperationRec
-        {
-            CancelHandler cancelHandler;
-        };
-
-    public:
-        explicit Impl(Executor& executor)
-          : executor(executor)
-        {}
-
-        AsyncOperationId makeAsyncOperation(CancelHandler&& cancelHandler)
-        {
-            std::unique_lock lock(this->mutex);
-
-            assert(this->state != AOContextState::Closed);   // NOLINT
-
-            const auto id = this->asyncOperationCounter++;
-            auto& rec = this->activeAsyncOperations[id];
-            rec.cancelHandler = std::move(cancelHandler);
-
-            return id;
-        }
-
-        void asyncOperationFinished(AsyncOperationId id, std::function<void()> completionHandler)
-        {
-            std::unique_lock lock(this->mutex);
-            if (this->state != AOContextState::Open) {
-                return;
-            }
-
-            /* To avoid recursion, let's process end of operation in a delayed call */
-            auto self = this->shared_from_this();
-            this->executor.post([id, self, completionHandler = std::move(completionHandler)]() mutable {
-                std::unique_lock lock(self->mutex);
-                if (self->state != AOContextState::Open) {
-                    return;
-                }
-
-                if (!self->removeAsyncOperationRec(lock, id)) {
-                    return;
-                }
-
-                self->callCompletionHandler(lock, completionHandler);
-            });
-        }
-
-        void close()
-        {
-            std::unique_lock lock(this->mutex);
-
-            assert(this->state == AOContextState::Open);   // NOLINT
-
-            this->state = AOContextState::Closing;
-            this->waitActiveCompletionHandler(lock);
-            this->state = AOContextState::Closed;
-
-            this->cancelAsyncOperations(lock);
-        }
-
-        bool removeAsyncOperationRec([[maybe_unused]] std::unique_lock<std::mutex>& lock, AsyncOperationId id)
-        {
-            assert(lock.owns_lock());   // NOLINT
-            return this->activeAsyncOperations.erase(id) != 0;
-        }
-
-        void callCompletionHandler(std::unique_lock<std::mutex>& lock, std::function<void()>& completionHandler)
-        {
-            assert(lock.owns_lock());                            // NOLINT
-            assert(this->hasActiveCompletionHandler == false);   // NOLINT
-
-            if (completionHandler == nullptr) {
-                return;
-            }
-
-            this->hasActiveCompletionHandler = true;
-            this->executorThreadId = std::this_thread::get_id();
-            lock.unlock();
-
-            try {
-                completionHandler();
-            } catch (...) {
-                // FIXME: Logging
-            }
-
-            lock.lock();
-            this->hasActiveCompletionHandler = false;
-            this->noActiveCompletionHandlerCV.notify_all();
-        }
-
-        void waitActiveCompletionHandler(std::unique_lock<std::mutex>& lock)
-        {
-            assert(lock.owns_lock());   // NOLINT
-
-            if (this->isThisThreadTheThreadExecutor(lock)) {
-                // we can't wait, we can get an infinite loop
-                return;
-            }
-
-            while (this->hasActiveCompletionHandler) {
-                this->noActiveCompletionHandlerCV.wait(lock);
-            }
-        }
-
-        void cancelAsyncOperations(std::unique_lock<std::mutex>& lock)
-        {
-            assert(lock.owns_lock());   // NOLINT
-
-            auto cancelledAsyncOperations = std::move(this->activeAsyncOperations);
-
-            ReverseLock unlock(lock);
-
-            for (auto& [id, cancelledAsyncOperation] : cancelledAsyncOperations) {
-                if (cancelledAsyncOperation.cancelHandler == nullptr) {
-                    continue;
-                }
-
-                try {
-                    cancelledAsyncOperation.cancelHandler();
-                } catch (...) {
-                    // FIXME: Logging
-                }
-            }
-        }
-
-        [[nodiscard]] bool isThisThreadTheThreadExecutor(std::unique_lock<std::mutex>& lock) const
-        {
-            assert(lock.owns_lock());   // NOLINT
-            const auto thisThreadId = std::this_thread::get_id();
-            return thisThreadId == executorThreadId;
-        }
-
-        Executor& executor;
-
-        std::mutex mutex;
-
-        std::condition_variable noActiveCompletionHandlerCV;
-        bool hasActiveCompletionHandler = false;
-        std::thread::id executorThreadId{};
-
-        AOContextState state = AOContextState::Open;
-        AsyncOperationId asyncOperationCounter = 0;
-        std::map<AsyncOperationId, AsyncOperationRec> activeAsyncOperations;
-    };
-
 public:
-    BaseAOContext(const BaseAOContext&) = delete;
-    BaseAOContext& operator=(const BaseAOContext&) = delete;
+    AOContext(const AOContext&) = delete;
+    AOContext& operator=(const AOContext&) = delete;
 
-    BaseAOContext(BaseAOContext&&) noexcept = default;
-    BaseAOContext& operator=(BaseAOContext&&) = delete;
+    AOContext(AOContext&&) noexcept = default;
+    AOContext& operator=(AOContext&&) = delete;
 
-    explicit BaseAOContext(Executor& executor)
-      : m_d(std::make_shared<Impl>(executor))
-    {}
+    explicit AOContext(Executor& executor);
+    ~AOContext();
 
-    ~BaseAOContext()
-    {
-        m_d->close();
-    }
-
-    Executor& executor()
-    {
-        return m_d->executor;
-    }
+    SequenceExecutor& executor();
 
     /**
      * @brief Функция для создания асинхронной операции
      * 
      * @param completionHandler пользовательский обработчик окончания асинхронной операции.
-                                Вызывается только в потоке ThreadExecutor-а.
+                                Вызывается только на заданном Executor-е.
      * @param cancelHandler     обработчик отмены асинхронной операции. Вызывается в том потоке, где уничтожается контекст.
      *
      * @retval функциональный объект, который должен быть вызван по завершении асинхронной операции.
@@ -233,17 +63,20 @@ public:
     CompletionHandler<CompletionArgs...> newAsyncOperation(CompletionHandler<CompletionArgs...> completionHandler,
                                                            CancelHandler cancelHandler)
     {
-        auto id = m_d->makeAsyncOperation(std::move(cancelHandler));
+        auto id = AOContext::makeAsyncOperation(*m_d, std::move(cancelHandler));
         return [id, d = this->m_d, ch = std::move(completionHandler)](CompletionArgs... args) mutable {
             auto packedCH = std::bind(std::move(ch), std::forward<CompletionArgs>(args)...);
-            d->asyncOperationFinished(id, std::move(packedCH));
+            AOContext::asyncOperationFinished(*d, id, std::move(packedCH));
         };
     }
 
 private:
+    class Impl;
+    static AsyncOperationId makeAsyncOperation(Impl& d, CancelHandler&& cancelHandler);
+    static void asyncOperationFinished(Impl& d, AsyncOperationId id, std::function<void()> completionHandler);
+
+private:
     std::shared_ptr<Impl> m_d;
 };
-
-using AOContext = BaseAOContext<ThreadExecutor>;
 
 }   // namespace nhope

@@ -23,69 +23,13 @@ std::string testArgValue(int invokeNum)
     return "test string " + std::to_string(invokeNum);
 }
 
-class TestExecutor
-{
-public:
-    TestExecutor()
-      : m_thread([this] {
-          while (auto execFunc = this->next()) {
-              try {
-                  execFunc();
-              } catch (const std::exception&) {
-              }
-          }
-      })
-    {}
-
-    ~TestExecutor()
-    {
-        {
-            std::unique_lock lock(m_mutex);
-            m_exit = true;
-            m_cv.notify_one();
-        }
-
-        m_thread.join();
-    }
-
-    [[nodiscard]] std::thread::id getThreadId() const noexcept
-    {
-        return m_thread.get_id();
-    }
-
-    template<typename Fn, typename... Args>
-    void post(Fn fn, Args&&... args)
-    {
-        std::unique_lock lock(m_mutex);
-        m_execFunc = std::bind(fn, std::forward<Args>(args)...);
-        m_cv.notify_one();
-    }
-
-private:
-    std::function<void()> next()
-    {
-        std::unique_lock lock(m_mutex);
-        m_cv.wait(lock, [this] {
-            return m_execFunc != nullptr || m_exit;
-        });
-
-        return m_exit ? nullptr : std::move(m_execFunc);
-    }
-
-private:
-    std::function<void()> m_execFunc{nullptr};
-    std::mutex m_mutex;
-    std::condition_variable m_cv;
-    bool m_exit = false;
-    std::thread m_thread;
-};
-
 // Пример потокобезопасного класса
 class TestClass final
 {
 public:
     explicit TestClass(ThreadExecutor& executor)
       : m_aoCtx(executor)
+      , m_threadExecutorId(executor.id())
     {}
 
 public:   // Функции, вызываемые из внешних потоков
@@ -112,7 +56,7 @@ public:   // Функции, вызываемые из внешних поток
 private:   // Функции выполняемые в ThreadExecuter
     int funcImpl(const std::string& arg, std::chrono::nanoseconds sleepTime)
     {
-        EXPECT_EQ(m_aoCtx.executor().getThreadId(), std::this_thread::get_id());
+        EXPECT_EQ(m_threadExecutorId, std::this_thread::get_id());
         EXPECT_EQ(testArgValue(m_invokeCounter), arg);
 
         std::this_thread::sleep_for(sleepTime);
@@ -122,7 +66,7 @@ private:   // Функции выполняемые в ThreadExecuter
 
     void funcWithThrowImpl()
     {
-        EXPECT_EQ(m_aoCtx.executor().getThreadId(), std::this_thread::get_id());
+        EXPECT_EQ(m_threadExecutorId, std::this_thread::get_id());
 
         ++m_invokeCounter;
         throw std::runtime_error("invokeWithThrowImpl");
@@ -130,6 +74,7 @@ private:   // Функции выполняемые в ThreadExecuter
 
 private:
     AOContext m_aoCtx;
+    std::thread::id m_threadExecutorId;
     int m_invokeCounter = 0;
 };
 
@@ -229,22 +174,4 @@ TEST(AsyncInvoke, DestructionObjectWhenInvokeActive)   // NOLINT
         int actualInvokeNum = future.get();
         EXPECT_EQ(actualInvokeNum, expectedInvokeNum);
     }
-}
-
-TEST(AsyncInvoke, CustomAOContext)   // NOLINT
-{
-    TestExecutor executor;
-    BaseAOContext ctx(executor);
-
-    int value = 4;
-    constexpr auto multiply{10};
-
-    auto f = nhope::asyncInvoke(ctx, [&] {
-                 EXPECT_EQ(executor.getThreadId(), std::this_thread::get_id());
-                 return value * multiply;
-             }).then(ctx, [](auto v) {
-        return v + 2;
-    });
-
-    EXPECT_EQ(f.get(), 42);
 }

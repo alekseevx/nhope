@@ -131,7 +131,7 @@ TEST(Future, promiseResolving)   // NOLINT
 TEST(Future, simpleChain)   // NOLINT
 {
     auto executor = ThreadExecutor();
-    auto executorThreadId = executor.getThreadId();
+    auto executorThreadId = executor.id();
     auto aoCtx = AOContext(executor);
 
     auto future = makeReadyFuture()
@@ -171,7 +171,7 @@ TEST(Future, notCaughtException)   // NOLINT
 TEST(Future, caughtException)   // NOLINT
 {
     auto executor = ThreadExecutor();
-    auto executorThreadId = executor.getThreadId();
+    auto executorThreadId = executor.id();
     auto aoCtx = AOContext(executor);
 
     auto future = makeReadyFuture()
@@ -196,7 +196,7 @@ TEST(Future, caughtException)   // NOLINT
 TEST(Future, caughtException2)   // NOLINT
 {
     auto executor = ThreadExecutor();
-    auto executorThreadId = executor.getThreadId();
+    auto executorThreadId = executor.id();
     auto aoCtx = AOContext(executor);
 
     auto future = makeReadyFuture()
