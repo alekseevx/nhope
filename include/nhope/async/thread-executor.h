@@ -4,30 +4,24 @@
 #include <utility>
 
 #include <asio/io_context.hpp>
-#include <asio/post.hpp>
 
+#include <nhope/async/executor.h>
 #include <nhope/utils/noncopyable.h>
 
 namespace nhope {
 
-class ThreadExecutor final : Noncopyable
+class ThreadExecutor final : public SequenceExecutor
 {
 public:
     using Id = std::thread::id;
 
-public:
     ThreadExecutor();
-    ~ThreadExecutor();
+    ~ThreadExecutor() override;
 
-    [[nodiscard]] Id getThreadId() const noexcept;
+    [[nodiscard]] Id id() const noexcept;
 
-    [[nodiscard]] asio::io_context& getContext() noexcept;
-
-    template<typename Fn, typename... Args>
-    void post(Fn fn, Args&&... args)
-    {
-        asio::post(m_ioCtx, std::forward<Fn>(fn), std::forward<Args>(args)...);
-    }
+    void post(Work work) override;
+    asio::io_context& ioCtx() override;
 
 private:
     asio::io_context m_ioCtx;

@@ -1,6 +1,7 @@
 #include <exception>
 #include <functional>
 #include <memory>
+#include <stdexcept>
 #include <system_error>
 #include <utility>
 
@@ -17,7 +18,7 @@ void nhope::setTimeout(AOContext& aoCtx, std::chrono::nanoseconds timeout,
                        std::function<void(const std::error_code&)>&& handler)
 {
     auto& executor = aoCtx.executor();
-    auto& ioCtx = executor.getContext();
+    auto& ioCtx = executor.ioCtx();
 
     auto timer = std::make_shared<asio::steady_timer>(ioCtx);
     auto cancel = [timer] {
@@ -30,11 +31,11 @@ void nhope::setTimeout(AOContext& aoCtx, std::chrono::nanoseconds timeout,
 
 Future<void> nhope::setTimeout(AOContext& aoCtx, std::chrono::nanoseconds timeout)
 {
+    auto& executor = aoCtx.executor();
+    auto& ioCtx = executor.ioCtx();
+
     auto promise = std::make_shared<Promise<void>>();
     auto future = promise->future();
-
-    auto& executor = aoCtx.executor();
-    auto& ioCtx = executor.getContext();
 
     auto timer = std::make_shared<asio::steady_timer>(ioCtx);
     std::function handler = [promise](const std::error_code& err) {

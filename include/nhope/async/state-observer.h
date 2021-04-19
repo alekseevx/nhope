@@ -10,7 +10,7 @@
 #include "nhope/async/ao-context.h"
 #include "nhope/async/async-invoke.h"
 #include "nhope/async/future.h"
-#include "nhope/async/thread-executor.h"
+#include "nhope/async/executor.h"
 #include "nhope/async/timer.h"
 #include "nhope/seq/produser.h"
 #include "nhope/seq/consumer-list.h"
@@ -142,7 +142,7 @@ public:
 
     static constexpr auto defaultPollTime = 100ms;
 
-    explicit StateObserver(StateSetter setter, StateGetter getter, ThreadExecutor& executor,
+    explicit StateObserver(StateSetter setter, StateGetter getter, Executor& executor,
                            std::chrono::nanoseconds pollTime = defaultPollTime)
       : m_setter(setter)
       , m_getter(getter)
@@ -232,7 +232,7 @@ private:
 
     ObservableState<T> m_state;
     ConsumerList<ObservableState<T>> m_consumers;
-    ThreadExecutor& m_executor;
+    Executor& m_executor;
     std::unique_ptr<AOContext> m_aoCtx;
 };
 

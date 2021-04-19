@@ -84,8 +84,8 @@ public:
         return state().waitFor(time);
     }
 
-    template<typename Executor, typename Fn>
-    auto then(BaseAOContext<Executor>& aoCtx, Fn&& fn)   // -> UnwrapFuture<NextFuture<T, Fn>>
+    template<typename Fn>
+    auto then(AOContext& aoCtx, Fn&& fn)   // -> UnwrapFuture<NextFuture<T, Fn>>
     {
         if constexpr (std::is_void_v<T>) {
             static_assert(std::is_invocable_v<Fn>, "Fn must be function without arguments");
@@ -118,8 +118,8 @@ public:
         return NextFuture<T, Fn>(nextState).unwrap();
     }
 
-    template<typename Executor, typename Fn>
-    Future fail(BaseAOContext<Executor>& aoCtx, Fn&& fn)
+    template<typename Fn>
+    Future fail(AOContext& aoCtx, Fn&& fn)
     {
         static_assert(std::is_invocable_v<Fn, std::exception_ptr>, "Fn must take std::exception_ptr as argument");
         static_assert(std::is_same_v<T, std::invoke_result_t<Fn, std::exception_ptr>>,
