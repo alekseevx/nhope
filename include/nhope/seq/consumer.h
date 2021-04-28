@@ -12,7 +12,6 @@ public:
         Closed,
     };
 
-public:
     Consumer(const Consumer&) = delete;
     Consumer& operator=(const Consumer&) = delete;
     Consumer() = default;

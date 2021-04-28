@@ -151,7 +151,6 @@ public:
 private:
     using State = detail::FutureState<T>;
 
-private:
     explicit Future(std::shared_ptr<State> state)
       : m_state(std::move(state))
     {
@@ -188,7 +187,6 @@ private:
         }
     }
 
-private:
     std::shared_ptr<State> m_state;
 };
 
@@ -223,7 +221,6 @@ public:
 private:
     using State = detail::FutureState<T>;
 
-private:
     std::shared_ptr<State> m_state;
 };
 

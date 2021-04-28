@@ -3,7 +3,7 @@
 namespace nhope {
 
 ThreadPoolExecutor::ThreadPoolExecutor(std::size_t threadCount)
-  : m_ioCtx(threadCount)
+  : m_ioCtx(static_cast<int>(threadCount))
 {
     try {
         for (std::size_t i = 0; i < threadCount; ++i) {

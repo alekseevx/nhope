@@ -100,7 +100,6 @@ private:
         std::shared_ptr<Prv> m_d;
     };
 
-private:
     std::shared_ptr<Prv> m_d;
 };
 

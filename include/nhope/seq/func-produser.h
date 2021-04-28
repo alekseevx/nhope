@@ -66,7 +66,7 @@ public:
         }
     }
 
-public:   // Produser
+    // Produser
     void attachConsumer(std::unique_ptr<Consumer<T>> consumer) override
     {
         m_consumerList.addConsumer(std::move(consumer));
@@ -83,7 +83,6 @@ private:
         m_consumerList.close();
     }
 
-private:
     std::thread m_workThread;
     const Function m_func;
     std::atomic<State> m_state;

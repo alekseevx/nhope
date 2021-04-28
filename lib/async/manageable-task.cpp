@@ -62,7 +62,7 @@ public:
         resolvePromises(promises);
     }
 
-public:   // ManageableTask
+    // ManageableTask
     State state() const override
     {
         std::scoped_lock lock(m_mutex);
@@ -182,7 +182,7 @@ public:   // ManageableTask
         return m_error;
     }
 
-public:   // ManageableTaskCtx
+    // ManageableTaskCtx
     void setBeforePause(std::function<bool()>&& beforePause) override
     {
         m_beforePause = std::move(beforePause);

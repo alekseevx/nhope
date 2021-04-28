@@ -37,7 +37,6 @@ public:
 
     using TaskFunction = std::function<void(ManageableTaskCtx& ctx)>;
 
-public:
     virtual ~ManageableTask() = default;
 
     [[nodiscard]] virtual State state() const = 0;
@@ -54,7 +53,6 @@ public:
     void stop();
     void waitForStopped();
 
-public:
     static std::unique_ptr<ManageableTask> start(TaskFunction&& function);
 
     // create task on pause

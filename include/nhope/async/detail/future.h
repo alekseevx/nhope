@@ -186,7 +186,6 @@ private:
         callback();
     }
 
-private:
     mutable std::mutex m_mutex;
 
     bool m_retrievedFlag = false;

@@ -14,7 +14,6 @@ public:
     class ReadAccess;
     class WriteAccess;
 
-public:
     LockableValue(const LockableValue&) = delete;
     LockableValue& operator=(const LockableValue&) = delete;
 

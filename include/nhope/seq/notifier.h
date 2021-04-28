@@ -16,7 +16,6 @@ class Notifier final
 public:
     using Handler = std::function<void(const T&)>;
 
-public:
     Notifier(const Notifier&) = delete;
     Notifier& operator=(const Notifier&) = delete;
 
@@ -96,7 +95,6 @@ private:
         std::shared_ptr<Prv> m_d;
     };
 
-private:
     std::shared_ptr<Prv> m_d;
 };
 

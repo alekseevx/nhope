@@ -24,7 +24,6 @@ public:
 private:
     void stop();
 
-private:
     asio::io_context m_ioCtx;
     std::list<std::thread> m_threads;
 };

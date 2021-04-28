@@ -75,7 +75,6 @@ private:
     static AsyncOperationId makeAsyncOperation(Impl& d, CancelHandler&& cancelHandler);
     static void asyncOperationFinished(Impl& d, AsyncOperationId id, std::function<void()> completionHandler);
 
-private:
     std::shared_ptr<Impl> m_d;
 };
 

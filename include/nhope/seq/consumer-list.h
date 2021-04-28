@@ -31,7 +31,7 @@ public:
         m_list.emplace_back(std::move(consumer));
     }
 
-public:   // Consumer
+    // Consumer
     typename Consumer<T>::Status consume(const T& value) override
     {
         std::unique_lock lock(m_mutex);
@@ -62,7 +62,6 @@ public:   // Consumer
 private:
     using List = std::list<std::unique_ptr<Consumer<T>>>;
 
-private:
     std::mutex m_mutex;
     bool m_closed = false;
     List m_list;

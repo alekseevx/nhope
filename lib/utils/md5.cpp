@@ -9,6 +9,7 @@
 #include <fmt/format.h>
 #include <gsl/span>
 
+#include <ios>
 #include <istream>
 #include <stdexcept>
 #include <string>
@@ -233,7 +234,7 @@ constexpr void transform(gsl::span<std::uint32_t, 4> state, gsl::span<const std:
 std::size_t read(std::istream& stream, gsl::span<std::uint8_t> buf)
 {
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
-    stream.read(reinterpret_cast<char*>(buf.data()), buf.size());
+    stream.read(reinterpret_cast<char*>(buf.data()), static_cast<std::streamsize>(buf.size()));
     return static_cast<std::size_t>(stream.gcount());
 }
 

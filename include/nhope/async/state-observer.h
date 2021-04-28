@@ -223,7 +223,6 @@ private:
         }
     }
 
-private:
     StateSetter m_setter;
     StateGetter m_getter;
 

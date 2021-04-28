@@ -25,7 +25,7 @@ public:
         return m_promise.future();
     }
 
-public:   // Consumer<T>
+    // Consumer<T>
     typename Consumer<T>::Status consume(const T& value) override
     {
         if (m_full) {
