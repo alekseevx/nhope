@@ -18,6 +18,12 @@ public:
     explicit AsyncOperationWasCancelled(std::string_view errMessage);
 };
 
+class AOContextClosed final : public std::runtime_error
+{
+public:
+    AOContextClosed();
+};
+
 /**
  * @class AOContext
  *
@@ -33,12 +39,16 @@ public:
  */
 class AOContext final
 {
+public:
+    using AsyncOperationId = std::uint64_t;
+
     template<typename... Args>
     using CompletionHandler = std::function<void(Args...)>;
     using CancelHandler = std::function<void()>;
-    using AsyncOperationId = std::uint64_t;
 
-public:
+    template<typename... Args>
+    using Callback = std::function<void(Args...)>;
+
     AOContext(const AOContext&) = delete;
     AOContext& operator=(const AOContext&) = delete;
 
@@ -54,7 +64,7 @@ public:
      * @brief Функция для создания асинхронной операции
      * 
      * @param completionHandler пользовательский обработчик окончания асинхронной операции.
-                                Вызывается только на заданном Executor-е.
+     *                          Вызывается только на заданном Executor-е.
      * @param cancelHandler     обработчик отмены асинхронной операции. Вызывается в том потоке, где уничтожается контекст.
      *
      * @retval функциональный объект, который должен быть вызван по завершении асинхронной операции.
@@ -63,10 +73,34 @@ public:
     CompletionHandler<CompletionArgs...> newAsyncOperation(CompletionHandler<CompletionArgs...> completionHandler,
                                                            CancelHandler cancelHandler)
     {
-        auto id = AOContext::makeAsyncOperation(*m_d, std::move(cancelHandler));
+        const auto id = AOContext::makeAsyncOperation(*m_d, std::move(cancelHandler));
         return [id, d = this->m_d, ch = std::move(completionHandler)](CompletionArgs... args) mutable {
             auto packedCH = std::bind(std::move(ch), std::forward<CompletionArgs>(args)...);
             AOContext::asyncOperationFinished(*d, id, std::move(packedCH));
+        };
+    }
+
+    /**
+     * @brief Функция для создания безопасного callback-а
+     *
+     * Безопасный callback обладает следующими свойствами:
+     * - Безопасный callback можно вызывать из любого потока, исходный callback будет асинхронно вызван в executor-е
+     *   AOContext-а.
+     * - Безопасный callback может быть вызван после уничтожения AOContext-а. В этом случае будет выброшено 
+     *   исключение #AOContextClosed.
+     *
+     * @retval Безопасный callback
+     */
+    template<typename... Args>
+    Callback<Args...> makeSafeCallback(Callback<Args...> callback)
+    {
+        return [d = this->m_d, callback = std::move(callback)](Args... args) {
+            const auto id = AOContext::makeAsyncOperation(*d, nullptr);
+
+            /* Вызываем исходный callback в executor-е AOContext-а */
+            AOContext::asyncOperationFinished(*d, id, [callback, args...] {
+                callback(args...);
+            });
         };
     }
 

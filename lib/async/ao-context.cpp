@@ -3,6 +3,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <stdexcept>
 #include <thread>
 #include <utility>
 
@@ -60,6 +61,10 @@ AsyncOperationWasCancelled::AsyncOperationWasCancelled(std::string_view errMessa
   : std::runtime_error(errMessage.data())
 {}
 
+AOContextClosed::AOContextClosed()
+  : std::runtime_error("AOContextClosed")
+{}
+
 class AOContext::Impl final : public std::enable_shared_from_this<Impl>
 {
     enum class AOContextState
@@ -83,7 +88,9 @@ public:
     {
         std::unique_lock lock(this->mutex);
 
-        assert(this->state != AOContextState::Closed);   // NOLINT
+        if (this->state == AOContextState::Closed) {
+            throw AOContextClosed();
+        }
 
         const auto id = this->asyncOperationCounter++;
         auto& rec = this->activeAsyncOperations[id];
@@ -100,7 +107,7 @@ public:
         }
 
         /* To avoid recursion, let's process end of operation in a delayed call */
-        auto self = this->shared_from_this();
+        const auto self = this->shared_from_this();
         this->executorHolder->post([id, self, completionHandler = std::move(completionHandler)]() mutable {
             std::unique_lock lock(self->mutex);
             if (self->state != AOContextState::Open) {
@@ -176,11 +183,11 @@ public:
     {
         assert(lock.owns_lock());   // NOLINT
 
-        auto cancelledAsyncOperations = std::move(this->activeAsyncOperations);
+        const auto cancelledAsyncOperations = std::move(this->activeAsyncOperations);
 
         ReverseLock unlock(lock);
 
-        for (auto& [id, cancelledAsyncOperation] : cancelledAsyncOperations) {
+        for (const auto& [id, cancelledAsyncOperation] : cancelledAsyncOperations) {
             if (cancelledAsyncOperation.cancelHandler == nullptr) {
                 continue;
             }
