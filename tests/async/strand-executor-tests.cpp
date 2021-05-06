@@ -9,22 +9,10 @@
 
 #include <gtest/gtest.h>
 
-namespace {
+#include "test-helpers/wait.h"
+
 using namespace nhope;
 using namespace std::literals;
-
-bool wait(std::atomic<int>& var, int value, std::chrono::nanoseconds timeout)
-{
-    using clock = std::chrono::steady_clock;
-    auto time = clock::now() + timeout;
-    while (var != value && clock::now() < time) {
-        std::this_thread::sleep_for(1ms);
-    }
-
-    return var == value;
-}
-
-}   // namespace
 
 TEST(StrandExecutor, SequentialExecution)   // NOLINT
 {
@@ -54,7 +42,7 @@ TEST(StrandExecutor, SequentialExecution)   // NOLINT
         });
     }
 
-    EXPECT_TRUE(wait(finishedTaskCount, taskCount, 100 * 1ms * taskCount));
+    EXPECT_TRUE(waitForValue(100 * 1ms * taskCount, finishedTaskCount, taskCount));
     const auto stopTime = std::chrono::steady_clock::now();
 
     EXPECT_GE(stopTime - startTime, 1ms * taskCount);
@@ -87,7 +75,7 @@ TEST(StrandExecutor, ThreadSafe)   // NOLINT
         }).detach();
     }
 
-    EXPECT_TRUE(wait(finishedTaskCount, taskCount, 5s));
+    EXPECT_TRUE(waitForValue(5s, finishedTaskCount, taskCount));
 }
 
 TEST(StrandExecutor, ExceptionInWork)   // NOLINT
@@ -107,7 +95,7 @@ TEST(StrandExecutor, ExceptionInWork)   // NOLINT
         });
     }
 
-    EXPECT_TRUE(wait(finishedTaskCount, taskCount, 100ms));
+    EXPECT_TRUE(waitForValue(100ms, finishedTaskCount, taskCount));
 }
 
 TEST(StrandExecutor, Destroy)   // NOLINT
@@ -136,5 +124,5 @@ TEST(StrandExecutor, Destroy)   // NOLINT
     }
 
     // Tasks should run even after the StrandExecutor is destroyed
-    EXPECT_TRUE(wait(finishedTaskCount, taskCount, 100 * 1ms * taskCount));
+    EXPECT_TRUE(waitForValue(100 * 1ms * taskCount, finishedTaskCount, taskCount));
 }

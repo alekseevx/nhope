@@ -11,37 +11,10 @@
 #include <nhope/async/thread-pool-executor.h>
 
 #include <gtest/gtest.h>
+#include "test-helpers/wait.h"
 
-namespace {
 using namespace nhope;
 using namespace std::literals;
-
-template<typename T>
-bool wait(std::atomic<T>& var, T value, std::chrono::nanoseconds timeout)
-{
-    using clock = std::chrono::steady_clock;
-    auto time = clock::now() + timeout;
-    while (var.load() != value && clock::now() <= time) {
-        std::this_thread::sleep_for(1ms);
-    }
-
-    return var == value;
-}
-
-template<typename Pred>
-bool wait(std::chrono::nanoseconds timeout, Pred pred)
-{
-    using clock = std::chrono::steady_clock;
-    auto time = clock::now() + timeout;
-
-    while (!pred() && clock::now() <= time) {
-        std::this_thread::sleep_for(1ms);
-    }
-
-    return pred();
-}
-
-}   // namespace
 
 TEST(AOContext, AsyncOperation)   // NOLINT
 {
@@ -59,7 +32,7 @@ TEST(AOContext, AsyncOperation)   // NOLINT
         operationFinished();
     }).detach();
 
-    EXPECT_TRUE(wait(asyncOperationHandlerCalled, true, 1s));
+    EXPECT_TRUE(waitForValue(1s, asyncOperationHandlerCalled, true));
 }
 
 TEST(AOContext, CancelAsyncOperation)   // NOLINT
@@ -91,7 +64,7 @@ TEST(AOContext, CancelAsyncOperation)   // NOLINT
 
         aoContext.reset();   // Destroy the aoContex and cancel the asyncOperation
 
-        EXPECT_TRUE(wait(1s, [&] {
+        EXPECT_TRUE(waitForPred(1s, [&] {
             return asyncOperationHandlerCalled || cancelAsyncOperationCalled;
         }));
 
@@ -125,7 +98,7 @@ TEST(AOContext, SequentialHandlerCall)   // NOLINT
         operationFinished();
     }
 
-    EXPECT_TRUE(wait(finishedHandlerCount, iterCount, 100 * 1ms * iterCount));
+    EXPECT_TRUE(waitForValue(100 * 1ms * iterCount, finishedHandlerCount, iterCount));
 }
 
 TEST(AOContext, ExceptionInAsyncOperationHandler)   // NOLINT
@@ -146,7 +119,7 @@ TEST(AOContext, ExceptionInAsyncOperationHandler)   // NOLINT
         operationFinished();
     }
 
-    EXPECT_TRUE(wait(asyncOperationHandlerCalled, iterCount, 1s));
+    EXPECT_TRUE(waitForValue(1s, asyncOperationHandlerCalled, iterCount));
 }
 
 TEST(AOContext, ExceptionInCancelAsyncOperation)   // NOLINT

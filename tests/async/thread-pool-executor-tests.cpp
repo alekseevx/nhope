@@ -3,26 +3,14 @@
 #include <cstddef>
 #include <thread>
 
-#include <nhope/async/thread-pool-executor.h>
-
 #include <gtest/gtest.h>
 
-namespace {
+#include <nhope/async/thread-pool-executor.h>
+
+#include "test-helpers/wait.h"
+
 using namespace nhope;
 using namespace std::chrono_literals;
-
-bool wait(std::atomic<int>& var, int value, std::chrono::nanoseconds timeout)
-{
-    using clock = std::chrono::steady_clock;
-    auto time = clock::now() + timeout;
-    while (var != value && clock::now() < time) {
-        std::this_thread::sleep_for(1ms);
-    }
-
-    return var == value;
-}
-
-}   // namespace
 
 TEST(ThreadPoolExecutor, CreateDestroy)   // NOLINT
 {
@@ -45,7 +33,7 @@ TEST(ThreadPoolExecutor, ParallelExecution)   // NOLINT
 
     const auto taskCount = executor.threadCount();
 
-    std::atomic<int> activeTaskCount = taskCount;
+    std::atomic<std::size_t> activeTaskCount = taskCount;
     for (std::size_t i = 0; i < taskCount; ++i) {
         executor.post([&] {
             std::this_thread::sleep_for(100ms);
@@ -53,5 +41,5 @@ TEST(ThreadPoolExecutor, ParallelExecution)   // NOLINT
         });
     }
 
-    EXPECT_TRUE(wait(activeTaskCount, 0, taskCount * 100ms / 2));
+    EXPECT_TRUE(waitForValue<std::size_t>(taskCount * 100ms / 2, activeTaskCount, 0));
 }

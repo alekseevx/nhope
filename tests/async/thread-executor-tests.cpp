@@ -7,22 +7,10 @@
 
 #include <gtest/gtest.h>
 
-namespace {
+#include "test-helpers/wait.h"
+
 using namespace nhope;
 using namespace std::chrono_literals;
-
-bool wait(std::atomic<int>& var, int value, std::chrono::nanoseconds timeout)
-{
-    using clock = std::chrono::steady_clock;
-    auto time = clock::now() + timeout;
-    while (var != value && clock::now() < time) {
-        std::this_thread::sleep_for(1ms);
-    }
-
-    return var == value;
-}
-
-}   // namespace
 
 TEST(ThreadExecution, Execution)   // NOLINT
 {
@@ -42,5 +30,5 @@ TEST(ThreadExecution, Execution)   // NOLINT
         });
     }
 
-    EXPECT_TRUE(wait(finishedTaskCount, taskCount, 100ms));
+    EXPECT_TRUE(waitForValue(100ms, finishedTaskCount, taskCount));
 }

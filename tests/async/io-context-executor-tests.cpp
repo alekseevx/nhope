@@ -8,23 +8,10 @@
 #include <nhope/async/io-context-executor.h>
 #include <gtest/gtest.h>
 
-namespace {
+#include "test-helpers/wait.h"
 
 using namespace nhope;
 using namespace std::literals;
-
-bool wait(std::atomic<int>& var, int value, std::chrono::nanoseconds timeout)
-{
-    using clock = std::chrono::steady_clock;
-    auto time = clock::now() + timeout;
-    while (var != value && clock::now() < time) {
-        std::this_thread::sleep_for(1ms);
-    }
-
-    return var == value;
-}
-
-}   // namespace
 
 TEST(IOContextExecutor, Executor)   // NOLINT
 {
@@ -46,7 +33,7 @@ TEST(IOContextExecutor, Executor)   // NOLINT
         });
     }
 
-    EXPECT_TRUE(wait(counter, iterCount, 1s));
+    EXPECT_TRUE(waitForValue(1s, counter, iterCount));
 
     ioCtx.stop();
     workThread.join();
@@ -72,7 +59,7 @@ TEST(IOContextExecutor, SequenceExecutor)   // NOLINT
         });
     }
 
-    EXPECT_TRUE(wait(counter, iterCount, 1s));
+    EXPECT_TRUE(waitForValue(1s, counter, iterCount));
 
     ioCtx.stop();
     workThread.join();
