@@ -1,5 +1,6 @@
 #include <atomic>
 #include <chrono>
+#include <memory>
 #include <thread>
 
 #include <gtest/gtest.h>
@@ -53,7 +54,7 @@ TEST(NotifierTests, CreateDestroy)   // NOLINT
     }
 }
 
-TEST(NotifierTests, CloseFromHandler)   // NOLINT
+TEST(NotifierTests, DestroyFromHandler)   // NOLINT
 {
     FuncProduser<int> numProduser([](int& value) -> bool {
         value = 0;
@@ -61,17 +62,19 @@ TEST(NotifierTests, CloseFromHandler)   // NOLINT
     });
     numProduser.start();
 
-    std::atomic<bool> closed = false;
+    std::atomic<bool> destroyed = false;
     ThreadExecutor executor;
-    Notifier<int> notifier(executor, [&](const int& /*unused*/) {
-        EXPECT_FALSE(closed);
 
-        notifier.close();
-        closed = true;
+    std::unique_ptr<Notifier<int>> notifier;
+    notifier = std::make_unique<Notifier<int>>(executor, [&](const int& /*unused*/) {
+        EXPECT_FALSE(destroyed);
+
+        notifier.reset();
+        destroyed = true;
     });
 
-    notifier.attachToProduser(numProduser);
-    waitForValue(1s, closed, true);
+    notifier->attachToProduser(numProduser);
+    waitForValue(1s, destroyed, true);
 
     /* Let's wait to make sure that the notifier handler is no longer called */
     std::this_thread::sleep_for(200ms);
