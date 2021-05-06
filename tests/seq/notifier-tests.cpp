@@ -19,7 +19,7 @@ TEST(NotifierTests, CallHandler)   // NOLINT
 
     FuncProduser<int> numProduser([n = 0](int& value) mutable -> bool {
         value = n;
-        return n++ < iterCount;
+        return ++n < iterCount;
     });
 
     std::atomic<int> counter = 0;
@@ -28,10 +28,9 @@ TEST(NotifierTests, CallHandler)   // NOLINT
         EXPECT_EQ(counter++, v);
     });
     notifier.attachToProduser(numProduser);
-
     numProduser.start();
 
-    waitForValue(1s, counter, iterCount - 1);
+    EXPECT_TRUE(waitForValue(1s, counter, iterCount - 1));
 }
 
 TEST(NotifierTests, CreateDestroy)   // NOLINT
@@ -55,4 +54,25 @@ TEST(NotifierTests, CreateDestroy)   // NOLINT
 }
 
 TEST(NotifierTests, CloseFromHandler)   // NOLINT
-{}
+{
+    FuncProduser<int> numProduser([](int& value) -> bool {
+        value = 0;
+        return true;
+    });
+    numProduser.start();
+
+    std::atomic<bool> closed = false;
+    ThreadExecutor executor;
+    Notifier<int> notifier(executor, [&](const int& /*unused*/) {
+        EXPECT_FALSE(closed);
+
+        notifier.close();
+        closed = true;
+    });
+
+    notifier.attachToProduser(numProduser);
+    waitForValue(1s, closed, true);
+
+    /* Let's wait to make sure that the notifier handler is no longer called */
+    std::this_thread::sleep_for(200ms);
+}

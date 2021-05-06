@@ -26,7 +26,6 @@ public:
         Finished
     };
 
-public:
     explicit FuncProduser(Function&& func)
       : m_func(std::move(func))
       , m_state(State::ReadyToStart)

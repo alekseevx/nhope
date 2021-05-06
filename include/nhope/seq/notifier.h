@@ -5,12 +5,13 @@
 #include <memory>
 #include <utility>
 
-#include "consumer.h"
-#include "produser.h"
+#include <nhope/async/executor.h>
+#include <nhope/seq/consumer.h>
+#include <nhope/seq/produser.h>
 
 namespace nhope {
 
-template<typename T, typename Executor>
+template<typename T>
 class Notifier final
 {
 public:
@@ -19,7 +20,7 @@ public:
     Notifier(const Notifier&) = delete;
     Notifier& operator=(const Notifier&) = delete;
 
-    Notifier(Executor& executor, Handler&& handler)
+    Notifier(SequenceExecutor& executor, Handler&& handler)
     {
         m_d = std::make_shared<Prv>(executor, std::move(handler));
     }
@@ -51,13 +52,13 @@ public:
 private:
     struct Prv
     {
-        Prv(Executor& executor, Handler&& handler)
+        Prv(SequenceExecutor& executor, Handler&& handler)
           : handler(std::move(handler))
           , executor(executor)
         {}
 
         Handler handler;
-        Executor& executor;
+        SequenceExecutor& executor;
 
         std::atomic<bool> closed = false;
         std::atomic<int> useExecutorCounter = 0;
@@ -67,7 +68,7 @@ private:
     {
     public:
         explicit Input(std::shared_ptr<Prv> d)
-          : m_d(d)
+          : m_d(std::move(d))
         {}
 
         typename Consumer<T>::Status consume(const T& value) override
@@ -85,6 +86,7 @@ private:
                     }
                 });
             } catch (...) {
+                // FIXME: Handling an exception
             }
             std::atomic_fetch_sub(&m_d->useExecutorCounter, 1);
 

@@ -20,7 +20,6 @@ if(COVERAGE_ENABLED)
           EXECUTABLE ./tests
           EXCLUDE ".deps" "tests"
           )
-          
 endif()
 
 
