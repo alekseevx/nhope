@@ -4,16 +4,26 @@
 #include <list>
 #include <memory>
 #include <functional>
+#include <mutex>
+#include <shared_mutex>
 
 #include "nhope/async/lockable-value.h"
 #include "nhope/async/reverse_lock.h"
+#include "nhope/async/future.h"
+#include "nhope/utils/noncopyable.h"
 
 namespace nhope {
 
 template<typename T>
-class WeakList
+class WeakList : public Noncopyable
 {
-    using List = std::list<std::weak_ptr<T>>;
+    struct Impl
+    {
+        std::weak_ptr<T> weak;
+        nhope::Promise<void> expirePromise;
+    };
+
+    using List = std::list<Impl>;
     using ListIterator = typename List::iterator;
 
     struct WeakIterator
@@ -22,7 +32,7 @@ class WeakList
           : m_list(l)
           , m_pos(pos)
         {
-            m_current = pos != m_list.end() ? pos->lock() : nullptr;
+            m_current = pos != m_list.end() ? pos->weak.lock() : nullptr;
         }
 
         bool operator!=(const WeakIterator& o) const noexcept
@@ -57,7 +67,7 @@ class WeakList
             if (m_pos == m_list.end()) {
                 return std::shared_ptr<T>();
             }
-            auto ptr = m_pos->lock();
+            auto ptr = m_pos->weak.lock();
             return ptr;
         }
 
@@ -68,6 +78,11 @@ class WeakList
 
 public:
     using iterator = WeakIterator;
+
+    ~WeakList()
+    {
+        clearExpired();
+    }
 
     template<typename Fn>
     void forEach(Fn fn)
@@ -84,14 +99,14 @@ public:
     {
         if (auto it = std::find_if(m_list.begin(), m_list.end(),
                                    [&](const auto& v) {
-                                       auto ptr = v.lock();
+                                       auto ptr = v.weak.lock();
                                        if (ptr != nullptr) {
                                            return *ptr == val;
                                        }
                                        return false;
                                    });
             it != m_list.end()) {
-            return it->lock();
+            return it->weak.lock();
         }
         return std::shared_ptr<T>();
     }
@@ -100,13 +115,13 @@ public:
     {
         if (auto it = std::find_if(m_list.begin(), m_list.end(),
                                    [&](const auto& v) {
-                                       if (auto ptr = v.lock(); ptr != nullptr) {
+                                       if (auto ptr = v.weak.lock(); ptr != nullptr) {
                                            return fn(*ptr);
                                        }
                                        return false;
                                    });
             it != m_list.end()) {
-            return it->lock();
+            return it->weak.lock();
         }
         return std::shared_ptr<T>();
     }
@@ -115,19 +130,23 @@ public:
     {
         auto it = m_list.begin();
         while (it != m_list.end()) {
-            auto ptr = it->lock();
+            auto ptr = it->weak.lock();
             if (ptr != nullptr) {
                 it++;
             } else {
+                it->expirePromise.setValue();
                 it = m_list.erase(it);
             }
         }
     }
 
-    template<typename... Args>
-    void emplace_back(Args&&... args)
+    Future<void> emplace_back(const std::weak_ptr<T>& weak)
     {
-        m_list.emplace_back(std::forward<Args>(args)...);
+        Impl impl;
+        auto f = impl.expirePromise.future();
+        impl.weak = weak;
+        m_list.emplace_back(std::move(impl));
+        return f;
     }
 
     [[nodiscard]] size_t size() const noexcept
@@ -163,13 +182,10 @@ public:
     void forEach(Fn fn)
     {
         clearExpired();
-        List copy;
-        {
-            auto ra = m_locker.readAccess();
-            copy = *ra;
-        }
-        for (const auto& ptr : copy) {
+        std::shared_lock lock(m_mutex);
+        for (const auto& ptr : m_list) {
             if (ptr != nullptr) {
+                ReverseLock unlock(lock);
                 fn(ptr);
             }
         }
@@ -177,43 +193,43 @@ public:
 
     void clearExpired()
     {
-        auto wa = m_locker.writeAccess();
-        wa->clearExpired();
+        std::scoped_lock<std::shared_mutex> lock(m_mutex);
+        m_list.clearExpired();
     }
 
-    template<typename... Args>
-    void emplace_back(Args&&... args)
+    Future<void> emplace_back(const std::weak_ptr<T>& weak)
     {
-        auto wa = m_locker.writeAccess();
-        wa->emplace_back(std::forward<Args>(args)...);
+        std::scoped_lock lock(m_mutex);
+        return m_list.emplace_back(weak);
     }
 
     [[nodiscard]] size_t size() const noexcept
     {
-        auto ra = m_locker.readAccess();
-        return ra->size();
+        std::shared_lock lock(m_mutex);
+        return m_list.size();
     }
     [[nodiscard]] bool empty() const noexcept
     {
-        auto ra = m_locker.readAccess();
-        return ra->empty();
+        std::shared_lock lock(m_mutex);
+        return m_list.empty();
     }
 
     template<typename V>
     std::shared_ptr<T> find(V&& val)
     {
-        auto wa = m_locker.writeAccess();
-        return wa->find(val);
+        std::scoped_lock lock(m_mutex);
+        return m_list.find(val);
     }
 
     std::shared_ptr<T> find_if(std::function<bool(const T&)> fn)
     {
-        auto wa = m_locker.writeAccess();
-        return wa->find_if(std::move(fn));
+        std::scoped_lock lock(m_mutex);
+        return m_list.find_if(std::move(fn));
     }
 
 private:
-    LockableValue<List> m_locker;
+    List m_list;
+    mutable std::shared_mutex m_mutex;
 };
 
 }   // namespace nhope

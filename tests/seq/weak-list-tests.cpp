@@ -1,3 +1,4 @@
+#include "nhope/async/future.h"
 #include <atomic>
 #include <memory>
 #include <thread>
@@ -9,7 +10,7 @@
 
 namespace {
 using namespace nhope;
-
+using namespace std::literals;
 struct TsSafeData
 {
     TsSafeData(int d)
@@ -122,6 +123,19 @@ TEST(WeakList, sharedList)   //NOLINT
     }
     weak.clearExpired();
     ASSERT_TRUE(weak.empty());
+}
+
+TEST(WeakList, waitClearExpired)   //NOLINT
+{
+    nhope::Future<void> waiter;
+    {
+        WeakList<int> weak;
+        EXPECT_TRUE(weak.empty());
+        auto expired = std::make_shared<int>(1);
+        waiter = weak.emplace_back(expired);
+        ASSERT_FALSE(waiter.waitFor(1ms));
+    }
+    ASSERT_TRUE(waiter.waitFor(1ms));
 }
 
 TEST(TSWeakList, sharedList)   //NOLINT
@@ -301,4 +315,24 @@ TEST(TSWeakList, find)   //NOLINT
     temp.erase(temp.begin() + needle);
 
     EXPECT_EQ(nullptr, weak.find(needle));
+}
+
+TEST(TSWeakList, waitExpired)   //NOLINT
+{
+    TSWeakList<int> weak;
+    EXPECT_TRUE(weak.empty());
+    auto expired = std::make_shared<int>(1);
+    auto waiter = weak.emplace_back(expired);
+    expired.reset();
+    ASSERT_FALSE(waiter.waitFor(200ms));
+    std::thread th([&] {
+        weak.forEach([](auto /*unused*/) {
+            FAIL() << "list expired";
+        });
+    });
+
+    th.join();
+    weak.clearExpired();
+    waiter.wait();
+    ASSERT_TRUE(weak.empty());
 }
