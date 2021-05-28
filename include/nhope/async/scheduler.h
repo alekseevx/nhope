@@ -52,6 +52,8 @@ public:
     void activate(TaskId id);
     Future<void> asyncActivate(TaskId id);
 
+    [[nodiscard]] size_t size() const noexcept;
+
 private:
     class Impl;
     std::unique_ptr<Impl> m_impl;

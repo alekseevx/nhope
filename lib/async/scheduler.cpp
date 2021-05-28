@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <cstddef>
 #include <memory>
 #include <optional>
 
@@ -31,6 +32,7 @@ class Scheduler::Impl
         TaskId id{};
         std::unique_ptr<ManageableTask> taskController;
         int priority{};
+        bool isAlreadyStarted{};
 
         std::list<Promise<void>> pausePromises;
         std::list<Promise<void>> resumePromises;
@@ -39,6 +41,7 @@ class Scheduler::Impl
 
         void resume()
         {
+            isAlreadyStarted = true;
             if (wasCancelled()) {
                 taskController->stop();
             } else {
@@ -131,8 +134,12 @@ public:
             m_activeTask->taskController->asyncStop();
             return m_activeTask->taskController->asyncWaitForStopped();
         }
-        if (auto&& [task, _it] = findTaskById(m_waitedTasks, id); task != nullptr) {
-            return task->cancelLater();
+        if (auto&& [task, wIt] = findTaskById(m_waitedTasks, id); task != nullptr) {
+            auto future = task->cancelLater();
+            if (!task->isAlreadyStarted) {
+                m_waitedTasks.erase(wIt);
+            }
+            return future;
         }
         if (auto&& [task, it] = findTaskById(m_delayedTasks, id); task != nullptr) {
             auto cancellingTask = std::move(task);
@@ -203,6 +210,11 @@ public:
             return ret;
         }
         return makeReadyFuture();
+    }
+
+    [[nodiscard]] size_t size() const noexcept
+    {
+        return m_waitedTasks.size() + m_delayedTasks.size() + (m_activeTask == nullptr ? 0 : 1);
     }
 
 private:
@@ -399,6 +411,13 @@ Future<void> Scheduler::asyncActivate(TaskId id)
 void Scheduler::activate(TaskId id)
 {
     asyncActivate(id).get();
+}
+
+size_t Scheduler::size() const noexcept
+{
+    return invoke(m_impl->m_ao, [this] {
+        return m_impl->size();
+    });
 }
 
 }   // namespace nhope
