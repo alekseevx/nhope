@@ -12,8 +12,7 @@ namespace {
 constexpr int testValue = 10;
 constexpr auto maxProduseCount{100};
 
-constexpr auto nullHandler = [](auto /*unused*/) {
-};
+constexpr auto nullHandler = [](auto /*unused*/) {};
 
 using namespace nhope;
 using namespace std::literals;
@@ -39,13 +38,18 @@ TEST(DelayedProperty, simpleSet)   // NOLINT
 TEST(DelayedProperty, exception)   // NOLINT
 {
     DelayedProperty prop(0);
+    prop.applyNewValue([](auto /*unused*/) {
+        FAIL() << "value not changed";
+    });
     auto f = prop.setNewValue(1);
     EXPECT_TRUE(prop.hasNewValue());
     auto f2 = prop.setNewValue(1);
     EXPECT_THROW(f.get(), nhope::AsyncOperationWasCancelled);   //NOLINT
-    prop.applyNewValue(nullHandler);
-    f2.get();
-    EXPECT_EQ(prop.getCurrentValue(), 1);
+    prop.applyNewValue([](auto /*unused*/) {
+        throw std::runtime_error("some error");
+    });
+    EXPECT_THROW(f2.get(), std::runtime_error);   //NOLINT
+    EXPECT_EQ(prop.getCurrentValue(), 0);
 }
 
 TEST(DelayedProperty, waitPropertyTimeout)   // NOLINT
