@@ -1,10 +1,9 @@
 #include <filesystem>
 #include <gtest/gtest.h>
 
-#include <nhope/utils/com-discover.h>
-// namespace
+#include "nhope/utils/com-discover.h"
 
-TEST(Comport, toBytes)   // NOLINT
+TEST(Comport, GetAvailable)   // NOLINT
 {
     auto ports = nhope::utils::getAvailableComs();
     for (const auto& portName : ports) {

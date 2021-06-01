@@ -136,6 +136,7 @@ public:
         }
         if (auto&& [task, wIt] = findTaskById(m_waitedTasks, id); task != nullptr) {
             auto future = task->cancelLater();
+            // если задача находится в списке на запуск и еще не запускалась, она сразу удаляется
             if (!task->isAlreadyStarted) {
                 m_waitedTasks.erase(wIt);
             }
@@ -190,8 +191,6 @@ public:
 
         } else if (auto&& [waitedTask, _itw] = findTaskById(m_waitedTasks, id); waitedTask != nullptr) {
             future = waitedTask->pausePromises.emplace_back().future();
-        } else if (auto&& [delayedTask, _it] = findTaskById(m_delayedTasks, id); delayedTask != nullptr) {
-            future = delayedTask->pausePromises.emplace_back().future();
         }
         return future;
     }
@@ -308,8 +307,8 @@ private:
         }
     }
 
-    TaskList m_waitedTasks;
-    TaskList m_delayedTasks;
+    TaskList m_waitedTasks;    // запланированные задачи
+    TaskList m_delayedTasks;   // задачи в состоянии пауза, останутся в этом списке пока их не активируют
     std::unique_ptr<Task> m_activeTask;
     TaskId m_idCounter{0};
     std::list<Promise<void>> m_waitStopPromises;

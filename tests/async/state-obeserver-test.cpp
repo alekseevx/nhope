@@ -1,4 +1,5 @@
 #include <exception>
+#include <stdexcept>
 #include <type_traits>
 #include <variant>
 #include <iostream>
@@ -123,6 +124,12 @@ TEST(StateObserver, Exception)   // NOLINT
               value = 2;
               throw std::runtime_error("magic get");
           }
+          if (current == magic + 2) {
+              Promise<int> failPromise;
+              failPromise.setException(std::make_exception_ptr(std::runtime_error("magic")));
+              auto fail = failPromise.future();
+              return fail;
+          }
           return makeReadyFuture<int>(current);
       },
       e);   //NOLINT
@@ -137,8 +144,11 @@ TEST(StateObserver, Exception)   // NOLINT
     });
     observer.attachConsumer(std::move(consumer));
 
+    std::this_thread::sleep_for(1s);
     observer.setState(magic);
-    std::this_thread::sleep_for(1s);
+    std::this_thread::sleep_for(500ms);
     observer.setState(magic + 1);
-    std::this_thread::sleep_for(1s);
+    std::this_thread::sleep_for(500ms);
+    observer.setState(magic + 2);
+    std::this_thread::sleep_for(500ms);
 }

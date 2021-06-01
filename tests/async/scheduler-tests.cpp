@@ -15,7 +15,7 @@ using namespace nhope;
 class ThreadStub
 {
 public:
-    ThreadStub(Scheduler& s)
+    explicit ThreadStub(Scheduler& s)
       : m_ao(m_th)
       , m_sched(s)
     {}
@@ -46,6 +46,27 @@ private:
     AOContext m_ao;
     Scheduler& m_sched;
 };
+
+TEST(Scheduler, CancelActiveTask)   // NOLINT
+{
+    Scheduler scheduler;
+    static constexpr auto threadCounter{100};
+
+    auto f = [c = 0](auto& ctx) mutable {
+        while (ctx.checkPoint()) {
+            std::this_thread::sleep_for(50ms);
+            if (c++ == threadCounter) {
+                FAIL() << "task must be cancelled";
+                return;
+            }
+        }
+        EXPECT_LE(c, threadCounter);
+    };
+    const auto activeId = scheduler.push(f);
+    scheduler.cancel(activeId);
+    EXPECT_EQ(scheduler.size(), 0);
+    scheduler.cancel(activeId);
+}
 
 TEST(Scheduler, SimpleTaskChain)   // NOLINT
 {
@@ -529,6 +550,26 @@ TEST(Scheduler, CancelNotStarted)   // NOLINT
     scheduler.cancel(cancelId);
     EXPECT_EQ(scheduler.size(), 1);
 
+    scheduler.waitAll();
+    EXPECT_EQ(scheduler.getActiveTaskId(), std::nullopt);
+}
+
+TEST(Scheduler, ResumeWaited)   // NOLINT
+{
+    Scheduler scheduler;
+    constexpr auto iterCount{10};
+    auto f1 = [counter = 0](auto& /*unused*/) mutable {
+        while (counter++ < iterCount) {
+            std::this_thread::sleep_for(100ms);
+        }
+    };
+
+    scheduler.activate(0);   // ready future return
+
+    EXPECT_EQ(scheduler.push(f1), 0);
+    auto resumeId = scheduler.push(f1);
+    EXPECT_EQ(scheduler.size(), 2);
+    scheduler.activate(resumeId);
     scheduler.waitAll();
     EXPECT_EQ(scheduler.getActiveTaskId(), std::nullopt);
 }
