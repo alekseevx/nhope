@@ -52,9 +52,8 @@ public:
     {}
 
     explicit ObservableState()
-    {
-        m_state = std::make_exception_ptr(StateUninitialized("state not initialized"));
-    }
+      : m_state(std::make_exception_ptr(StateUninitialized("state not initialized")))
+    {}
 
     template<typename V>
     bool operator==(V&& rhs) const
@@ -133,6 +132,15 @@ public:
     }
 };
 
+/*!
+ * @brief Наблюдатель за состоянием
+ * Класс служит для синхронизации активного состояния с будущим состоянием
+ * При установке значения (setState) оно применяется сразу, и при опросе отдается именно новое установленное значение
+ * при возникновении исключения при установке значения, оно выставляется до следующего опроса по таймауту, после опроса будет 
+ * установлено корректное значение
+ * 
+ * @tparam T тип состояния
+ */
 template<typename T>
 class StateObserver final : public nhope::Produser<ObservableState<T>>
 {
@@ -167,7 +175,7 @@ public:
     StateObserver(const StateObserver&) = delete;
     StateObserver& operator=(const StateObserver&) = delete;
 
-    ObservableState<T> getState()
+    [[nodiscard]] ObservableState<T> getState() const noexcept
     {
         std::scoped_lock lock(m_mutex);
         return m_state;
@@ -197,28 +205,34 @@ public:
 private:
     void updateState()
     {
-        std::scoped_lock lock(m_mutex);
-        m_getter()
-          .then(*m_aoCtx,
-                [this](T state) {
-                    setNewState(state);
-                })
-          .fail(*m_aoCtx,
-                [this](auto exception) {
-                    setNewState(exception);
-                })
-          .then(*m_aoCtx, [this] {
-              return setTimeout(*m_aoCtx, m_pollTime, [this](auto /*unused*/) {
-                  updateState();
+        try {
+            m_getter()
+              .then(*m_aoCtx,
+                    [this](T state) {
+                        setNewState(state);
+                    })
+              .fail(*m_aoCtx,
+                    [this](auto exception) {
+                        setNewState(exception);
+                    })
+              .then(*m_aoCtx, [this] {
+                  setTimeout(*m_aoCtx, m_pollTime, [this](auto /*unused*/) {
+                      updateState();
+                  });
               });
-          });
+        } catch (...) {
+            setNewState(std::current_exception());
+            setTimeout(*m_aoCtx, m_pollTime, [this](auto /*unused*/) {
+                updateState();
+            });
+        }
     }
 
     template<typename V>
     void setNewState(V&& newState)
     {
         if (m_state != newState) {
-            m_state = newState;
+            m_state = std::forward<V>(newState);
             m_consumers.consume(m_state);
         }
     }
@@ -226,7 +240,7 @@ private:
     StateSetter m_setter;
     StateGetter m_getter;
 
-    std::mutex m_mutex;
+    mutable std::mutex m_mutex;
     std::chrono::nanoseconds m_pollTime;
 
     ObservableState<T> m_state;

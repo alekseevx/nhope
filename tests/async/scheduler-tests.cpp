@@ -15,15 +15,15 @@ using namespace nhope;
 class ThreadStub
 {
 public:
-    ThreadStub(Scheduler& s)
+    explicit ThreadStub(Scheduler& s)
       : m_ao(m_th)
       , m_sched(s)
     {}
 
-    void push(ManageableTask::TaskFunction&& f)
+    Scheduler::TaskId push(ManageableTask::TaskFunction&& f)
     {
-        invoke(m_ao, [this, func = std::move(f)]() mutable {
-            m_sched.push(std::move(func));
+        return invoke(m_ao, [this, func = std::move(f)]() mutable {
+            return m_sched.push(std::move(func));
         });
     }
 
@@ -46,6 +46,27 @@ private:
     AOContext m_ao;
     Scheduler& m_sched;
 };
+
+TEST(Scheduler, CancelActiveTask)   // NOLINT
+{
+    Scheduler scheduler;
+    static constexpr auto threadCounter{100};
+
+    auto f = [c = 0](auto& ctx) mutable {
+        while (ctx.checkPoint()) {
+            std::this_thread::sleep_for(50ms);
+            if (c++ == threadCounter) {
+                FAIL() << "task must be cancelled";
+                return;
+            }
+        }
+        EXPECT_LE(c, threadCounter);
+    };
+    const auto activeId = scheduler.push(f);
+    scheduler.cancel(activeId);
+    EXPECT_EQ(scheduler.size(), 0);
+    scheduler.cancel(activeId);
+}
 
 TEST(Scheduler, SimpleTaskChain)   // NOLINT
 {
@@ -297,10 +318,9 @@ TEST(Scheduler, ThreadRace)   // NOLINT
 
     racer1.push(f1);
     racer2.push(f1);
-    racer1.push(f1);
-
-    racer1.cancel(1);
-    ASSERT_EQ(counter, 100);
+    auto c3 = racer1.push(f1);
+    EXPECT_EQ(scheduler.size(), 3);
+    racer1.cancel(c3);
 
     scheduler.waitAll();
     EXPECT_EQ(scheduler.getActiveTaskId(), std::nullopt);
@@ -503,10 +523,53 @@ TEST(Scheduler, DeactivateByRequest)   // NOLINT
 
         activeWorkWaiter.get();
         ASSERT_FALSE(deactivated.waitFor(200ms));
-        
     }
 
     ASSERT_TRUE(deactivated.valid());
     deactivated.get();
     ASSERT_FALSE(deactivated.valid());
+}
+
+TEST(Scheduler, CancelNotStarted)   // NOLINT
+{
+    Scheduler scheduler;
+    constexpr auto iterCount{10};
+    auto f1 = [counter = 0](auto& /*unused*/) mutable {
+        while (counter++ < iterCount) {
+            std::this_thread::sleep_for(100ms);
+        }
+    };
+
+    auto f2 = [](auto& /*unused*/) {
+        FAIL() << "started cancelled";
+    };
+
+    EXPECT_EQ(scheduler.push(f1), 0);
+    auto cancelId = scheduler.push(f2);
+    EXPECT_EQ(scheduler.size(), 2);
+    scheduler.cancel(cancelId);
+    EXPECT_EQ(scheduler.size(), 1);
+
+    scheduler.waitAll();
+    EXPECT_EQ(scheduler.getActiveTaskId(), std::nullopt);
+}
+
+TEST(Scheduler, ResumeWaited)   // NOLINT
+{
+    Scheduler scheduler;
+    constexpr auto iterCount{10};
+    auto f1 = [counter = 0](auto& /*unused*/) mutable {
+        while (counter++ < iterCount) {
+            std::this_thread::sleep_for(100ms);
+        }
+    };
+
+    scheduler.activate(0);   // ready future return
+
+    EXPECT_EQ(scheduler.push(f1), 0);
+    auto resumeId = scheduler.push(f1);
+    EXPECT_EQ(scheduler.size(), 2);
+    scheduler.activate(resumeId);
+    scheduler.waitAll();
+    EXPECT_EQ(scheduler.getActiveTaskId(), std::nullopt);
 }
