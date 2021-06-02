@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <cstddef>
 #include <memory>
 #include <optional>
 
@@ -31,6 +32,7 @@ class Scheduler::Impl
         TaskId id{};
         std::unique_ptr<ManageableTask> taskController;
         int priority{};
+        bool isAlreadyStarted{};
 
         std::list<Promise<void>> pausePromises;
         std::list<Promise<void>> resumePromises;
@@ -39,6 +41,7 @@ class Scheduler::Impl
 
         void resume()
         {
+            isAlreadyStarted = true;
             if (wasCancelled()) {
                 taskController->stop();
             } else {
@@ -131,8 +134,13 @@ public:
             m_activeTask->taskController->asyncStop();
             return m_activeTask->taskController->asyncWaitForStopped();
         }
-        if (auto&& [task, _it] = findTaskById(m_waitedTasks, id); task != nullptr) {
-            return task->cancelLater();
+        if (auto&& [task, wIt] = findTaskById(m_waitedTasks, id); task != nullptr) {
+            auto future = task->cancelLater();
+            // если задача находится в списке на запуск и еще не запускалась, она сразу удаляется
+            if (!task->isAlreadyStarted) {
+                m_waitedTasks.erase(wIt);
+            }
+            return future;
         }
         if (auto&& [task, it] = findTaskById(m_delayedTasks, id); task != nullptr) {
             auto cancellingTask = std::move(task);
@@ -183,8 +191,6 @@ public:
 
         } else if (auto&& [waitedTask, _itw] = findTaskById(m_waitedTasks, id); waitedTask != nullptr) {
             future = waitedTask->pausePromises.emplace_back().future();
-        } else if (auto&& [delayedTask, _it] = findTaskById(m_delayedTasks, id); delayedTask != nullptr) {
-            future = delayedTask->pausePromises.emplace_back().future();
         }
         return future;
     }
@@ -203,6 +209,11 @@ public:
             return ret;
         }
         return makeReadyFuture();
+    }
+
+    [[nodiscard]] size_t size() const noexcept
+    {
+        return m_waitedTasks.size() + m_delayedTasks.size() + (m_activeTask == nullptr ? 0 : 1);
     }
 
 private:
@@ -296,8 +307,8 @@ private:
         }
     }
 
-    TaskList m_waitedTasks;
-    TaskList m_delayedTasks;
+    TaskList m_waitedTasks;    // запланированные задачи
+    TaskList m_delayedTasks;   // задачи в состоянии пауза, останутся в этом списке пока их не активируют
     std::unique_ptr<Task> m_activeTask;
     TaskId m_idCounter{0};
     std::list<Promise<void>> m_waitStopPromises;
@@ -399,6 +410,13 @@ Future<void> Scheduler::asyncActivate(TaskId id)
 void Scheduler::activate(TaskId id)
 {
     asyncActivate(id).get();
+}
+
+size_t Scheduler::size() const noexcept
+{
+    return invoke(m_impl->m_ao, [this] {
+        return m_impl->size();
+    });
 }
 
 }   // namespace nhope

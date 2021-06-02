@@ -1,6 +1,10 @@
-#include <gtest/gtest.h>
+#include <exception>
+#include <stdexcept>
 #include <type_traits>
 #include <variant>
+#include <iostream>
+
+#include <gtest/gtest.h>
 
 #include "nhope/async/future.h"
 #include "nhope/async/state-observer.h"
@@ -17,7 +21,7 @@ class StateObserverTest final
     nhope::StateObserver<int> m_state;
 
 public:
-    StateObserverTest(nhope::ThreadExecutor& e)
+    explicit StateObserverTest(nhope::ThreadExecutor& e)
       : m_state(
           [this](auto&& v) {
               return setRemoteState(std::move(v));
@@ -97,4 +101,54 @@ TEST(StateObserver, ObserverFailConstruct)   // NOLINT
 {
     nhope::ThreadExecutor e;
     EXPECT_THROW(nhope::StateObserver<int> observer(nullptr, nullptr, e), nhope::StateUninitialized);   //NOLINT
+}
+
+TEST(StateObserver, Exception)   // NOLINT
+{
+    using namespace nhope;
+    ThreadExecutor e;
+    constexpr auto magic = 42;
+    std::atomic_int value{};
+
+    StateObserver<int> observer(
+      [&](int&& newVal) {
+          if (newVal == magic) {
+              throw std::runtime_error("magic set");
+          }
+          value = newVal;
+          return makeReadyFuture();
+      },
+      [&] {
+          auto current = value.load();
+          if (current == magic + 1) {
+              value = 2;
+              throw std::runtime_error("magic get");
+          }
+          if (current == magic + 2) {
+              Promise<int> failPromise;
+              failPromise.setException(std::make_exception_ptr(std::runtime_error("magic")));
+              auto fail = failPromise.future();
+              return fail;
+          }
+          return makeReadyFuture<int>(current);
+      },
+      e);   //NOLINT
+
+    auto consumer = std::make_unique<SimpleConsumer>([&](auto v) {
+        v.value([](int /*unused*/) {
+
+         })
+          .fail([&](auto except) {
+              EXPECT_EQ(observer.getState(), except);
+          });
+    });
+    observer.attachConsumer(std::move(consumer));
+
+    std::this_thread::sleep_for(1s);
+    observer.setState(magic);
+    std::this_thread::sleep_for(500ms);
+    observer.setState(magic + 1);
+    std::this_thread::sleep_for(500ms);
+    observer.setState(magic + 2);
+    std::this_thread::sleep_for(500ms);
 }

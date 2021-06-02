@@ -38,9 +38,9 @@ std::vector<std::string> getAvailableComs()
     static const std::regex re("tty(S\\d+)|(USB)|(XRUSB)|(ACM)|(AMA)|(AP)|(comm)");
 
     for (const auto& entry : fs::directory_iterator(prefix)) {
-        std::string s;
         std::cmatch m;
-        if (std::regex_search(entry.path().filename().c_str(), m, re)) {
+        const std::string entryName = entry.path().filename().c_str();
+        if (std::regex_search(entryName.c_str(), m, re)) {
             std::string comName = m[0];
             if (checkAlive(comName)) {
                 res.emplace_back(prefix + comName);
