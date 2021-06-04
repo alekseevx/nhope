@@ -24,7 +24,7 @@ public:
         m_workThread.join();
     }
 
-    void start(TaskFunction&& function)
+    void start(TaskFunction function)
     {
         m_workThread = std::thread([this, function = std::move(function)]() {
             this->run(function);
@@ -183,12 +183,12 @@ public:
     }
 
     // ManageableTaskCtx
-    void setBeforePause(std::function<bool()>&& beforePause) override
+    void setBeforePause(std::function<bool()> beforePause) override
     {
         m_beforePause = std::move(beforePause);
     }
 
-    void setAfterPause(std::function<void()>&& afterPause) override
+    void setAfterPause(std::function<void()> afterPause) override
     {
         m_afterPause = std::move(afterPause);
     }
@@ -321,14 +321,14 @@ void ManageableTask::waitForStopped()
     this->asyncWaitForStopped().wait();
 }
 
-std::unique_ptr<ManageableTask> ManageableTask::start(TaskFunction&& function)
+std::unique_ptr<ManageableTask> ManageableTask::start(TaskFunction function)
 {
     auto task = std::make_unique<ManageableTaskImpl>();
     task->start(std::move(function));
     return task;
 }
 
-std::unique_ptr<ManageableTask> ManageableTask::create(TaskFunction&& function)
+std::unique_ptr<ManageableTask> ManageableTask::create(TaskFunction function)
 {
     auto task = std::make_unique<ManageableTaskImpl>();
     auto future = task->asyncPause();

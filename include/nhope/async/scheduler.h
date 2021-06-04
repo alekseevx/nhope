@@ -17,7 +17,7 @@ public:
     Scheduler();
     ~Scheduler();
 
-    TaskId push(ManageableTask::TaskFunction&& task, int priority = 0);
+    TaskId push(ManageableTask::TaskFunction task, int priority = 0);
 
     [[nodiscard]] std::optional<TaskId> getActiveTaskId() const noexcept;
 

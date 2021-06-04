@@ -14,8 +14,8 @@ class ManageableTaskCtx
 public:
     virtual ~ManageableTaskCtx() = default;
 
-    virtual void setBeforePause(std::function<bool()>&& beforePause) = 0;
-    virtual void setAfterPause(std::function<void()>&& afterPause) = 0;
+    virtual void setBeforePause(std::function<bool()> beforePause) = 0;
+    virtual void setAfterPause(std::function<void()> afterPause) = 0;
     virtual void resetAllHandlers() = 0;
 
     virtual bool checkPoint() = 0;
@@ -53,10 +53,10 @@ public:
     void stop();
     void waitForStopped();
 
-    static std::unique_ptr<ManageableTask> start(TaskFunction&& function);
+    static std::unique_ptr<ManageableTask> start(TaskFunction function);
 
     // create task on pause
-    static std::unique_ptr<ManageableTask> create(TaskFunction&& function);
+    static std::unique_ptr<ManageableTask> create(TaskFunction function);
 };
 
 }   // namespace nhope

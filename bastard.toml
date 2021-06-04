@@ -9,7 +9,7 @@ lang = "c++17"
 path = "tests"
 
 [dependencies]
-asio = { git = "git@gitlab.olimp.lan:github/standalone-asio.git", tag = "asio-1-18-1", interface = "asio/include" }
+asio = { git = "git@gitlab.olimp.lan:github/standalone-asio.git", tag = "asio-1-18-2", interface = "asio/include" }
 gsl = { git = "git@gitlab.olimp.lan:github/gsl.git", tag = "v3.1.0", interface = "include" }
 fmt = { git  = "git@gitlab.olimp.lan:github/fmtlib.git", tag = "7.1.3" }
 

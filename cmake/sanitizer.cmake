@@ -17,8 +17,8 @@ function(enable_address_sanitizer)
     target_compile_options(${Sanitizer_TARGET} PRIVATE -fno-omit-frame-pointer)
     target_link_libraries(${Sanitizer_TARGET} -fsanitize=address,undefined)
 
-    if(DEFINED Sanitizer_blacklist)        
-    if( CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+    if(DEFINED Sanitizer_blacklist)
+        if( CMAKE_CXX_COMPILER_ID MATCHES "GNU")
             message(WARNING "gcc does`t support blacklist")
             return()
         endif()
@@ -37,9 +37,9 @@ function(enable_thread_sanitizer)
     if(NOT CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
         message(FATAL_ERROR "Sanitizer supported only for gcc/clang")
     endif()
-    message(STATUS "Thread sanitizer enabled for ${Sanitizer_TARGET}")
-    add_compile_options(-fsanitize=thread)    
-    add_link_options(-fsanitize=thread )
+    message(STATUS "Thread sanitizer enabled")
+    add_compile_options(-fsanitize=thread)
+    add_link_options(-fsanitize=thread)
 
     if(DEFINED Sanitizer_blacklist)
         if( CMAKE_CXX_COMPILER_ID MATCHES "GNU")
@@ -50,7 +50,7 @@ function(enable_thread_sanitizer)
         add_compile_options(-fsanitize-blacklist=${Sanitizer_blacklist})
         add_link_options(-fsanitize-blacklist=${Sanitizer_blacklist})
     endif()
-    
+
 endfunction()
 
 
@@ -75,5 +75,5 @@ function(enable_memory_sanitizer)
         target_compile_options(${Sanitizer_TARGET} PRIVATE -fsanitize-blacklist=${Sanitizer_blacklist})
         target_link_libraries(${Sanitizer_TARGET} -fsanitize-blacklist=${Sanitizer_blacklist})
     endif()
-    
+
 endfunction()
