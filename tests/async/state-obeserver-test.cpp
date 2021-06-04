@@ -58,7 +58,6 @@ private:
 TEST(StateObserver, SimpleObserver)   // NOLINT
 {
     using namespace nhope;
-    constexpr auto magic{42};
     StateObserverTest observerTest;
 
     {
@@ -72,14 +71,14 @@ TEST(StateObserver, SimpleObserver)   // NOLINT
         EXPECT_EQ(stateChan.get()->value(), val + 3);
     }
 
-    observerTest.observer().setState(magic);
+    observerTest.observer().setState(0);
 
     {
         nhope::Chan<ObservableState<int>> stateChan;
         stateChan.attachToProduser(observerTest.observer());
 
         const int val = stateChan.get()->value();
-        EXPECT_GE(val, magic);
+        EXPECT_LT(val, StateObserverTest::startValue);
         EXPECT_EQ(stateChan.get()->value(), val + 1);
         EXPECT_EQ(stateChan.get()->value(), val + 2);
         EXPECT_EQ(stateChan.get()->value(), val + 3);
