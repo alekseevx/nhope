@@ -4,13 +4,18 @@ include(cmake/enable_warnings.cmake)
 include(cmake/sanitizer.cmake)
 include(cmake/bastard_setup.cmake)
 
-bastard_setup()
-project(${BASTARD_PACKAGE_NAME})
-
 option(COVERAGE_ENABLED "enable coverage compiler flags" OFF)
 option(ADDRESS_SANITIZER_ENABLED "enable address sanitizer" OFF)
 option(THREAD_SANITIZER_ENABLED "enable thread sanitizer" OFF)
 option(MEMORY_SANITIZER_ENABLED "enable memory sanitizer" OFF)
+
+if(THREAD_SANITIZER_ENABLED)        
+    enable_thread_sanitizer(
+        blacklist ${CMAKE_CURRENT_LIST_DIR}/sanitize-blacklist)
+endif()
+
+bastard_setup()
+project(${BASTARD_PACKAGE_NAME})
 
 if(COVERAGE_ENABLED)    
     message(STATUS "nhope enabling coverage")
@@ -25,12 +30,6 @@ endif()
 
 if(ADDRESS_SANITIZER_ENABLED)
     enable_address_sanitizer(TARGET ${BASTARD_PACKAGE_NAME})
-endif()
-
-if(THREAD_SANITIZER_ENABLED)        
-    enable_thread_sanitizer(
-        TARGET ${BASTARD_PACKAGE_NAME} 
-        blacklist ${CMAKE_CURRENT_LIST_DIR}/sanitize-blacklist)
 endif()
 
 if(MEMORY_SANITIZER_ENABLED)        

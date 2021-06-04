@@ -16,11 +16,12 @@ class Scheduler::Impl
 {
     struct Task final : Noncopyable
     {
-        Task(TaskId id, std::unique_ptr<ManageableTask>&& ptr, int pr) noexcept
+        Task(TaskId id, std::unique_ptr<ManageableTask> ptr, int pr) noexcept
           : id(id)
           , taskController(std::move(ptr))
           , priority(pr)
         {}
+
         ~Task()
         {
             resolvePromises(pausePromises);
@@ -88,7 +89,7 @@ public:
         assert(m_delayedTasks.empty());   // NOLINT
     };
 
-    TaskId push(int priority, ManageableTask::TaskFunction&& task)
+    TaskId push(int priority, ManageableTask::TaskFunction task)
     {
         auto newTask = createTask(priority, std::move(task));
         auto res{newTask->id};
@@ -261,7 +262,7 @@ private:
         m_waitedTasks.insert(it, std::move(task));
     }
 
-    std::unique_ptr<Task> createTask(int priority, ManageableTask::TaskFunction&& task)
+    std::unique_ptr<Task> createTask(int priority, ManageableTask::TaskFunction task)
     {
         auto newTask = std::make_unique<Task>(m_idCounter++, ManageableTask::create(std::move(task)), priority);
 
@@ -326,7 +327,7 @@ Scheduler::~Scheduler()
     clear();
 }
 
-Scheduler::TaskId Scheduler::push(ManageableTask::TaskFunction&& task, int priority)
+Scheduler::TaskId Scheduler::push(ManageableTask::TaskFunction task, int priority)
 {
     return invoke(m_impl->m_ao, [this, priority, task = std::move(task)]() mutable {
         return m_impl->push(priority, std::move(task));
