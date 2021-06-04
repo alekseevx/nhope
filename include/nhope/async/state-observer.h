@@ -157,6 +157,7 @@ public:
       , m_pollTime(pollTime)
       , m_executor(executor)
       , m_aoCtx(std::make_unique<AOContext>(executor))
+      , m_stateCtx(executor)
     {
         if (!(getter && setter)) {
             throw StateUninitialized("getter and setter must be set"sv);
@@ -165,6 +166,11 @@ public:
         setTimeout(*m_aoCtx, pollTime, [this](auto /*unused*/) {
             updateState();
         });
+    }
+    
+    ~StateObserver()
+    {
+        m_consumers.close();
     }
 
     void attachConsumer(std::unique_ptr<nhope::Consumer<ObservableState<T>>> consumer) final
@@ -177,29 +183,29 @@ public:
 
     [[nodiscard]] ObservableState<T> getState() const noexcept
     {
-        std::scoped_lock lock(m_mutex);
-        return m_state;
+        return invoke(m_stateCtx, [this] {
+            return m_state;
+        });
     }
 
     template<typename V>
     void setState(V&& v)
     {
-        std::scoped_lock lock(m_mutex);
-
-        setNewState(v);
-
-        m_aoCtx = std::make_unique<AOContext>(m_executor);
-        asyncInvoke(*m_aoCtx,
-                    [this, newVal = std::forward<V>(v)]() mutable {
-                        m_setter(std::move(newVal));
+        asyncInvoke(m_stateCtx, [this, newVal = std::forward<V>(v)] {
+            setNewState(newVal);
+            m_aoCtx = std::make_unique<AOContext>(m_executor);
+            asyncInvoke(*m_aoCtx,
+                        [this, newVal]() mutable {
+                            m_setter(std::move(newVal));
+                        })
+              .fail(*m_aoCtx,
+                    [this](auto exception) {
+                        m_state = exception;
                     })
-          .fail(*m_aoCtx,
-                [this](auto exception) {
-                    m_state = exception;
-                })
-          .then(*m_aoCtx, [this] {
-              updateState();
-          });
+              .then(*m_aoCtx, [this] {
+                  updateState();
+              });
+        });
     }
 
 private:
@@ -209,7 +215,7 @@ private:
             m_getter()
               .then(*m_aoCtx,
                     [this](T state) {
-                        setNewState(state);
+                        setNewState(std::move(state));
                     })
               .fail(*m_aoCtx,
                     [this](auto exception) {
@@ -237,16 +243,16 @@ private:
         }
     }
 
-    StateSetter m_setter;
-    StateGetter m_getter;
+    const StateSetter m_setter;
+    const StateGetter m_getter;
 
-    mutable std::mutex m_mutex;
-    std::chrono::nanoseconds m_pollTime;
+    const std::chrono::nanoseconds m_pollTime;
 
     ObservableState<T> m_state;
     ConsumerList<ObservableState<T>> m_consumers;
     Executor& m_executor;
     std::unique_ptr<AOContext> m_aoCtx;
+    mutable AOContext m_stateCtx;
 };
 
 }   // namespace nhope
