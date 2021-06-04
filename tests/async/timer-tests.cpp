@@ -23,19 +23,19 @@ TEST(SetTimeout, CallbackWait)   // NOLINT
     auto aoCtx = AOContext(executor);
 
     const time_point startTime = std::chrono::steady_clock::now();
-    time_point stopTime;
+    std::atomic<time_point> stopTime;
 
-    setTimeout(aoCtx, 1000ms, [&stopTime](const std::error_code& code) {
+    setTimeout(aoCtx, 1000ms, [&](const std::error_code& code) {
         EXPECT_TRUE(!code) << code;
         stopTime = std::chrono::steady_clock::now();
     });
 
     std::this_thread::sleep_for(1250ms);
 
-    EXPECT_TRUE(stopTime != time_point()) << "The timer was not triggered";
+    EXPECT_TRUE(stopTime.load() != time_point()) << "The timer was not triggered";
 
-    const auto duration = stopTime - startTime;
-    EXPECT_TRUE(duration >= 1000ms && duration < 1500ms) << "The timer worket at the wrong time";
+    const auto duration = stopTime.load() - startTime;
+    EXPECT_TRUE(duration >= 1000ms && duration < 1500ms) << "The timer worked at the wrong time";
 }
 
 TEST(SetTimeout, CallbackCancel)   // NOLINT

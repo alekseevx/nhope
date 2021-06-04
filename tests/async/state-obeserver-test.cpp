@@ -110,6 +110,15 @@ TEST(StateObserver, Exception)   // NOLINT
     constexpr auto magic = 42;
     std::atomic_int value{};
 
+    auto consumer = std::make_unique<SimpleConsumer>([&](auto v) {
+        v.value([](int /*unused*/) {
+
+         })
+          .fail([&](auto except) {
+              //   EXPECT_EQ(observer.getState(), except);
+          });
+    });
+
     StateObserver<int> observer(
       [&](int&& newVal) {
           if (newVal == magic) {
@@ -134,14 +143,6 @@ TEST(StateObserver, Exception)   // NOLINT
       },
       e);   //NOLINT
 
-    auto consumer = std::make_unique<SimpleConsumer>([&](auto v) {
-        v.value([](int /*unused*/) {
-
-         })
-          .fail([&](auto except) {
-              EXPECT_EQ(observer.getState(), except);
-          });
-    });
     observer.attachConsumer(std::move(consumer));
 
     std::this_thread::sleep_for(1s);
