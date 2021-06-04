@@ -1,6 +1,7 @@
 #include <exception>
 #include <stdexcept>
 #include <type_traits>
+#include <utility>
 #include <variant>
 #include <iostream>
 
@@ -8,81 +9,81 @@
 
 #include "nhope/async/future.h"
 #include "nhope/async/state-observer.h"
-#include "nhope/seq/consumer.h"
 #include "nhope/async/thread-executor.h"
+#include "nhope/seq/chan.h"
+#include "nhope/seq/consumer.h"
 
 namespace {
 using namespace std::literals;
-using IntConsumer = nhope::ObservableState<int>;
 
 class StateObserverTest final
 {
-    int m_value{};
-    nhope::StateObserver<int> m_state;
-
 public:
-    explicit StateObserverTest(nhope::ThreadExecutor& e)
+    static constexpr int startValue = 1000;
+
+    explicit StateObserverTest()
       : m_state(
-          [this](auto&& v) {
-              return setRemoteState(std::move(v));
+          [this](auto v) {
+              return setRemoteState(v);
           },
           [this] {
               return getRemoteState();
           },
-          e)
+          m_executor)
     {}
     nhope::StateObserver<int>& observer()
     {
         return m_state;
     }
 
-    nhope::Future<void> setRemoteState(int&& newVal)
+    nhope::Future<void> setRemoteState(int newVal)
     {
         m_value = newVal;
         return nhope::makeReadyFuture();
     }
 
-    [[nodiscard]] nhope::Future<int> getRemoteState() const
+    nhope::Future<int> getRemoteState()
     {
-        int value = m_value;
-        return nhope::makeReadyFuture<int>(value);
+        return nhope::makeReadyFuture<int>(m_value++);
     }
-};
 
-class SimpleConsumer : public nhope::Consumer<IntConsumer>
-{
-    std::function<void(IntConsumer)> m_f;
-
-public:
-    SimpleConsumer(std::function<void(IntConsumer)>&& f)
-      : m_f(f)
-    {}
-    nhope::Consumer<IntConsumer>::Status consume(const IntConsumer& value) final
-    {
-        m_f(value);
-        return nhope::Consumer<IntConsumer>::Status::Ok;
-    }
+private:
+    int m_value = startValue;
+    nhope::ThreadExecutor m_executor;
+    nhope::StateObserver<int> m_state;
 };
 
 }   // namespace
 
 TEST(StateObserver, SimpleObserver)   // NOLINT
 {
-    constexpr auto value{42};
-    nhope::ThreadExecutor e;
-    StateObserverTest observer(e);
-    auto consumer = std::make_unique<SimpleConsumer>([value](auto v) {
-        v.value([value](int val) {
-             EXPECT_EQ(val, value);
-         })
-          .fail([](auto /*unused*/) {
-              FAIL();
-          });
-    });
-    observer.observer().attachConsumer(std::move(consumer));
-    observer.observer().setState(value);
-    EXPECT_EQ(observer.observer().getState().value(), value);
-    std::this_thread::sleep_for(200ms);
+    using namespace nhope;
+    constexpr auto magic{42};
+    StateObserverTest observerTest;
+
+    {
+        nhope::Chan<ObservableState<int>> stateChan;
+        stateChan.attachToProduser(observerTest.observer());
+
+        const int val = stateChan.get()->value();
+        EXPECT_GE(val, StateObserverTest::startValue);
+        EXPECT_EQ(stateChan.get()->value(), val + 1);
+        EXPECT_EQ(stateChan.get()->value(), val + 2);
+        EXPECT_EQ(stateChan.get()->value(), val + 3);
+    }
+
+    observerTest.observer().setState(magic);
+
+    {
+        nhope::Chan<ObservableState<int>> stateChan;
+        stateChan.attachToProduser(observerTest.observer());
+
+        const int val = stateChan.get()->value();
+        EXPECT_GE(val, magic);
+        EXPECT_EQ(stateChan.get()->value(), val + 1);
+        EXPECT_EQ(stateChan.get()->value(), val + 2);
+        EXPECT_EQ(stateChan.get()->value(), val + 3);
+    }
 }
 
 TEST(StateObserver, ObserverState)   // NOLINT
@@ -106,21 +107,13 @@ TEST(StateObserver, ObserverFailConstruct)   // NOLINT
 TEST(StateObserver, Exception)   // NOLINT
 {
     using namespace nhope;
-    ThreadExecutor e;
     constexpr auto magic = 42;
-    std::atomic_int value{};
 
-    auto consumer = std::make_unique<SimpleConsumer>([&](auto v) {
-        v.value([](int /*unused*/) {
-
-         })
-          .fail([&](auto except) {
-              //   EXPECT_EQ(observer.getState(), except);
-          });
-    });
+    ThreadExecutor e;
+    std::atomic<int> value{};
 
     StateObserver<int> observer(
-      [&](int&& newVal) {
+      [&](int newVal) {
           if (newVal == magic) {
               throw std::runtime_error("magic set");
           }
@@ -141,15 +134,22 @@ TEST(StateObserver, Exception)   // NOLINT
           }
           return makeReadyFuture<int>(current);
       },
-      e);   //NOLINT
+      e);
 
-    observer.attachConsumer(std::move(consumer));
+    Chan<ObservableState<int>> stateChan;
+    stateChan.attachToProduser(observer);
 
-    std::this_thread::sleep_for(1s);
     observer.setState(magic);
-    std::this_thread::sleep_for(500ms);
+    EXPECT_EQ(stateChan.get().value(), magic);
+    EXPECT_TRUE(stateChan.get()->hasException());   // setter throw Exception
+    EXPECT_EQ(stateChan.get().value(), 0);          // getter set value 0
+
     observer.setState(magic + 1);
-    std::this_thread::sleep_for(500ms);
+    EXPECT_EQ(stateChan.get().value(), magic + 1);
+    EXPECT_TRUE(stateChan.get()->hasException());   // getter throw Exception
+    EXPECT_EQ(stateChan.get().value(), 2);          // getter set value 2
+
     observer.setState(magic + 2);
-    std::this_thread::sleep_for(500ms);
+    EXPECT_EQ(stateChan.get().value(), magic + 2);
+    EXPECT_TRUE(stateChan.get()->hasException());   // getter throw Exception
 }

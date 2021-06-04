@@ -23,7 +23,7 @@ TEST(SetTimeout, CallbackWait)   // NOLINT
     auto aoCtx = AOContext(executor);
 
     const time_point startTime = std::chrono::steady_clock::now();
-    std::atomic<time_point> stopTime;
+    std::atomic<time_point> stopTime = time_point();
 
     setTimeout(aoCtx, 1000ms, [&](const std::error_code& code) {
         EXPECT_TRUE(!code) << code;

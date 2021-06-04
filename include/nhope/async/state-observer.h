@@ -145,7 +145,7 @@ template<typename T>
 class StateObserver final : public nhope::Produser<ObservableState<T>>
 {
 public:
-    using StateSetter = std::function<Future<void>(T&&)>;
+    using StateSetter = std::function<Future<void>(const T&)>;
     using StateGetter = std::function<Future<T>()>;
 
     static constexpr auto defaultPollTime = 100ms;
@@ -167,7 +167,7 @@ public:
             updateState();
         });
     }
-    
+
     ~StateObserver()
     {
         m_consumers.close();
@@ -196,11 +196,11 @@ public:
             m_aoCtx = std::make_unique<AOContext>(m_executor);
             asyncInvoke(*m_aoCtx,
                         [this, newVal]() mutable {
-                            m_setter(std::move(newVal));
+                            m_setter(newVal);
                         })
               .fail(*m_aoCtx,
                     [this](auto exception) {
-                        m_state = exception;
+                        setNewState(std::move(exception));
                     })
               .then(*m_aoCtx, [this] {
                   updateState();
