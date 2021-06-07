@@ -5,7 +5,7 @@
 
 #include <gtest/gtest.h>
 
-#include "nhope/async/scope-exit.h"
+#include "nhope/utils/scope-exit.h"
 
 TEST(ScopeExit, simpleExit)   // NOLINT
 {
