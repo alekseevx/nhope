@@ -28,7 +28,7 @@ static bool isChanged(std::atomic<int>& value)
 {
     using namespace std::chrono;
 
-    int currentValue = value;
+    int currentValue = value.load();
     auto stop = steady_clock::now() + 100ms;
     while (steady_clock::now() < stop) {
         if (currentValue != value) {
@@ -59,11 +59,14 @@ TEST(ManageableTask, checkAsyncPauseResume)   // NOLINT
         ASSERT_TRUE(isChanged(counter));
 
         auto pauseFuture = task->asyncPause();
+        auto pauseSecondFuture = task->asyncPause();
         auto taskState = task->state();
         ASSERT_TRUE(taskState == ManageableTask::State::Pausing || taskState == ManageableTask::State::Paused);
 
         ASSERT_TRUE(pauseFuture.waitFor(100ms));
         ASSERT_EQ(task->state(), ManageableTask::State::Paused);
+        ASSERT_TRUE(pauseSecondFuture.waitFor(1ms));
+        pauseSecondFuture.get();
         ASSERT_FALSE(isChanged(counter));
 
         auto resumeFuture = task->asyncResume();
@@ -99,6 +102,9 @@ TEST(ManageableTask, checkStopPausedTask)   // NOLINT
     task->asyncStop();
     ASSERT_TRUE(task->asyncWaitForStopped().waitFor(1s));
     ASSERT_EQ(task->state(), ManageableTask::State::Stopped);
+    auto pause = task->asyncPause();
+    ASSERT_TRUE(pause.isReady());
+    pause.get();
     ASSERT_FALSE(isChanged(counter));
 }
 
@@ -118,6 +124,7 @@ TEST(ManageableTask, checkEnableDisablePause)   // NOLINT
 
     task->pause();
     ASSERT_EQ(task->state(), ManageableTask::State::Paused);
+    task->asyncPause();
 
     task->resume();
     ASSERT_EQ(task->state(), ManageableTask::State::Running);
@@ -153,4 +160,28 @@ TEST(ManageableTask, createPausedThenStart)   // NOLINT
     task->waitForStopped();
     ASSERT_EQ(counter, 4);
     ASSERT_EQ(task->state(), ManageableTask::State::Stopped);
+}
+
+TEST(ManageableTask, Exception)   // NOLINT
+{
+    static constexpr auto failCounter{100};
+    auto task = ManageableTask::start([counter = 0](nhope::ManageableTaskCtx& ctx) mutable {
+        ctx.setAfterPause([] {
+            FAIL() << "handler was be resetted";
+        });
+
+        while (ctx.checkPoint()) {
+            ctx.resetAllHandlers();
+            if (++counter == failCounter) {
+                throw std::invalid_argument("something go wrong");
+            }
+            std::this_thread::sleep_for(1ms);
+        }
+    });
+    std::this_thread::sleep_for(10ms);
+
+    task->pause();
+    task->resume();
+    task->waitForStopped();
+    EXPECT_THROW(std::rethrow_exception(task->getError()), std::invalid_argument);   //NOLINT
 }

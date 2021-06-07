@@ -6,10 +6,11 @@
 #include <memory>
 #include <mutex>
 #include <chrono>
+#include <type_traits>
 
-#include <nhope/async/future.h>
-#include <nhope/async/reverse_lock.h>
-#include <nhope/seq/produser.h>
+#include "nhope/async/future.h"
+#include "nhope/async/reverse_lock.h"
+#include "nhope/seq/produser.h"
 
 namespace nhope {
 using namespace std::string_view_literals;
@@ -20,22 +21,18 @@ template<typename T>
 class DelayedProperty final
 {
 public:
-    explicit DelayedProperty(const T& value) noexcept(std::is_nothrow_copy_assignable_v<T>)
-    {
-        m_d->currentValue = value;
-    }
+    explicit DelayedProperty(const T& value) noexcept(std::is_nothrow_copy_constructible_v<T>)
+      : m_d(std::make_shared<Prv>(value))
+    {}
 
-    explicit DelayedProperty(T&& value) noexcept(std::is_nothrow_move_assignable_v<T>)
-    {
-        m_d->currentValue = std::move(value);
-    }
+    explicit DelayedProperty(T&& value) noexcept(std::is_nothrow_move_constructible_v<T>)
+      : m_d(std::make_shared<Prv>(std::forward<T>(value)))
+    {}
 
     template<typename... Args>
     explicit DelayedProperty(Args&&... args)
-      : m_d(std::make_shared<Prv>())
-    {
-        m_d->currentValue = {std::forward<Args>(args)...};
-    }
+      : m_d(std::make_shared<Prv>(std::forward<Args>(args)...))
+    {}
 
     DelayedProperty(const DelayedProperty&) = delete;
     DelayedProperty& operator=(const DelayedProperty&) = delete;
@@ -90,6 +87,11 @@ public:
 private:
     struct Prv
     {
+        template<typename... Args>
+        explicit Prv(Args&&... args)
+          : currentValue(std::forward<Args>(args)...)
+        {}
+
         T currentValue;
         std::optional<T> newValue{std::nullopt};
         std::optional<Promise<void>> promiseOpt{std::nullopt};
@@ -101,6 +103,8 @@ private:
         Future<void> setNewValue(V&& value)
         {
             std::scoped_lock lock(mutex);
+
+            static_assert(std::is_assignable_v<T&, V>, "value must be assignable to this property");
 
             if (currentValue == value) {
                 return makeReadyFuture();
@@ -174,14 +178,14 @@ private:
         }
     };
 
-    std::shared_ptr<Prv> m_d{std::make_shared<Prv>()};
+    std::shared_ptr<Prv> m_d;
 
     class PropertyInput final : public Consumer<T>
     {
         std::shared_ptr<Prv> m_d;
 
     public:
-        PropertyInput(std::shared_ptr<Prv> d)
+        explicit PropertyInput(std::shared_ptr<Prv> d)
           : m_d(d)
         {}
 
