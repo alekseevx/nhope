@@ -21,7 +21,8 @@ TEST(StrandExecutor, SequentialExecution)   // NOLINT
     ThreadPoolExecutor executor(executorThreadCount);
 
     StrandExecutor strandExecutor(executor);
-
+    
+    EXPECT_EQ(&strandExecutor.originExecutor(), &executor);
     EXPECT_EQ(&strandExecutor.ioCtx(), &executor.ioCtx());
 
     std::atomic<int> activeTaskCount = 0;

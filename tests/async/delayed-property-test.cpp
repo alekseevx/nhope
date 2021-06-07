@@ -35,6 +35,18 @@ TEST(DelayedProperty, simpleSet)   // NOLINT
     EXPECT_FALSE(prop.hasNewValue());
 }
 
+TEST(DelayedProperty, construct)   // NOLINT
+{
+    static constexpr int vectorSize{100};
+    
+    DelayedProperty<int> prop;
+
+
+    DelayedProperty<std::vector<int>> prop1(vectorSize, 3);
+    ASSERT_EQ(prop1.getCurrentValue().size(), vectorSize);
+    ASSERT_EQ(prop1.getCurrentValue().at(1), 3);
+}
+
 TEST(DelayedProperty, exception)   // NOLINT
 {
     DelayedProperty prop(0);

@@ -58,6 +58,11 @@ TEST(Md5, calcStream)   // NOLINT
     EXPECT_EQ(etalonDigest, res);
 }
 
+TEST(Md5, calcFile)   // NOLINT
+{
+    EXPECT_NO_THROW(MD5::fileDigest(__FILE__));   // NOLINT
+}
+
 TEST(Md5, calcInvalidFile)   // NOLINT
 {
     EXPECT_THROW(MD5::fileDigest("someFile"sv), std::system_error);   // NOLINT
