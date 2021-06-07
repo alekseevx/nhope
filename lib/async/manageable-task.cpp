@@ -193,17 +193,10 @@ public:
         m_afterPause = std::move(afterPause);
     }
 
-    void resetAllHandlers() override
-    {
-        m_beforePause = nullptr;
-        m_afterPause = nullptr;
-    }
-
     bool checkPoint() override
     {
         std::unique_lock lock(m_mutex);
 
-        m_wasPause = false;
         switch (m_state) {
         case State::Running:
             return true;
@@ -220,11 +213,6 @@ public:
         default:
             throw std::runtime_error("Invalid state");
         }
-    }
-
-    bool wasPause() const override
-    {
-        return m_wasPause;
     }
 
     bool pauseAllowed()
@@ -276,7 +264,6 @@ public:
             resolvePromises(resumePromises);
         }
 
-        m_wasPause = true;
         if (m_afterPause) {
             m_afterPause();
         }
@@ -287,7 +274,6 @@ private:
 
     std::function<bool()> m_beforePause;
     std::function<void()> m_afterPause;
-    bool m_wasPause = false;
 
     mutable std::mutex m_mutex;
     State m_state = State::Running;

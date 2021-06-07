@@ -171,7 +171,7 @@ TEST(ManageableTask, Exception)   // NOLINT
         });
 
         while (ctx.checkPoint()) {
-            ctx.resetAllHandlers();
+            ctx.setAfterPause(nullptr);
             if (++counter == failCounter) {
                 throw std::invalid_argument("something go wrong");
             }

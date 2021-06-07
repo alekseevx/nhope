@@ -16,10 +16,8 @@ public:
 
     virtual void setBeforePause(std::function<bool()> beforePause) = 0;
     virtual void setAfterPause(std::function<void()> afterPause) = 0;
-    virtual void resetAllHandlers() = 0;
 
     virtual bool checkPoint() = 0;
-    [[nodiscard]] virtual bool wasPause() const = 0;
 };
 
 class ManageableTask
