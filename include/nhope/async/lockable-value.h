@@ -1,9 +1,12 @@
 #pragma once
 
+#include <functional>
 #include <mutex>
 #include <shared_mutex>
 #include <type_traits>
 #include <utility>
+
+#include "nhope/utils/type.h"
 
 namespace nhope {
 
@@ -35,9 +38,39 @@ public:
         return ReadAccess(*this);
     }
 
+    /*!
+     * @brief Получить доступ на чтение в замыкании
+     * 
+     * @tparam Fn функция сигнатуры void(const T&)
+     * @param f 
+     */
+    template<typename Fn>
+    void readAccess(Fn f) const
+    {
+        static_assert(checkFunctionParams<Fn, const T&>() || checkFunctionParams<Fn, T>(),
+                      "expect void(const T&) or void(T) signature");
+
+        const auto ra = readAccess();
+        f(*ra);
+    }
+
     WriteAccess writeAccess()
     {
         return WriteAccess(*this);
+    }
+
+    /*!
+     * @brief Получить доступ на запись в замыкании
+     * 
+     * @tparam Fn функция сигнатуры void(T&)
+     * @param f 
+     */
+    template<typename Fn>
+    void writeAccess(Fn f)
+    {
+        static_assert(checkFunctionParamsV<Fn, T&>, "expect void(T&) signature");
+        auto wa = writeAccess();
+        f(*wa);
     }
 
     LockableValue& operator=(const T& value)

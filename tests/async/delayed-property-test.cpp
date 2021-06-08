@@ -12,7 +12,7 @@ namespace {
 constexpr int testValue = 10;
 constexpr auto maxProduseCount{100};
 
-constexpr auto nullHandler = [](auto /*unused*/) {};
+constexpr auto nullHandler = [](int /*unused*/) {};
 
 using namespace nhope;
 using namespace std::literals;
@@ -38,9 +38,8 @@ TEST(DelayedProperty, simpleSet)   // NOLINT
 TEST(DelayedProperty, construct)   // NOLINT
 {
     static constexpr int vectorSize{100};
-    
-    DelayedProperty<int> prop;
 
+    DelayedProperty<int> prop;
 
     DelayedProperty<std::vector<int>> prop1(vectorSize, 3);
     ASSERT_EQ(prop1.getCurrentValue().size(), vectorSize);
@@ -50,14 +49,14 @@ TEST(DelayedProperty, construct)   // NOLINT
 TEST(DelayedProperty, exception)   // NOLINT
 {
     DelayedProperty prop(0);
-    prop.applyNewValue([](auto /*unused*/) {
+    prop.applyNewValue([](int /*unused*/) {
         FAIL() << "value not changed";
     });
     auto f = prop.setNewValue(1);
     EXPECT_TRUE(prop.hasNewValue());
     auto f2 = prop.setNewValue(1);
     EXPECT_THROW(f.get(), nhope::AsyncOperationWasCancelled);   //NOLINT
-    prop.applyNewValue([](auto /*unused*/) {
+    prop.applyNewValue([](int /*unused*/) {
         throw std::runtime_error("some error");
     });
     EXPECT_THROW(f2.get(), std::runtime_error);   //NOLINT
@@ -142,7 +141,7 @@ TEST(DelayedProperty, destroyBeforeProducerEnd)   // NOLINT
         std::this_thread::sleep_for(2ms);
 
         int value = 0;
-        prop.applyNewValue([&value](auto val) {
+        prop.applyNewValue([&value](int val) {
             value = val;
         });
         EXPECT_EQ(prop.getCurrentValue(), value);

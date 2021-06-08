@@ -14,21 +14,9 @@
 #include "nhope/async/timer.h"
 #include "nhope/seq/produser.h"
 #include "nhope/seq/consumer-list.h"
-
+#include "nhope/utils/type.h"
 namespace nhope {
 using namespace std::literals;
-
-template<typename T, typename U, class>
-struct has_equal_impl : std::false_type
-{};
-
-template<typename T, typename U>
-struct has_equal_impl<T, U, decltype(std::declval<T>() == std::declval<U>(), void())> : std::true_type
-{};
-
-template<typename T, typename U>
-struct has_equal : has_equal_impl<T, U, void>
-{};
 
 class StateUninitialized : public std::runtime_error
 {
@@ -64,7 +52,7 @@ public:
         } else if constexpr (std::is_same_v<Vtype, std::exception_ptr>) {
             return hasException() && std::get<1>(m_state) == rhs;
         } else {
-            static_assert(has_equal<Vtype, T>::value, "need implement operator== ");
+            static_assert(HasEqual<Vtype, T>::value, "need implement operator== ");
 
             return hasValue() && std::get<0>(m_state) == rhs;
         }
@@ -134,12 +122,13 @@ public:
 
 /*!
  * @brief Наблюдатель за состоянием
- * Класс служит для синхронизации активного состояния с будущим состоянием
- * При установке значения (setState) оно применяется сразу, и при опросе отдается именно новое установленное значение
- * при возникновении исключения при установке значения, оно выставляется до следующего опроса по таймауту, после опроса будет 
+ * 
+ * Класс служит для синхронизации локального состояния с удаленным состоянием.
+ * При установке значения (setState) оно применяется сразу, и при опросе (getState) отдается именно новое установленное значение.
+ * При возникновении исключения во время установки значения, оно выставляется до следующего опроса по таймауту, после опроса будет 
  * установлено корректное значение
  * 
- * @tparam T тип состояния
+ * @tparam T тип состояния, должен быть определен оператор сравнения
  */
 template<typename T>
 class StateObserver final : public nhope::Produser<ObservableState<T>>

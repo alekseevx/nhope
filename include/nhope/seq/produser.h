@@ -2,17 +2,14 @@
 
 #include <memory>
 #include "consumer.h"
+#include "nhope/utils/noncopyable.h"
 
 namespace nhope {
 
 template<typename T>
-class Produser
+class Produser : public Noncopyable
 {
 public:
-    Produser(const Produser&) = delete;
-    Produser& operator=(const Produser&) = delete;
-
-    Produser() = default;
     virtual ~Produser() = default;
 
     virtual void attachConsumer(std::unique_ptr<Consumer<T>> consumer) = 0;
