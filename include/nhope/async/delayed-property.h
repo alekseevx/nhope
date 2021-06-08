@@ -11,6 +11,7 @@
 #include "nhope/async/future.h"
 #include "nhope/async/reverse_lock.h"
 #include "nhope/seq/produser.h"
+#include "nhope/utils/type.h"
 
 namespace nhope {
 using namespace std::string_view_literals;
@@ -66,6 +67,8 @@ public:
     template<typename Fn>
     void applyNewValue(Fn applyHandler)
     {
+        static_assert(checkFunctionParamsV<Fn, T> || checkFunctionParamsV<Fn, const T&>,
+                      "expect handler with T type");
         m_d->applyNewValue(applyHandler);
     }
 

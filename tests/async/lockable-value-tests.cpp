@@ -75,3 +75,34 @@ TEST(LockableValue, CopyValue)   // NOLINT
 
     ASSERT_EQ(lockInt.copy(), 80);
 }
+
+TEST(LockableValue, Closure)   // NOLINT
+{
+    static constexpr int startValue = 42;
+    static constexpr int endValue = 0;
+
+    LockableValue<int> lockInt(startValue);
+    lockInt.readAccess([&](const int v) {
+        ASSERT_EQ(v, startValue);
+    });
+
+    auto writter = std::thread([&lockInt]() {
+        lockInt.writeAccess([](int& v) {
+            v = endValue;
+        });
+    });
+
+    auto reader = std::thread([&lockInt, needExit = false]() mutable {
+        while (!needExit) {
+            lockInt.readAccess([&](const int v) {
+                needExit = v == endValue;
+            });
+            std::this_thread::sleep_for(1ms);
+        }
+    });
+
+    reader.join();
+    writter.join();
+
+    ASSERT_EQ(lockInt.copy(), endValue);
+}

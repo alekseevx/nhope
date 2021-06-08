@@ -1,9 +1,11 @@
 #pragma once
 
+#include "nhope/utils/noncopyable.h"
+
 namespace nhope {
 
 template<typename T>
-class Consumer
+class Consumer : public Noncopyable
 {
 public:
     enum class Status
@@ -12,9 +14,6 @@ public:
         Closed,
     };
 
-    Consumer(const Consumer&) = delete;
-    Consumer& operator=(const Consumer&) = delete;
-    Consumer() = default;
     virtual ~Consumer() = default;
 
     virtual Status consume(const T& value) = 0;
