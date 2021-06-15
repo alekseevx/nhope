@@ -260,8 +260,6 @@ TEST(Scheduler, ClearTask)   // NOLINT
 
 TEST(Scheduler, TaskWait)   // NOLINT
 {
-    thread_local int localCounter{0};
-    constexpr auto threadCounter{100};
     std::atomic_int counter = 0;
     Scheduler scheduler;
     auto f1 = [&counter](auto& /*unused*/) {
@@ -331,9 +329,8 @@ TEST(Scheduler, CancellingByDestruction)   // NOLINT
 {
     thread_local int localCounter{0};
     static constexpr auto threadCounter{100};
-    std::atomic_int counter = 0;
 
-    auto f1 = [&counter](auto& ctx) {
+    auto f1 = [](auto& ctx) {
         while (ctx.checkPoint()) {
             std::this_thread::sleep_for(10ms);
             if (localCounter++ == threadCounter) {
@@ -356,9 +353,8 @@ TEST(Scheduler, DeactivateTask)   // NOLINT
 {
     thread_local int localCounter{0};
     static constexpr auto threadCounter{100};
-    std::atomic_int counter = 0;
 
-    auto f1 = [&counter](auto& ctx) {
+    auto f1 = [](auto& ctx) {
         // std::cout << "start f1" << std::endl;
         ctx.setBeforePause([] {
             // std::cout << "pausing f1" << std::endl;
@@ -377,7 +373,7 @@ TEST(Scheduler, DeactivateTask)   // NOLINT
         // std::cout << "finish f1" << std::endl;
     };
 
-    auto f2 = [&counter](auto& ctx) {
+    auto f2 = [](auto& ctx) {
         // std::cout << "start f2" << std::endl;
         ctx.setBeforePause([] {
             // std::cout << "pausing f2" << std::endl;
@@ -396,7 +392,7 @@ TEST(Scheduler, DeactivateTask)   // NOLINT
         // std::cout << "finish f2" << std::endl;
     };
 
-    auto f3 = [&counter](auto& ctx) {
+    auto f3 = [](auto& ctx) {
         // std::cout << "start f3" << std::endl;
         ctx.setBeforePause([] {
             // std::cout << "pausing f3" << std::endl;
@@ -442,9 +438,8 @@ TEST(Scheduler, WaitDeactivatedTask)   // NOLINT
 {
     thread_local int localCounter{0};
     static constexpr auto threadCounter{100};
-    std::atomic_int counter = 0;
 
-    auto f1 = [&counter](auto& ctx) {
+    auto f1 = [](auto& ctx) {
         while (ctx.checkPoint()) {
             std::this_thread::sleep_for(10ms);
             if (localCounter++ == threadCounter) {
@@ -471,9 +466,8 @@ TEST(Scheduler, CancelDeactivatedTask)   // NOLINT
 {
     thread_local int localCounter{0};
     static constexpr auto threadCounter{100};
-    std::atomic_int counter = 0;
 
-    auto f1 = [&counter](auto& ctx) {
+    auto f1 = [](auto& ctx) {
         while (ctx.checkPoint()) {
             std::this_thread::sleep_for(10ms);
             if (localCounter++ == threadCounter) {
@@ -497,7 +491,7 @@ TEST(Scheduler, DeactivateByRequest)   // NOLINT
     thread_local int localCounter{0};
     static constexpr auto threadCounter{100};
 
-    auto work = [counter = 0](auto& ctx) {
+    auto work = [](auto& ctx) {
         while (ctx.checkPoint()) {
             std::this_thread::sleep_for(10ms);
             if (localCounter++ == threadCounter) {
@@ -533,7 +527,7 @@ TEST(Scheduler, DeactivateByRequest)   // NOLINT
 TEST(Scheduler, CancelNotStarted)   // NOLINT
 {
     Scheduler scheduler;
-    constexpr auto iterCount{10};
+    static constexpr auto iterCount{10};
     auto f1 = [counter = 0](auto& /*unused*/) mutable {
         while (counter++ < iterCount) {
             std::this_thread::sleep_for(100ms);
@@ -557,7 +551,7 @@ TEST(Scheduler, CancelNotStarted)   // NOLINT
 TEST(Scheduler, ResumeWaited)   // NOLINT
 {
     Scheduler scheduler;
-    constexpr auto iterCount{10};
+    static constexpr auto iterCount{10};
     auto f1 = [counter = 0](auto& /*unused*/) mutable {
         while (counter++ < iterCount) {
             std::this_thread::sleep_for(100ms);
