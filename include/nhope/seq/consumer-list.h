@@ -38,7 +38,8 @@ public:
         if (m_closed) {
             return Consumer<T>::Status::Closed;
         }
-        List list = std::move(m_list);
+        List list;
+        list.splice(list.begin(), m_list);
 
         {
             nhope::ReverseLock unlock(lock);
