@@ -4,6 +4,8 @@
 
 #include <nhope/seq/chan.h>
 #include <nhope/seq/func-produser.h>
+#include "nhope/seq/consumer-list.h"
+
 
 namespace {
 using namespace nhope;
@@ -125,4 +127,14 @@ TEST(ChanTest, OneToMany)   // NOLINT
 
     thread.join();
     thread2.join();
+}
+
+TEST(ConsumerListTest, Closed)   //NOLINT
+{
+    Chan<int> chan(true);
+    ConsumerList<int> cl;
+    cl.close();
+    cl.addConsumer(chan.makeInput());
+    int x{};
+    cl.consume(x);
 }

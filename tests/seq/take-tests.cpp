@@ -2,6 +2,7 @@
 #include <nhope/async/future.h>
 #include <nhope/seq/func-produser.h>
 #include <nhope/seq/take.h>
+#include "nhope/seq/detail/take-one-consumer.h"
 
 #include <gtest/gtest.h>
 
@@ -40,4 +41,13 @@ TEST(TakeOneFromProduser, DestroyProduser)   // NOLINT
     }
 
     EXPECT_THROW(future.get(), AsyncOperationWasCancelled);   // NOLINT
+}
+
+TEST(TakeOneConsumer, Take2)   // NOLINT
+{
+    detail::TakeOneConsumer<int> consumer;
+    int x{};
+    EXPECT_EQ(consumer.consume(x), Consumer<int>::Status::Closed);
+    EXPECT_EQ(consumer.consume(x), Consumer<int>::Status::Closed);
+
 }

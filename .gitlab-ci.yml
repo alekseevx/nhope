@@ -7,7 +7,7 @@ build-job:
   image: ubuntu:20.04-build
   script:
     - mkdir build && cd build
-    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DCOVERAGE_ENABLED=ON
+    - cmake .. -DCMAKE_BUILD_TYPE=Debug -DCOVERAGE_ENABLED=ON -DADDRESS_SANITIZER_ENABLED=ON
     - cmake --build .
   artifacts:
     paths:
