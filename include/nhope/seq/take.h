@@ -3,7 +3,7 @@
 #include <memory>
 #include <utility>
 
-#include "../async/future.h"
+#include "nhope/async/future.h"
 #include "produser.h"
 
 #include "detail/take-one-consumer.h"

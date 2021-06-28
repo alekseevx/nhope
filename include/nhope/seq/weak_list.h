@@ -47,10 +47,6 @@ class WeakList : public Noncopyable
 
         WeakIterator& operator++() noexcept
         {
-            if (m_pos == m_list.end()) {
-                return *this;
-            }
-
             m_current = next();
 
             while (m_current == nullptr && m_pos != m_list.end()) {
@@ -63,7 +59,7 @@ class WeakList : public Noncopyable
     private:
         std::shared_ptr<T> next() const
         {
-            m_pos++;
+            ++m_pos;
             if (m_pos == m_list.end()) {
                 return std::shared_ptr<T>();
             }

@@ -61,6 +61,39 @@ TEST(WeakList, simpleList)   //NOLINT
     ASSERT_TRUE(weak.empty());
 }
 
+TEST(WeakList, iterate)   //NOLINT
+{
+    static constexpr int size = 100;
+
+    WeakList<int> weak;
+    EXPECT_TRUE(weak.empty());
+    std::vector<std::shared_ptr<int>> temp;
+
+    for (size_t i = 0; i < size; i++) {
+        auto& p = temp.emplace_back(std::make_shared<int>(i));
+        weak.emplace_back(p);
+    }
+
+    int counter{};
+
+    for (auto x : weak) {
+        ASSERT_TRUE(x != nullptr);
+        ++counter;
+    }
+    EXPECT_EQ(counter, temp.size());
+
+    temp.erase(temp.begin() + 4);
+    counter = 0;
+    for (auto x : weak) {
+        ASSERT_TRUE(x != nullptr);
+        ++counter;
+    }
+    EXPECT_EQ(counter, temp.size());
+
+
+    ASSERT_EQ(size, weak.size());
+}
+
 TEST(WeakList, find)   //NOLINT
 {
     static constexpr int size = 1000;

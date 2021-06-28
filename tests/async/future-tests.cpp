@@ -1,3 +1,4 @@
+#include "nhope/async/detail/future.h"
 #include <future>
 #include <stdexcept>
 #include <string>
@@ -61,6 +62,8 @@ TEST(Future, retrievedFlag)   // NOLINT
     Promise<void> p;
     EXPECT_NO_THROW(p.future());                   // NOLINT
     EXPECT_THROW(p.future(), std::future_error);   // NOLINT
+    p.setValue();
+    EXPECT_THROW(p.setValue(), std::future_error);   // NOLINT
 }
 
 TEST(Future, noState)   // NOLINT
@@ -69,6 +72,10 @@ TEST(Future, noState)   // NOLINT
         auto f = makeReadyFuture();
         EXPECT_TRUE(f.valid());
         EXPECT_TRUE(f.isReady());
+
+        Future<int> fInt;
+        EXPECT_FALSE(fInt.valid());
+
 
         EXPECT_NO_THROW(f.get());   // NOLINT
 
