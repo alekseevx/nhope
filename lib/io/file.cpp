@@ -23,8 +23,8 @@ class FileDevice final : public IoDevice
 {
 public:
     explicit FileDevice(Executor& e, const FileSettings& settings)
-      : m_ctx(e)
-      , m_mode(settings.mode)
+      : m_mode(settings.mode)
+      , m_ctx(e)
     {
         std::ios_base::openmode flags = std::ios::binary;
         switch (settings.mode) {
