@@ -78,6 +78,10 @@ public:
     ~WeakList()
     {
         clearExpired();
+        while (!m_list.empty()) {
+            m_list.back().expirePromise.setException(std::make_exception_ptr(AsyncOperationWasCancelled()));
+            m_list.pop_back();
+        }
     }
 
     template<typename Fn>
