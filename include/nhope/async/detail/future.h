@@ -1,15 +1,19 @@
 #pragma once
 
+#include <algorithm>
+#include <cassert>
 #include <condition_variable>
 #include <exception>
 #include <functional>
 #include <future>
+#include <memory>
 #include <mutex>
 #include <optional>
+#include <type_traits>
 #include <utility>
 #include <variant>
-#include <type_traits>
 
+#include <nhope/async/ao-context.h>
 #include <nhope/async/reverse_lock.h>
 
 namespace nhope {
@@ -18,6 +22,9 @@ template<typename T>
 class Future;
 
 namespace detail {
+
+template<typename T>
+class FutureState;
 
 template<typename T>
 struct UnwrapFuture
@@ -32,15 +39,15 @@ struct UnwrapFuture<Future<T>>
 };
 
 template<typename T, typename Fn>
-struct NextFuture
+struct NextFutureState
 {
-    using Type = Future<std::invoke_result_t<Fn, T>>;
+    using Type = FutureState<std::invoke_result_t<Fn, T>>;
 };
 
 template<typename Fn>
-struct NextFuture<void, Fn>
+struct NextFutureState<void, Fn>
 {
-    using Type = Future<std::invoke_result_t<Fn>>;
+    using Type = FutureState<std::invoke_result_t<Fn>>;
 };
 
 template<typename T>
@@ -115,14 +122,23 @@ public:
     void setResult(Result&& result)
     {
         std::unique_lock lock(m_mutex);
+
         if (m_resultStorage != std::nullopt) {
             throw std::future_error(std::future_errc::promise_already_satisfied);
         }
 
         m_resultStorage = std::move(result);
 
-        m_waiter.notify_one();
-        this->doCallback(lock);
+        if (m_callback != nullptr) {
+            assert(m_waitCount == 0);
+
+            auto callback = std::move(m_callback);
+            lock.unlock();
+
+            callback();
+        } else if (m_waitCount != 0) {
+            m_waiter.notify_one();
+        }
     }
 
     Result getResult()
@@ -140,27 +156,43 @@ public:
     void wait() const
     {
         std::unique_lock lock(m_mutex);
+
+        assert(m_callback == nullptr);
+
+        ++m_waitCount;
         m_waiter.wait(lock, [this] {
             return m_resultStorage != std::nullopt;
         });
+        --m_waitCount;
     }
 
     bool waitFor(std::chrono::nanoseconds time) const
     {
         std::unique_lock lock(m_mutex);
+
+        assert(m_callback == nullptr);
+
+        ++m_waitCount;
         m_waiter.wait_for(lock, time, [this] {
             return m_resultStorage != std::nullopt;
         });
+        --m_waitCount;
         return m_resultStorage != std::nullopt;
     }
 
     void setCallback(Callback&& callback)
     {
-        std::unique_lock lock(m_mutex);
-        m_callback = std::move(callback);
+        assert(callback != nullptr);
 
-        if (m_resultStorage != std::nullopt) {
-            this->doCallback(lock);
+        std::unique_lock lock(m_mutex);
+
+        assert(m_waitCount == 0);
+
+        if (m_resultStorage == std::nullopt) {
+            m_callback = std::move(callback);
+        } else {
+            lock.unlock();
+            callback();
         }
     }
 
@@ -174,18 +206,6 @@ public:
     }
 
 private:
-    void doCallback(std::unique_lock<std::mutex>& lock)
-    {
-        if (m_callback == nullptr) {
-            return;
-        }
-
-        Callback callback = std::move(m_callback);
-
-        ReverseLock unlock(lock);
-        callback();
-    }
-
     mutable std::mutex m_mutex;
 
     bool m_retrievedFlag = false;
@@ -194,6 +214,7 @@ private:
 
     Callback m_callback;
     mutable std::condition_variable m_waiter;
+    mutable int m_waitCount = 0;
 };
 
 template<typename T, typename UnwrappedT>
@@ -232,6 +253,84 @@ void resolveState(FutureState<T>& state, Fn&& fn, Args&&... args)
         state.setException(std::current_exception());
     }
 }
+
+template<typename T, typename Fn>
+class FutureThenAsyncOperationHandler final : public AOHandler
+{
+public:
+    using NextFutureState = typename NextFutureState<T, Fn>::Type;
+
+    template<typename F>
+    FutureThenAsyncOperationHandler(F&& f, std::shared_ptr<FutureState<T>> futureState,
+                                    std::shared_ptr<NextFutureState> nextFutureState)
+      : m_futureState(std::move(futureState))
+      , m_nextFutureState(std::move(nextFutureState))
+      , m_fn(std::forward<F>(f))
+    {}
+
+    void call() override
+    {
+        auto result = m_futureState->getResult();
+        if (isException<T>(result)) {
+            m_nextFutureState->setException(exception<T>(std::move(result)));
+            return;
+        }
+
+        if constexpr (std::is_void_v<T>) {
+            resolveState(*m_nextFutureState, m_fn);
+        } else {
+            resolveState(*m_nextFutureState, m_fn, detail::value<T>(std::move(result)));
+        }
+    }
+
+    void cancel() override
+    {
+        auto exPtr = std::make_exception_ptr(AsyncOperationWasCancelled());
+        m_nextFutureState->setException(std::move(exPtr));
+    }
+
+private:
+    std::shared_ptr<FutureState<T>> m_futureState;
+    std::shared_ptr<NextFutureState> m_nextFutureState;
+    Fn m_fn;
+};
+
+template<typename T, typename Fn>
+class FutureFailAsyncOperationHandler final : public AOHandler
+{
+public:
+    template<typename F>
+    FutureFailAsyncOperationHandler(F&& f, std::shared_ptr<FutureState<T>> futureState,
+                                    std::shared_ptr<FutureState<T>> nextFutureState)
+      : m_futureState(std::move(futureState))
+      , m_nextFutureState(std::move(nextFutureState))
+      , m_fn(std::forward<F>(f))
+    {}
+
+    void call() override
+    {
+        auto result = m_futureState->getResult();
+        if (isValue<T>(result)) {
+            resolveState(*m_nextFutureState, [&result]() mutable {
+                return detail::value<T>(std::move(result));
+            });
+            return;
+        }
+
+        detail::resolveState(*m_nextFutureState, m_fn, exception<T>(std::move(result)));
+    }
+
+    void cancel() override
+    {
+        auto exPtr = std::make_exception_ptr(AsyncOperationWasCancelled());
+        m_nextFutureState->setException(std::move(exPtr));
+    }
+
+private:
+    std::shared_ptr<FutureState<T>> m_futureState;
+    std::shared_ptr<FutureState<T>> m_nextFutureState;
+    Fn m_fn;
+};
 
 }   // namespace detail
 }   // namespace nhope

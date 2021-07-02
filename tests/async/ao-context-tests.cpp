@@ -8,6 +8,7 @@
 #include <utility>
 
 #include <nhope/async/ao-context.h>
+#include <nhope/async/safe-callback.h>
 #include <nhope/async/thread-executor.h>
 #include <nhope/async/thread-pool-executor.h>
 
@@ -16,8 +17,39 @@
 #include <gtest/gtest.h>
 #include "test-helpers/wait.h"
 
+namespace {
+
 using namespace nhope;
 using namespace std::literals;
+
+class TestAOHandler final : public AOHandler
+{
+public:
+    TestAOHandler(std::function<void()> call, std::function<void()> cancel = nullptr)
+      : m_call(std::move(call))
+      , m_cancel(std::move(cancel))
+    {}
+
+    void call() override
+    {
+        if (m_call) {
+            m_call();
+        }
+    }
+
+    void cancel() override
+    {
+        if (m_cancel) {
+            m_cancel();
+        }
+    }
+
+private:
+    std::function<void()> m_call;
+    std::function<void()> m_cancel;
+};
+
+}   // namespace
 
 TEST(AOContext, AsyncOperation)   // NOLINT
 {
@@ -25,14 +57,14 @@ TEST(AOContext, AsyncOperation)   // NOLINT
     AOContext aoContext(executor);
 
     std::atomic<bool> asyncOperationHandlerCalled = false;
-    std::function asyncOperationHandler = [&] {
+    auto aoHandler = std::make_unique<TestAOHandler>([&] {
         EXPECT_EQ(std::this_thread::get_id(), executor.id());
         asyncOperationHandlerCalled = true;
-    };
+    });
 
-    std::thread([operationFinished = aoContext.newAsyncOperation(asyncOperationHandler, nullptr)] {
+    std::thread([callAOHandler = aoContext.addAOHandler(std::move(aoHandler))]() mutable {
         // A thread performing an asynchronous operation
-        operationFinished();
+        callAOHandler();
     }).detach();
 
     EXPECT_TRUE(waitForValue(1s, asyncOperationHandlerCalled, true));
@@ -50,17 +82,18 @@ TEST(AOContext, CancelAsyncOperation)   // NOLINT
 
         auto aoContext = std::make_unique<AOContext>(executor);
 
-        std::function asyncOperationHandler = [&asyncOperationHandlerCalled, &executor] {
-            EXPECT_EQ(std::this_thread::get_id(), executor.id());
-            asyncOperationHandlerCalled = true;
-        };
-        std::function cancelAsyncOperation = [&cancelAsyncOperationCalled] {
-            cancelAsyncOperationCalled = true;
-        };
+        auto aoHandler = std::make_unique<TestAOHandler>(
+          [&asyncOperationHandlerCalled, &executor] {
+              EXPECT_EQ(std::this_thread::get_id(), executor.id());
+              asyncOperationHandlerCalled = true;
+          },
+          [&cancelAsyncOperationCalled] {
+              cancelAsyncOperationCalled = true;
+          });
 
-        std::thread([operationFinished = aoContext->newAsyncOperation(asyncOperationHandler, cancelAsyncOperation)] {
+        std::thread([callAOHandler = aoContext->addAOHandler(std::move(aoHandler))]() mutable {
             // A thread performing an asynchronous operation
-            operationFinished();
+            callAOHandler();
         }).detach();
 
         std::this_thread::sleep_for(5us);
@@ -88,23 +121,23 @@ TEST(AOContext, SequentialHandlerCall)   // NOLINT
     std::atomic<int> finishedHandlerCount = 0;
 
     for (int operationNum = 0; operationNum < iterCount; ++operationNum) {
-        std::function asyncOperationHandler = [&, operationNum] {
+        auto aoHandler = std::make_unique<TestAOHandler>([&, operationNum] {
             EXPECT_EQ(++activeHandlerCount, 1);
             std::this_thread::sleep_for(1ms);
             --activeHandlerCount;
 
             EXPECT_EQ(finishedHandlerCount, operationNum);
             ++finishedHandlerCount;
-        };
+        });
 
-        auto operationFinished = aoContext.newAsyncOperation(asyncOperationHandler, nullptr);
-        operationFinished();
+        auto callAOHandler = aoContext.addAOHandler(std::move(aoHandler));
+        callAOHandler();
     }
 
     EXPECT_TRUE(waitForValue(100 * 1ms * iterCount, finishedHandlerCount, iterCount));
 }
 
-TEST(AOContext, ExceptionInAsyncOperationHandler)   // NOLINT
+TEST(AOContext, ExceptionInAOHandler)   // NOLINT
 {
     constexpr auto iterCount = 100;
 
@@ -113,13 +146,13 @@ TEST(AOContext, ExceptionInAsyncOperationHandler)   // NOLINT
 
     std::atomic<int> asyncOperationHandlerCalled = 0;
     for (int i = 0; i < iterCount; ++i) {
-        std::function asyncOperationHandler = [&] {
+        auto aoHandler = std::make_unique<TestAOHandler>([&] {
             asyncOperationHandlerCalled++;
             throw std::runtime_error("TestException");
-        };
+        });
 
-        auto operationFinished = aoContext.newAsyncOperation(asyncOperationHandler, nullptr);
-        operationFinished();
+        auto callAOHandler = aoContext.addAOHandler(std::move(aoHandler));
+        callAOHandler();
     }
 
     EXPECT_TRUE(waitForValue(1s, asyncOperationHandlerCalled, iterCount));
@@ -130,13 +163,12 @@ TEST(AOContext, ExceptionInCancelAsyncOperation)   // NOLINT
     ThreadExecutor executor;
     auto aoContext = std::make_unique<AOContext>(executor);
 
-    std::function asyncOperationHandler = [] {};
-    std::function cancelAsyncOperation = [] {
+    auto aoHandler = std::make_unique<TestAOHandler>(nullptr, [] {
         throw std::runtime_error("TestException");
-    };
+    });
 
     EXPECT_NO_THROW({   // NOLINT
-        aoContext->newAsyncOperation(asyncOperationHandler, cancelAsyncOperation);
+        aoContext->addAOHandler(std::move(aoHandler));
         aoContext.reset();
     });
 }
@@ -149,13 +181,13 @@ TEST(AOContext, CallSafeCallback)   // NOLINT
     AOContext aoContext(executor);
 
     std::atomic<int> callbackCalled = 0;
-    const auto safeCallback = aoContext.makeSafeCallback(std::function([&](int arg1, const std::string& arg2) {
-        EXPECT_EQ(executor.id(), std::this_thread::get_id());
-        EXPECT_EQ(arg1, callbackCalled);
-        EXPECT_EQ(arg2, fmt::format("{}", callbackCalled));
+    const auto safeCallback = makeSafeCallback(aoContext, std::function([&](int arg1, const std::string& arg2) {
+                                                   EXPECT_EQ(executor.id(), std::this_thread::get_id());
+                                                   EXPECT_EQ(arg1, callbackCalled);
+                                                   EXPECT_EQ(arg2, fmt::format("{}", callbackCalled));
 
-        ++callbackCalled;
-    }));
+                                                   ++callbackCalled;
+                                               }));
 
     for (int i = 0; i < iterCount; ++i) {
         safeCallback(i, fmt::format("{}", i));
@@ -174,7 +206,7 @@ TEST(AOContext, CallSafeCallbackAfterDestroyAOContext)   // NOLINT
         auto aoContext = std::make_unique<AOContext>(executor);
         std::atomic<bool> aoContextDestroyed = false;
 
-        const auto safeCallback = aoContext->makeSafeCallback(std::function([&] {
+        const auto safeCallback = makeSafeCallback(*aoContext, std::function([&] {
             EXPECT_EQ(executor.id(), std::this_thread::get_id());
             EXPECT_FALSE(aoContextDestroyed);
         }));
