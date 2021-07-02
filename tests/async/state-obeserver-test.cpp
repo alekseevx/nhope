@@ -140,13 +140,13 @@ TEST(StateObserver, Exception)   // NOLINT
 
     observer.setState(magic);
     EXPECT_EQ(stateChan.get().value(), magic);
-    EXPECT_TRUE(stateChan.get()->hasException());   // setter throw Exception
-    EXPECT_EQ(stateChan.get().value(), 0);          // getter set value 0
+    EXPECT_TRUE(stateChan.get()->hasException());   // setter: throw Exception
+    EXPECT_EQ(stateChan.get().value(), 0);          // getter: return current value (0)
 
     observer.setState(magic + 1);
     EXPECT_EQ(stateChan.get().value(), magic + 1);
-    EXPECT_TRUE(stateChan.get()->hasException());   // getter throw Exception
-    EXPECT_EQ(stateChan.get().value(), 2);          // getter set value 2
+    EXPECT_TRUE(stateChan.get()->hasException());   // getter: update value (2) and throw Exception
+    EXPECT_EQ(stateChan.get().value(), 2);          // getter: return current value (2)
 
     observer.setState(magic + 2);
     EXPECT_EQ(stateChan.get().value(), magic + 2);

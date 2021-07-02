@@ -6,6 +6,7 @@
 
 #include <nhope/async/ao-context.h>
 #include <nhope/async/executor.h>
+#include <nhope/async/safe-callback.h>
 #include <nhope/seq/consumer.h>
 #include <nhope/seq/produser.h>
 
@@ -35,7 +36,7 @@ public:
 
     std::unique_ptr<Consumer<T>> makeInput()
     {
-        auto safeHandler = m_aoCtx.makeSafeCallback(m_handler);
+        auto safeHandler = makeSafeCallback(m_aoCtx, m_handler);
         return std::make_unique<Input>(std::move(safeHandler));
     }
 
