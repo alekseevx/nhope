@@ -3,6 +3,7 @@
 #include <chrono>
 #include <cstddef>
 #include <functional>
+#include <memory>
 #include <stdexcept>
 #include <thread>
 #include <utility>
@@ -12,10 +13,15 @@
 #include "asio/io_context.hpp"
 #include "asio/post.hpp"
 
+#include "nhope/async/ao-context.h"
 #include "nhope/async/async-invoke.h"
+#include "nhope/async/executor.h"
 #include "nhope/async/thread-executor.h"
 #include "nhope/io/io-device.h"
 #include "nhope/io/detail/asio-device.h"
+#include "nhope/io/network.h"
+#include "nhope/io/tcp.h"
+#include "nhope/seq/consumer.h"
 
 namespace nhope {
 
@@ -129,6 +135,51 @@ private:
     mutable nhope::ThreadExecutor m_thread;
     bool m_closed{};
     nhope::AOContext m_ctx;
+};
+
+static inline const TcpClientParam echoSettings{55577, "127.0.0.1"};
+static inline const TcpServerParam echoServerSettings{55577, "127.0.0.1"};
+
+
+class TcpEchoServer final
+{
+public:
+    explicit TcpEchoServer()
+      : m_ctx(m_thread)
+      , m_tcpServer(listen(m_thread, echoServerSettings))
+    {
+        acceptNew();
+    }
+
+    void acceptNew()
+    {
+        asyncInvoke(m_ctx, [this] {
+            m_tcpServer->accept().then(m_ctx, [this](std::shared_ptr<IoDevice> dev) mutable {
+                acceptNew();
+                startRead(std::move(dev));
+            });
+        });
+    }
+
+    void startRead(std::shared_ptr<IoDevice> dev)
+    {
+        dev->read(bytesCount)
+          .then(m_ctx,
+                [dev](auto data) {
+                    return writeExactly(*dev, data);
+                })
+          .then(m_ctx, [this, dev](auto /*unused*/) {
+              startRead(dev);
+          });
+    }
+
+private:
+    static constexpr auto bytesCount{1024};
+    ThreadExecutor m_thread;
+    std::vector<IoDevicePtr> m_devs;
+    std::unique_ptr<TcpServer> m_tcpServer;
+
+    AOContext m_ctx;
 };
 
 }   // namespace nhope

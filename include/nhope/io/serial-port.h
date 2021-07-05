@@ -4,6 +4,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <system_error>
 
 #include "nhope/io/io-device.h"
 
@@ -15,7 +16,7 @@ namespace nhope {
 class SerialPortError final : public IoError
 {
 public:
-    explicit SerialPortError(std::string_view errMessage);
+    explicit SerialPortError(std::error_code err);
 };
 
 struct SerialPortSettings
@@ -71,4 +72,4 @@ struct SerialPortSettings
 
 std::unique_ptr<IoDevice> openSerialPort(nhope::Executor& executor, const SerialPortSettings& settings);
 
-}   // namespace nhope::utils
+}   // namespace nhope

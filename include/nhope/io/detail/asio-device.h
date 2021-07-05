@@ -1,12 +1,12 @@
 #pragma once
 
 #include <memory>
+#include <utility>
 
 #include "asio/buffer.hpp"
 #include "asio/error.hpp"
 
 #include "nhope/io/io-device.h"
-#include "nhope/async/async-invoke.h"
 #include "nhope/async/future.h"
 #include "nhope/async/ao-context.h"
 #include "nhope/async/executor.h"
@@ -19,27 +19,25 @@ class AsioDevice final : public IoDevice
 public:
     explicit AsioDevice(nhope::Executor& executor)
       : m_impl(executor.ioCtx())
-      , m_ctx(executor)
+      , m_executor(executor)
     {}
 
     nhope::Future<std::vector<std::uint8_t>> read(size_t bytesCount) final
     {
-        auto buf = std::vector<std::uint8_t>(bytesCount);
+        std::vector<std::uint8_t> result(bytesCount);
         nhope::Promise<std::vector<std::uint8_t>> promise;
-        auto future = promise.future();
-
-        auto asioBuf = asio::buffer(buf.data(), buf.size());
-        m_impl.async_read_some(asioBuf,
-                               [b = std::move(buf), p = std::move(promise)](const auto& err, size_t count) mutable {
-                                   if (err) {
-                                       p.setException(std::make_exception_ptr(IoError(err.message())));
-                                       return;
-                                   }
-
-                                   b.resize(count);
-                                   p.setValue(b);
-                               });
-        return future;
+        auto r = promise.future();
+        auto asioBuffer = asio::buffer(result);
+        m_impl.async_read_some(
+          asioBuffer, [result = std::move(result), p = std::move(promise)](const auto& err, size_t count) mutable {
+              if (err) {
+                  p.setException(std::make_exception_ptr(IoError(err)));
+                  return;
+              }
+              result.resize(count);
+              p.setValue(std::move(result));
+          });
+        return r;
     }
 
     nhope::Future<size_t> write(gsl::span<const std::uint8_t> data) final
@@ -52,7 +50,7 @@ public:
         m_impl.async_write_some(asioBuf,
                                 [b = std::move(buf), p = std::move(promise)](const auto& err, size_t count) mutable {
                                     if (err) {
-                                        p.setException(std::make_exception_ptr(IoError(err.message())));
+                                        p.setException(std::make_exception_ptr(IoError(err)));
                                         return;
                                     }
 
@@ -63,20 +61,17 @@ public:
 
     [[nodiscard]] nhope::Executor& executor() const final
     {
-        return m_ctx.executor();
+        return m_executor;
     }
 
-    AsioType& impl()
+    AsioType& impl() noexcept
     {
         return m_impl;
     }
 
 private:
     AsioType m_impl;
-    std::vector<uint8_t> m_sendBuffer;
-    nhope::Future<size_t> m_sendDataFuture;
-
-    mutable nhope::AOContext m_ctx;
+    Executor& m_executor;
 };
 
 }   // namespace nhope::detail

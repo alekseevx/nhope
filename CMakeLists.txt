@@ -24,7 +24,7 @@ if(COVERAGE_ENABLED)
     setup_target_for_coverage_gcovr_html(
           NAME coverage
           EXECUTABLE ./tests
-          EXCLUDE ".deps" "tests"
+          EXCLUDE ".deps" "tests" "benchs"
           )          
 endif()
 
@@ -43,3 +43,4 @@ if (WIN32)
 endif()
 
 EnableWarnings(${BASTARD_PACKAGE_NAME})
+

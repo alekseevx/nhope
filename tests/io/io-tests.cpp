@@ -7,16 +7,24 @@
 
 #include <gtest/gtest.h>
 
+
 #include "asio/io_context.hpp"
 #include "nhope/async/thread-executor.h"
 #include "nhope/io/io-device.h"
 #include "nhope/io/file.h"
 #include "nhope/io/serial-port.h"
+#include "nhope/io/tcp.h"
 
 #include "test-helpers/io-stub.h"
 
 using namespace nhope;
 using namespace std::literals;
+
+namespace {
+
+TcpEchoServer echoServer;
+
+}
 
 TEST(IoTest, ReadExactly)   // NOLINT
 {
@@ -114,7 +122,10 @@ TEST(IoTest, Exception)   // NOLINT
     SerialPortSettings settings{};
     settings.portName = s.fileName;
 
-    EXPECT_THROW(openSerialPort(e, settings), SerialPortError);   // NOLINT
+    // EXPECT_THROW(openSerialPort(e, settings), SerialPortError);   // NOLINT
+    settings.portName = "~/.profile";
+    EXPECT_THROW(openSerialPort(e, settings), SerialPortError);
+    // d->executor();
 }
 
 TEST(IoTest, Asio)   //NOLINT
@@ -132,4 +143,31 @@ TEST(IoTest, Asio)   //NOLINT
     EXPECT_EQ(writeExactly(dev, data).get(), 3);
     data.resize(badSize);
     EXPECT_THROW(writeExactly(dev, data).get(), IoError);   //NOLINT
+}
+
+TEST(IoTest, Tcp)   //NOLINT
+{
+    nhope::ThreadExecutor e;
+
+    constexpr auto dataSize{9064};
+
+    auto conDev = connect(e, echoSettings).get();
+    std::vector<uint8_t> data(dataSize, 1);
+    EXPECT_EQ(writeExactly(*conDev, data).get(), dataSize);
+    const auto readded = readExactly(*conDev, dataSize).get();
+    EXPECT_EQ(readded, data);
+
+    TcpClientParam badSettings;
+    badSettings.endpoint.host = "false";
+    auto badConnect = connect(e, badSettings);
+
+    try {
+        badConnect.get();
+        FAIL() << "can`t";
+    } catch (const TcpError& e) {
+        ASSERT_TRUE(e.code());
+    }
+    badSettings.endpoint.host = "localhost";
+    badSettings.endpoint.port = 55766;
+    EXPECT_THROW(connect(e, badSettings).get(), TcpError);   // NOLINT
 }
