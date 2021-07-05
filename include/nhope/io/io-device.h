@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include <system_error>
 #include <vector>
 
 #include <gsl/span>
@@ -13,9 +14,10 @@
 
 namespace nhope {
 
-class IoError : public std::runtime_error
+class IoError : public std::system_error
 {
 public:
+    explicit IoError(std::error_code errCode, std::string_view errMessage = "IoError");
     explicit IoError(std::string_view errMessage);
 };
 
@@ -33,6 +35,7 @@ public:
     virtual Future<size_t> write(gsl::span<const std::uint8_t> data) = 0;
     [[nodiscard]] virtual Executor& executor() const = 0;
 };
+using IoDevicePtr = std::unique_ptr<IoDevice>;
 
 Future<std::vector<std::uint8_t>> readExactly(IoDevice& device, size_t bytesCount);
 Future<size_t> writeExactly(IoDevice& device, gsl::span<const std::uint8_t> data);

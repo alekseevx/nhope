@@ -3,6 +3,7 @@
 #include <exception>
 #include <memory>
 #include <stdexcept>
+#include <system_error>
 #include <utility>
 
 #include "asio/error_code.hpp"
@@ -14,8 +15,8 @@
 
 namespace nhope {
 
-SerialPortError::SerialPortError(std::string_view errMessage)
-  : IoError(errMessage.data())
+SerialPortError::SerialPortError(std::error_code err)
+  : IoError(err)
 {}
 
 using SerialPort = detail::AsioDevice<asio::serial_port>;
@@ -29,7 +30,7 @@ void configure(SerialPort& x, const SerialPortSettings& s)
     asio::error_code errCode;
     serial.open(s.portName, errCode);
     if (errCode) {
-        throw SerialPortError(errCode.message());
+        throw SerialPortError(errCode);
     }
 
     auto baudRate = serial_port::baud_rate(static_cast<int>(SerialPortSettings::BaudRate::Baud115200));
@@ -83,7 +84,6 @@ void configure(SerialPort& x, const SerialPortSettings& s)
             break;
         }
     }
-
     serial.set_option(baudRate);
     serial.set_option(parity);
     serial.set_option(flow);

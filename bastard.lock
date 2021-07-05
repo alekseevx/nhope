@@ -1,13 +1,14 @@
 [package]
 name = nhope
-cmake = 3.18.5
+cmake = 3.18.4
 bastard = 0.13.1
 
 [dependencies]
-asio = { git = "git@gitlab.olimp.lan:github/standalone-asio.git", rev = "a4d820dd", interface = "asio/include" }
-gsl = { git = "git@gitlab.olimp.lan:github/gsl.git", rev = "0f6dbc9", interface = "include" }
+asio = { git = "git@gitlab.olimp.lan:github/standalone-asio.git", rev = "b84e6c16", interface = "asio/include" }
 fmt = { git = "git@gitlab.olimp.lan:github/fmtlib.git", rev = "7bdf0628" }
+gsl = { git = "git@gitlab.olimp.lan:github/gsl.git", rev = "0f6dbc9", interface = "include" }
 
 [dev-dependencies]
-gtest = { git = "git@gitlab.olimp.lan:google/googletest.git", rev = "a3460d1a" }
+benchmark = { git = "git@gitlab.olimp.lan:github/benchmark.git", rev = "e451e50" }
+gtest = { git = "git@gitlab.olimp.lan:google/googletest.git", rev = "8ffb7e5c" }
 

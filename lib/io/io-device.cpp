@@ -4,6 +4,7 @@
 #include <memory>
 #include <stdexcept>
 #include <string>
+#include <system_error>
 #include <vector>
 
 #include "nhope/io/io-device.h"
@@ -12,13 +13,16 @@
 namespace nhope {
 
 using namespace std::literals;
+IoError::IoError(std::error_code errCode, std::string_view errMessage)
+  : std::system_error(errCode, errMessage.data())
+{}
 
 IoError::IoError(std::string_view errMessage)
-  : std::runtime_error(errMessage.data())
+  : std::system_error(std::make_error_code(std::errc::io_error), errMessage.data())
 {}
 
 IoEof::IoEof()
-  : IoError("Eof"sv)
+  : IoError(std::make_error_code(std::errc::io_error), "Eof"sv)
 {}
 
 namespace {

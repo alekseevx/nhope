@@ -7,8 +7,10 @@
 #include <fstream>
 #include <ios>
 #include <memory>
+#include <system_error>
 #include <vector>
 
+#include "asio/posix/descriptor_base.hpp"
 #include "fmt/format.h"
 #include "nhope/async/async-invoke.h"
 #include "nhope/async/executor.h"
@@ -61,7 +63,7 @@ public:
         std::vector<char> send(data.begin(), data.end());
         return nhope::asyncInvoke(m_ctx, [this, send = std::move(send)] {
             if (m_mode == FileMode::ReadOnly) {
-                throw IoError("can`t write on read only device");
+                throw IoError("can`t write on read only device"sv);
             }
             checkFile();
             auto before = m_file.tellp();
@@ -69,7 +71,7 @@ public:
                 m_file.flush();
                 return static_cast<std::size_t>(m_file.tellp() - before);
             }
-            throw IoError("data was not been writted on file");
+            throw IoError("data was not been writted on file"sv);
         });
     }
 
@@ -91,7 +93,6 @@ private:
 
     std::fstream m_file;
     const FileMode m_mode;
-
     mutable nhope::AOContext m_ctx;
 };
 
