@@ -12,9 +12,11 @@
 
 #include "asio/posix/descriptor_base.hpp"
 #include "fmt/format.h"
+#include "nhope/async/ao-context.h"
 #include "nhope/async/async-invoke.h"
 #include "nhope/async/executor.h"
 #include "nhope/io/file.h"
+#include "nhope/io/io-device.h"
 
 namespace nhope {
 
@@ -101,6 +103,18 @@ private:
 std::unique_ptr<IoDevice> openFile(nhope::Executor& executor, const FileSettings& settings)
 {
     return std::make_unique<FileDevice>(executor, settings);
+}
+
+Future<std::vector<std::uint8_t>> readFile(const std::filesystem::path& fileName, Executor& executor)
+{
+    FileSettings s;
+    s.mode = FileMode::ReadOnly;
+    s.fileName = fileName;
+    std::shared_ptr<IoDevice> d = openFile(executor, s);
+    auto ctx = std::make_shared<AOContext>(executor);
+    return readAll(*d).then(*ctx, [d, ctx](auto r) {
+        return r;
+    });
 }
 
 }   // namespace nhope

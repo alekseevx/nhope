@@ -37,6 +37,9 @@ public:
 };
 using IoDevicePtr = std::unique_ptr<IoDevice>;
 
+Future<std::vector<std::uint8_t>> read(IoDevice& device, size_t bytesCount);
+Future<size_t> write(IoDevice& device, gsl::span<const std::uint8_t> data);
+
 Future<std::vector<std::uint8_t>> readExactly(IoDevice& device, size_t bytesCount);
 Future<size_t> writeExactly(IoDevice& device, gsl::span<const std::uint8_t> data);
 
