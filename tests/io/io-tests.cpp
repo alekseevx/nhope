@@ -7,7 +7,6 @@
 
 #include <gtest/gtest.h>
 
-
 #include "asio/io_context.hpp"
 #include "nhope/async/thread-executor.h"
 #include "nhope/io/io-device.h"
@@ -21,9 +20,17 @@ using namespace nhope;
 using namespace std::literals;
 
 namespace {
-
 TcpEchoServer echoServer;
+}
 
+TEST(IoTest, ReadWrite)   // NOLINT
+{
+    constexpr int count = 100;
+    StubDevice dev;
+    auto data = read(dev, count).get();
+    EXPECT_LE(data.size(), count);
+    auto writeCount = write(dev, data).get();
+    EXPECT_LE(data.size(), writeCount);
 }
 
 TEST(IoTest, ReadExactly)   // NOLINT
@@ -66,6 +73,9 @@ TEST(IoTest, ReadFile)   // NOLINT
     auto devAll = openFile(e, s);
     const auto thisFileData = readAll(*devAll).get();
     EXPECT_EQ(thisFileData.size(), std::filesystem::file_size(s.fileName));
+
+    auto thisFile = readFile(s.fileName, e).get();
+    EXPECT_EQ(thisFileData, thisFile);
 }
 
 TEST(IoTest, WriteFile)   // NOLINT

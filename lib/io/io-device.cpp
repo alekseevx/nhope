@@ -187,6 +187,16 @@ private:
 
 }   // namespace
 
+Future<size_t> write(IoDevice& device, gsl::span<const std::uint8_t> data)
+{
+    return device.write(data);
+}
+
+Future<std::vector<std::uint8_t>> read(IoDevice& device, size_t bytesCount)
+{
+    return device.read(bytesCount);
+}
+
 Future<std::vector<std::uint8_t>> readExactly(IoDevice& device, size_t bytesCount)
 {
     auto reader = std::make_shared<IoReader>(device, bytesCount);
