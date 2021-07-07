@@ -181,7 +181,7 @@ private:
         auto nextTickTimet = m_tickTime + m_d->interval;
         auto aoHandler = std::make_unique<IntervalTimerAOHandler>(nextTickTimet, std::move(m_d));
 
-        timer.start(nextTickTimet, aoCtx.addAOHandler(std::move(aoHandler)));
+        timer.start(nextTickTimet, aoCtx.putAOHandler(std::move(aoHandler)));
     }
 
     TimePoint m_tickTime;
@@ -199,7 +199,7 @@ void setTimeout(AOContext& aoCtx, std::chrono::nanoseconds timeout, std::functio
 
     auto timer = std::make_shared<Timer>(ioCtx);
     auto aoHandler = std::make_unique<SingleTimerAOHandler>(timer, std::move(handler));
-    auto callAOHandler = aoCtx.addAOHandler(std::move(aoHandler));
+    auto callAOHandler = aoCtx.putAOHandler(std::move(aoHandler));
 
     timer->start(SteadyClock::now() + timeout, std::move(callAOHandler));
 }
@@ -213,7 +213,7 @@ Future<void> setTimeout(AOContext& aoCtx, std::chrono::nanoseconds timeout)
 
     auto timer = std::make_shared<Timer>(ioCtx);
     auto aoHandler = std::make_unique<FutureTimerAOHandler>(timer, std::move(promise));
-    auto callAOHandler = aoCtx.addAOHandler(std::move(aoHandler));
+    auto callAOHandler = aoCtx.putAOHandler(std::move(aoHandler));
 
     timer->start(SteadyClock::now() + timeout, std::move(callAOHandler));
 
@@ -232,7 +232,7 @@ void setInterval(AOContext& aoCtx, std::chrono::nanoseconds interval,
     auto timer = std::make_shared<Timer>(ioCtx);
     auto intervalTimerData = std::make_unique<IntervalTimerData>(aoCtx, timer, interval, std::move(handler));
     auto aoHandler = std::make_unique<IntervalTimerAOHandler>(firstTickTime, std::move(intervalTimerData));
-    auto callAOHandler = aoCtx.addAOHandler(std::move(aoHandler));
+    auto callAOHandler = aoCtx.putAOHandler(std::move(aoHandler));
 
     timer->start(firstTickTime, std::move(callAOHandler));
 }

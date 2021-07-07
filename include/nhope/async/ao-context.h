@@ -49,7 +49,7 @@ class AOContextImpl;
 }
 
 /**
- * @brief Дескриптор асинхронной операции, запущенной на AOContext.
+ * @brief Класс для вызова AOHandler в контексте AOContext.
  */
 class AOHandlerCall final
 {
@@ -61,7 +61,8 @@ public:
     operator bool() const;
 
     /**
-     * @brief Производит вызов AOHandler-а в рамках AOContext-а.
+     * @brief Вызов AOHandler-а в контексте AOContext-а.
+     * @note Вызов можно произвести только один раз.
      */
     void operator()();
 
@@ -104,9 +105,9 @@ public:
     SequenceExecutor& executor();
 
     /**
-     * @brief Функция для создания асинхронной операции
+     * Помещает AOHandler в AOContext.
      */
-    AOHandlerCall addAOHandler(std::unique_ptr<AOHandler> handler);
+    AOHandlerCall putAOHandler(std::unique_ptr<AOHandler> handler);
 
 private:
     using AOContextImplPtr = std::shared_ptr<detail::AOContextImpl>;
@@ -118,7 +119,7 @@ class AOContextWeekRef final
 public:
     explicit AOContextWeekRef(AOContext& aoCtx);
 
-    AOHandlerCall addAOHandler(std::unique_ptr<AOHandler> handler);
+    AOHandlerCall putAOHandler(std::unique_ptr<AOHandler> handler);
 
 private:
     using AOContextImplWPtr = std::weak_ptr<detail::AOContextImpl>;

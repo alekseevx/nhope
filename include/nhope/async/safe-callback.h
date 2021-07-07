@@ -28,7 +28,7 @@ std::function<void(Args...)> makeSafeCallback(AOContext& aoCtx, std::function<vo
             callback(args...);
         });
 
-        auto callAOHandler = aoCtx.addAOHandler(std::move(aoHandler));
+        auto callAOHandler = aoCtx.putAOHandler(std::move(aoHandler));
         callAOHandler();
     };
 }

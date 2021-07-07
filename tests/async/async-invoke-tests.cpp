@@ -32,7 +32,7 @@ public:
       , m_threadExecutorId(executor.id())
     {}
 
-public:   // Функции, вызываемые из внешних потоков
+    // Функции, вызываемые из внешних потоков
     Future<int> asyncFunc(const std::string& retval, std::chrono::nanoseconds sleepTime = 0s)
     {
         return asyncInvoke(m_aoCtx, &TestClass::funcImpl, this, retval, sleepTime);
@@ -72,7 +72,6 @@ private:   // Функции выполняемые в ThreadExecuter
         throw std::runtime_error("invokeWithThrowImpl");
     }
 
-private:
     AOContext m_aoCtx;
     std::thread::id m_threadExecutorId;
     int m_invokeCounter = 0;
