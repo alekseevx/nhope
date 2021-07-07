@@ -1,15 +1,10 @@
 #pragma once
 
-#include <algorithm>
 #include <chrono>
 #include <exception>
-#include <functional>
-#include <future>
 #include <list>
 #include <memory>
 #include <system_error>
-#include <thread>
-#include <type_traits>
 #include <utility>
 
 #include <nhope/async/ao-context.h>
@@ -38,8 +33,7 @@ class Future final
     friend class Future;
 
     template<typename Tp, typename UnwrappedT>
-    friend void detail::unwrapHelper(std::shared_ptr<detail::FutureState<Tp>> state,
-                                     std::shared_ptr<detail::FutureState<UnwrappedT>> unwrappedState);
+    friend class detail::UnwrapperFutureCallback;
 
 public:
     using Type = T;
@@ -63,17 +57,15 @@ public:
     T get()
     {
         auto state = this->detachState();
+        return state->lock([](detail::FutureStateLock<T> state) {
+            state.wait();
 
-        state->wait();
+            if (auto exPtr = state.getException()) {
+                std::rethrow_exception(exPtr);
+            }
 
-        auto result = state->getResult();
-        if (detail::isException<T>(result)) {
-            detail::rethrowException<T>(result);
-        }
-
-        if constexpr (!std::is_void_v<T>) {
-            return detail::value<T>(std::move(result));
-        }
+            return state.getValue();
+        });
     }
 
     void wait() const
@@ -89,20 +81,19 @@ public:
     template<typename Fn>
     auto then(AOContext& aoCtx, Fn&& fn)   // -> UnwrapFuture<NextFuture<T, Fn>>
     {
+        using AOHandler = detail::FutureThenAOHandler<T, Fn>;
+        using FutureCallback = detail::CallAOHandlerFutureCallback<T>;
+
         if constexpr (std::is_void_v<T>) {
             static_assert(std::is_invocable_v<Fn>, "Fn must be function without arguments");
         } else {
             static_assert(std::is_invocable_v<Fn, T>, "Fn must accept a single argument of same type as the Future");
         }
 
-        using AsyncOperationHandler = detail::FutureThenAsyncOperationHandler<T, Fn>;
-
         auto state = this->detachState();
         auto nextState = std::make_shared<NextFutureState<T, Fn>>();
-        auto handler = std::make_unique<AsyncOperationHandler>(std::forward<Fn>(fn), state, nextState);
-        state->setCallback([callAOHandler = aoCtx.addAOHandler(std::move(handler))]() mutable {
-            callAOHandler();
-        });
+        auto aoHandler = std::make_unique<AOHandler>(std::forward<Fn>(fn), state, nextState);
+        state->setCallback(std::make_unique<FutureCallback>(aoCtx, std::move(aoHandler)));
 
         return Future<typename NextFutureState<T, Fn>::Type>(std::move(nextState)).unwrap();
     }
@@ -110,20 +101,36 @@ public:
     template<typename Fn>
     Future fail(AOContext& aoCtx, Fn&& fn)
     {
+        using AOHandler = detail::FutureFailAOHandler<T, Fn>;
+        using FutureCallback = detail::CallAOHandlerFutureCallback<T>;
+
         static_assert(std::is_invocable_v<Fn, std::exception_ptr>, "Fn must take std::exception_ptr as argument");
         static_assert(std::is_same_v<T, std::invoke_result_t<Fn, std::exception_ptr>>,
                       "Fn must return a result of same type as the Future");
 
-        using AsyncOperationHandler = detail::FutureFailAsyncOperationHandler<T, Fn>;
-
         auto state = this->detachState();
         auto nextState = std::make_shared<State>();
-        auto handler = std::make_unique<AsyncOperationHandler>(std::forward<Fn>(fn), state, nextState);
-        state->setCallback([callAOHandler = aoCtx.addAOHandler(std::move(handler))]() mutable {
-            callAOHandler();
-        });
+        auto aoHandler = std::make_unique<AOHandler>(std::forward<Fn>(fn), state, nextState);
+        state->setCallback(std::make_unique<FutureCallback>(aoCtx, std::move(aoHandler)));
 
         return Future(std::move(nextState)).unwrap();
+    }
+
+    UnwrapFuture<T> unwrap()
+    {
+        if constexpr (std::is_same_v<Future, UnwrapFuture<T>>) {
+            return std::move(*this);
+        } else {
+            using UnwrappedT = typename UnwrapFuture<T>::Type;
+            using UnwrapFutureState = typename UnwrapFuture<T>::State;
+            using FutureCallback = detail::UnwrapperFutureCallback<T, UnwrappedT>;
+
+            auto state = this->detachState();
+            auto unwrapState = std::make_shared<UnwrapFutureState>();
+            state->setCallback(std::make_unique<FutureCallback>(unwrapState));
+
+            return UnwrapFuture<T>(std::move(unwrapState));
+        }
     }
 
 private:
@@ -132,7 +139,7 @@ private:
     explicit Future(std::shared_ptr<State> state)
       : m_state(std::move(state))
     {
-        m_state->setRetrievedFlag();
+        assert(m_state != nullptr);   // NOLINT
     }
 
     const State& state() const
@@ -153,17 +160,6 @@ private:
         return std::move(m_state);
     }
 
-    UnwrapFuture<T> unwrap()
-    {
-        if constexpr (std::is_same_v<Future, UnwrapFuture<T>>) {
-            return std::move(*this);
-        } else {
-            auto unwrapState = std::make_shared<typename UnwrapFuture<T>::State>();
-            detail::unwrapHelper(this->detachState(), unwrapState);
-            return UnwrapFuture<T>(std::move(unwrapState));
-        }
-    }
-
     std::shared_ptr<State> m_state;
 };
 
@@ -177,29 +173,57 @@ public:
 
     ~Promise()
     {
-        if (m_state && !m_state->isReady()) {
+        if (!m_satisfiedFlag) {
             auto exPtr = std::make_exception_ptr(std::future_error(std::future_errc::broken_promise));
             setException(std::move(exPtr));
         }
     }
 
-    Promise(Promise&&) noexcept = default;
+    Promise(Promise&& other) noexcept
+      : m_state(std::move(other.m_state))
+      , m_satisfiedFlag(other.m_satisfiedFlag)
+      , m_retrievedFlag(other.m_retrievedFlag)
+    {
+        other.m_satisfiedFlag = true;
+        other.m_retrievedFlag = true;
+    }
 
-    Promise& operator=(Promise&&) noexcept = default;
+    Promise& operator=(Promise&& other) noexcept
+    {
+        m_state = std::exchange(other.m_state, nullptr);
+        m_satisfiedFlag = std::exchange(other.m_satisfiedFlag, true);
+        m_retrievedFlag = std::exchange(other.m_retrievedFlag, true);
+        return *this;
+    }
 
     template<typename... Tp>
     void setValue(Tp&&... args)
     {
+        if (m_satisfiedFlag) {
+            throw std::future_error(std::future_errc::promise_already_satisfied);
+        }
+
         m_state->setValue(std::forward<Tp>(args)...);
+        m_satisfiedFlag = true;
     }
 
     void setException(std::exception_ptr ex)
     {
+        if (m_satisfiedFlag) {
+            throw std::future_error(std::future_errc::promise_already_satisfied);
+        }
+
         m_state->setException(std::move(ex));
+        m_satisfiedFlag = true;
     }
 
     Future<T> future()
     {
+        if (m_retrievedFlag) {
+            throw std::future_error(std::future_errc::future_already_retrieved);
+        }
+        m_retrievedFlag = true;
+
         return Future<T>(m_state);
     }
 
@@ -207,6 +231,8 @@ private:
     using State = detail::FutureState<T>;
 
     std::shared_ptr<State> m_state;
+    bool m_satisfiedFlag = false;
+    bool m_retrievedFlag = false;
 };
 
 template<typename T, typename... Args>

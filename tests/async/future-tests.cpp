@@ -1,4 +1,4 @@
-#include "nhope/async/detail/future.h"
+#include <exception>
 #include <future>
 #include <stdexcept>
 #include <string>
@@ -63,7 +63,8 @@ TEST(Future, retrievedFlag)   // NOLINT
     EXPECT_NO_THROW(p.future());                   // NOLINT
     EXPECT_THROW(p.future(), std::future_error);   // NOLINT
     p.setValue();
-    EXPECT_THROW(p.setValue(), std::future_error);   // NOLINT
+    EXPECT_THROW(p.setValue(), std::future_error);                                                // NOLINT
+    EXPECT_THROW(p.setException(std::make_exception_ptr(std::exception())), std::future_error);   // NOLINT
 }
 
 TEST(Future, noState)   // NOLINT
@@ -75,7 +76,6 @@ TEST(Future, noState)   // NOLINT
 
         Future<int> fInt;
         EXPECT_FALSE(fInt.valid());
-
 
         EXPECT_NO_THROW(f.get());   // NOLINT
 
@@ -286,4 +286,38 @@ TEST(Future, dataRace)   // NOLINT
         p1.join();
         p2.join();
     }
+}
+
+TEST(Future, brokenPromise)   // NOLINT
+{
+    auto executor = ThreadExecutor();
+    auto aoCtx = AOContext(executor);
+
+    Future<void> never;
+    {
+        Promise<void> expired;
+        never = expired.future();
+    }
+
+    EXPECT_THROW(never.get(), std::future_error);   // NOLINT
+}
+
+TEST(Future, brokenPromiseAndThen)   // NOLINT
+{
+    auto executor = ThreadExecutor();
+    auto aoCtx = AOContext(executor);
+
+    Future<void> never;
+    {
+        Promise<void> expired;
+        never = expired.future()
+                  .then(aoCtx,
+                        [] {
+                            FAIL() << "never";
+                        })
+                  .fail(aoCtx, [](auto e) {
+                      EXPECT_THROW(std::rethrow_exception(e), std::future_error);   // NOLINT
+                  });
+    }
+    never.wait();
 }

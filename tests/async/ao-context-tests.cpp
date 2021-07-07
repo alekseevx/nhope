@@ -62,7 +62,7 @@ TEST(AOContext, AsyncOperation)   // NOLINT
         asyncOperationHandlerCalled = true;
     });
 
-    std::thread([callAOHandler = aoContext.addAOHandler(std::move(aoHandler))]() mutable {
+    std::thread([callAOHandler = aoContext.putAOHandler(std::move(aoHandler))]() mutable {
         // A thread performing an asynchronous operation
         callAOHandler();
     }).detach();
@@ -91,9 +91,12 @@ TEST(AOContext, CancelAsyncOperation)   // NOLINT
               cancelAsyncOperationCalled = true;
           });
 
-        std::thread([callAOHandler = aoContext->addAOHandler(std::move(aoHandler))]() mutable {
+        auto callAOHandler = aoContext->putAOHandler(std::move(aoHandler));
+        EXPECT_TRUE(callAOHandler);
+        std::thread([callAOHandler]() mutable {
             // A thread performing an asynchronous operation
             callAOHandler();
+            EXPECT_FALSE(callAOHandler);
         }).detach();
 
         std::this_thread::sleep_for(5us);
@@ -130,7 +133,7 @@ TEST(AOContext, SequentialHandlerCall)   // NOLINT
             ++finishedHandlerCount;
         });
 
-        auto callAOHandler = aoContext.addAOHandler(std::move(aoHandler));
+        auto callAOHandler = aoContext.putAOHandler(std::move(aoHandler));
         callAOHandler();
     }
 
@@ -151,7 +154,7 @@ TEST(AOContext, ExceptionInAOHandler)   // NOLINT
             throw std::runtime_error("TestException");
         });
 
-        auto callAOHandler = aoContext.addAOHandler(std::move(aoHandler));
+        auto callAOHandler = aoContext.putAOHandler(std::move(aoHandler));
         callAOHandler();
     }
 
@@ -168,64 +171,7 @@ TEST(AOContext, ExceptionInCancelAsyncOperation)   // NOLINT
     });
 
     EXPECT_NO_THROW({   // NOLINT
-        aoContext->addAOHandler(std::move(aoHandler));
+        aoContext->putAOHandler(std::move(aoHandler));
         aoContext.reset();
     });
-}
-
-TEST(AOContext, CallSafeCallback)   // NOLINT
-{
-    constexpr auto iterCount = 100;
-
-    ThreadExecutor executor;
-    AOContext aoContext(executor);
-
-    std::atomic<int> callbackCalled = 0;
-    const auto safeCallback = makeSafeCallback(aoContext, std::function([&](int arg1, const std::string& arg2) {
-                                                   EXPECT_EQ(executor.id(), std::this_thread::get_id());
-                                                   EXPECT_EQ(arg1, callbackCalled);
-                                                   EXPECT_EQ(arg2, fmt::format("{}", callbackCalled));
-
-                                                   ++callbackCalled;
-                                               }));
-
-    for (int i = 0; i < iterCount; ++i) {
-        safeCallback(i, fmt::format("{}", i));
-    }
-
-    EXPECT_TRUE(waitForValue(1s, callbackCalled, iterCount));
-}
-
-TEST(AOContext, CallSafeCallbackAfterDestroyAOContext)   // NOLINT
-{
-    constexpr auto iterCount = 100;
-
-    ThreadExecutor executor;
-
-    for (int i = 0; i < iterCount; ++i) {
-        auto aoContext = std::make_unique<AOContext>(executor);
-        std::atomic<bool> aoContextDestroyed = false;
-
-        const auto safeCallback = makeSafeCallback(*aoContext, std::function([&] {
-            EXPECT_EQ(executor.id(), std::this_thread::get_id());
-            EXPECT_FALSE(aoContextDestroyed);
-        }));
-
-        auto callbackCaller = std::thread([safeCallback, &aoContextDestroyed] {
-            for (;;) {
-                try {
-                    safeCallback();
-                } catch (const AOContextClosed&) {
-                    return;
-                }
-            }
-        });
-
-        const auto sleepTime = (i % 10) * 1ms;
-        std::this_thread::sleep_for(sleepTime);
-
-        aoContext.reset();
-        aoContextDestroyed = true;
-        callbackCaller.join();
-    }
 }

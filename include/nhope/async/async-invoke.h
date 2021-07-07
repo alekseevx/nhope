@@ -1,18 +1,29 @@
 #pragma once
 
 #include <functional>
+#include <type_traits>
 #include <utility>
 
-#include <nhope/async/future.h>
-#include <nhope/async/ao-context.h>
+#include "nhope/async/ao-context.h"
+#include "nhope/async/detail/async-invoke.h"
+#include "nhope/async/future.h"
 
 namespace nhope {
 
 template<typename Fn, typename... Args>
 auto asyncInvoke(AOContext& aoCtx, Fn&& fn, Args&&... args)
 {
-    auto bindedFn = std::bind(std::forward<Fn>(fn), std::forward<Args>(args)...);
-    return makeReadyFuture().then(aoCtx, std::move(bindedFn));
+    using Result = std::invoke_result_t<Fn, Args...>;
+
+    Promise<Result> promise;
+    auto future = promise.future();
+
+    auto aoHandler = detail::makeAsyncInvokeAOHandler(std::move(promise),
+                                                      std::bind(std::forward<Fn>(fn), std::forward<Args>(args)...));
+    auto callAOHandler = aoCtx.putAOHandler(std::move(aoHandler));
+    callAOHandler();
+
+    return future.unwrap();
 }
 
 template<typename Fn, typename... Args>

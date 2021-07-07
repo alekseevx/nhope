@@ -21,7 +21,7 @@ test-job:
     - cd build
     - cmake --build . --target coverage
     - cd ..
-    - gcovr --xml-pretty --print-summary --exclude-unreachable-branches -e .deps -e tests -o coverage.xml --root .
+    - gcovr --xml-pretty --print-summary --exclude-unreachable-branches -e .deps -e tests -e benchs -o coverage.xml --root .
 
   coverage: /^\s*lines:\s*\d+.\d+\%/
   artifacts:
@@ -31,8 +31,8 @@ test-job:
     reports:
       cobertura: coverage.xml
 
-benchmark-job:
-  stage: test
-  image: ubuntu:20.04-build
-  script:
-    - ./build/benchs
+# benchmark-job:
+#   stage: test
+#   image: ubuntu:20.04-build
+#   script:
+#     - ./build/benchs

@@ -81,7 +81,7 @@ public:
       : executorHolder(strand(executor))
     {}
 
-    AOHandlerCall addAOHandler(std::unique_ptr<AOHandler> handler)
+    AOHandlerCall putAOHandler(std::unique_ptr<AOHandler> handler)
     {
         std::unique_lock lock(this->mutex);
 
@@ -239,9 +239,9 @@ AOContext::~AOContext()
     m_d->close();
 }
 
-AOHandlerCall AOContext::addAOHandler(std::unique_ptr<AOHandler> handler)
+AOHandlerCall AOContext::putAOHandler(std::unique_ptr<AOHandler> handler)
 {
-    return m_d->addAOHandler(std::move(handler));
+    return m_d->putAOHandler(std::move(handler));
 }
 
 SequenceExecutor& AOContext::executor()
@@ -253,14 +253,14 @@ AOContextWeekRef::AOContextWeekRef(AOContext& aoCtx)
   : m_aoImpl(aoCtx.m_d)
 {}
 
-AOHandlerCall AOContextWeekRef::addAOHandler(std::unique_ptr<AOHandler> handler)
+AOHandlerCall AOContextWeekRef::putAOHandler(std::unique_ptr<AOHandler> handler)
 {
     auto aoImpl = m_aoImpl.lock();
     if (aoImpl == nullptr) {
         throw AOContextClosed();
     }
 
-    return aoImpl->addAOHandler(std::move(handler));
+    return aoImpl->putAOHandler(std::move(handler));
 }
 
 }   // namespace nhope
