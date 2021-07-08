@@ -11,7 +11,7 @@
 #include "nhope/async/ao-context.h"
 #include "nhope/async/future.h"
 #include "nhope/async/state-observer.h"
-#include "nhope/async/thread-executor.h"
+#include "nhope/async/thread-pool-executor.h"
 #include "nhope/seq/chan.h"
 #include "nhope/seq/consumer.h"
 
@@ -31,7 +31,7 @@ public:
           [this] {
               return getRemoteState();
           },
-          m_executor)
+          nhope::ThreadPoolExecutor::defaultExecutor())
     {}
     nhope::StateObserver<int>& observer()
     {
@@ -51,7 +51,6 @@ public:
 
 private:
     int m_value = startValue;
-    nhope::ThreadExecutor m_executor;
     nhope::StateObserver<int> m_state;
 };
 
@@ -101,8 +100,9 @@ TEST(StateObserver, ObserverState)   // NOLINT
 
 TEST(StateObserver, ObserverFailConstruct)   // NOLINT
 {
-    nhope::ThreadExecutor e;
-    EXPECT_THROW(nhope::StateObserver<int> observer(nullptr, nullptr, e), nhope::StateUninitialized);   //NOLINT
+    // NOLINTNEXTLINE
+    EXPECT_THROW(nhope::StateObserver<int> observer(nullptr, nullptr, nhope::ThreadPoolExecutor::defaultExecutor()),
+                 nhope::StateUninitialized);
 }
 
 TEST(StateObserver, Exception)   // NOLINT
@@ -110,7 +110,6 @@ TEST(StateObserver, Exception)   // NOLINT
     using namespace nhope;
     constexpr auto magic = 42;
 
-    ThreadExecutor e;
     std::atomic<int> value{};
 
     StateObserver<int> observer(
@@ -135,7 +134,7 @@ TEST(StateObserver, Exception)   // NOLINT
           }
           return makeReadyFuture<int>(current);
       },
-      e);
+      nhope::ThreadPoolExecutor::defaultExecutor());
 
     Chan<ObservableState<int>> stateChan;
     stateChan.attachToProduser(observer);
@@ -160,8 +159,7 @@ TEST(StateObserver, AsyncExceptionInSetter)   // NOLINT
     using namespace nhope;
     constexpr auto magic = 42;
 
-    ThreadExecutor e;
-    AOContext aoCtx(e);
+    AOContext aoCtx(nhope::ThreadPoolExecutor::defaultExecutor());
 
     StateObserver<int> observer(
       [&](int /*unused*/) {
@@ -172,7 +170,7 @@ TEST(StateObserver, AsyncExceptionInSetter)   // NOLINT
       [&] {
           return makeReadyFuture<int>(magic);
       },
-      e, 1000s);
+      nhope::ThreadPoolExecutor::defaultExecutor(), 1000s);
 
     Chan<ObservableState<int>> stateChan;
 

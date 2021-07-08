@@ -1,6 +1,5 @@
 #pragma once
 
-#include <complex>
 #include <exception>
 #include <type_traits>
 #include <utility>
@@ -9,12 +8,14 @@
 
 #include "nhope/async/ao-context.h"
 #include "nhope/async/async-invoke.h"
-#include "nhope/async/future.h"
 #include "nhope/async/executor.h"
+#include "nhope/async/future.h"
+#include "nhope/async/strand-executor.h"
 #include "nhope/async/timer.h"
-#include "nhope/seq/produser.h"
 #include "nhope/seq/consumer-list.h"
+#include "nhope/seq/produser.h"
 #include "nhope/utils/type.h"
+
 namespace nhope {
 using namespace std::literals;
 
@@ -144,9 +145,11 @@ public:
       : m_setter(std::move(setter))
       , m_getter(std::move(getter))
       , m_pollTime(pollTime)
-      , m_stateCtx(executor)
-      , m_aoCtx(std::make_unique<AOContext>(m_stateCtx.executor()))
+      , m_executor(executor)
+      , m_stateCtx(m_executor)
     {
+        m_aoCtx = std::make_unique<AOContext>(m_executor);
+
         if (!(m_getter && m_setter)) {
             throw StateUninitialized("getter and setter must be set"sv);
         }
@@ -181,7 +184,7 @@ public:
     {
         asyncInvoke(m_stateCtx, [this, newVal = std::forward<V>(v)] {
             setNewState(newVal);
-            m_aoCtx = std::make_unique<AOContext>(m_stateCtx.executor());
+            m_aoCtx = std::make_unique<AOContext>(m_executor);
             asyncInvoke(*m_aoCtx,
                         [this, newVal]() mutable {
                             return m_setter(newVal);
@@ -238,8 +241,9 @@ private:
 
     ObservableState<T> m_state;
     ConsumerList<ObservableState<T>> m_consumers;
-    AOContext m_stateCtx;
+    StrandExecutor m_executor;
     std::unique_ptr<AOContext> m_aoCtx;
+    mutable AOContext m_stateCtx;
 };
 
 }   // namespace nhope
