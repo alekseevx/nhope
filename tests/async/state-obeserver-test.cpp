@@ -1,5 +1,6 @@
 #include <exception>
 #include <stdexcept>
+#include <thread>
 #include <type_traits>
 #include <utility>
 #include <variant>
@@ -7,6 +8,7 @@
 
 #include <gtest/gtest.h>
 
+#include "nhope/async/ao-context.h"
 #include "nhope/async/future.h"
 #include "nhope/async/state-observer.h"
 #include "nhope/async/thread-executor.h"
@@ -151,4 +153,33 @@ TEST(StateObserver, Exception)   // NOLINT
     observer.setState(magic + 2);
     EXPECT_EQ(stateChan.get().value(), magic + 2);
     EXPECT_TRUE(stateChan.get()->hasException());   // getter throw Exception
+}
+
+TEST(StateObserver, AsyncExceptionInSetter)   // NOLINT
+{
+    using namespace nhope;
+    constexpr auto magic = 42;
+
+    ThreadExecutor e;
+    AOContext aoCtx(e);
+
+    StateObserver<int> observer(
+      [&](int /*unused*/) {
+          return makeReadyFuture().then(aoCtx, [] {
+              throw std::runtime_error("magic set");
+          });
+      },
+      [&] {
+          return makeReadyFuture<int>(magic);
+      },
+      e, 1000s);
+
+    Chan<ObservableState<int>> stateChan;
+
+    stateChan.attachToProduser(observer);
+    EXPECT_EQ(stateChan.get(), magic);
+    observer.setState(magic + 1);
+
+    EXPECT_EQ(stateChan.get(), magic + 1);
+    EXPECT_TRUE(stateChan.get()->hasException());   // NOLINT
 }

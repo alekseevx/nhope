@@ -141,18 +141,17 @@ public:
 
     explicit StateObserver(StateSetter setter, StateGetter getter, Executor& executor,
                            std::chrono::nanoseconds pollTime = defaultPollTime)
-      : m_setter(setter)
-      , m_getter(getter)
+      : m_setter(std::move(setter))
+      , m_getter(std::move(getter))
       , m_pollTime(pollTime)
-      , m_executor(executor)
-      , m_aoCtx(std::make_unique<AOContext>(executor))
       , m_stateCtx(executor)
+      , m_aoCtx(std::make_unique<AOContext>(m_stateCtx.executor()))
     {
-        if (!(getter && setter)) {
+        if (!(m_getter && m_setter)) {
             throw StateUninitialized("getter and setter must be set"sv);
         }
 
-        setTimeout(*m_aoCtx, pollTime, [this](auto /*unused*/) {
+        asyncInvoke(*m_aoCtx, [this] {
             updateState();
         });
     }
@@ -170,7 +169,7 @@ public:
     StateObserver(const StateObserver&) = delete;
     StateObserver& operator=(const StateObserver&) = delete;
 
-    [[nodiscard]] ObservableState<T> getState() const noexcept
+    [[nodiscard]] ObservableState<T> getState() const
     {
         return invoke(m_stateCtx, [this] {
             return m_state;
@@ -182,10 +181,10 @@ public:
     {
         asyncInvoke(m_stateCtx, [this, newVal = std::forward<V>(v)] {
             setNewState(newVal);
-            m_aoCtx = std::make_unique<AOContext>(m_executor);
+            m_aoCtx = std::make_unique<AOContext>(m_stateCtx.executor());
             asyncInvoke(*m_aoCtx,
                         [this, newVal]() mutable {
-                            m_setter(newVal);
+                            return m_setter(newVal);
                         })
               .fail(*m_aoCtx,
                     [this](auto exception) {
@@ -239,9 +238,8 @@ private:
 
     ObservableState<T> m_state;
     ConsumerList<ObservableState<T>> m_consumers;
-    Executor& m_executor;
+    AOContext m_stateCtx;
     std::unique_ptr<AOContext> m_aoCtx;
-    mutable AOContext m_stateCtx;
 };
 
 }   // namespace nhope
