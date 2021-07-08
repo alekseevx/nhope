@@ -97,6 +97,11 @@ public:
 
     void callAOHandler(AOHandlerId id)
     {
+        std::unique_lock lock(this->mutex);
+        if (this->state != AOContextState::Open) {
+            return;
+        }
+
         this->executorHolder->post([weakSelf = weak_from_this(), id] {
             auto self = weakSelf.lock();
             if (self == nullptr) {

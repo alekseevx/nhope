@@ -74,17 +74,17 @@ TEST(AOContext, CancelAsyncOperation)   // NOLINT
 {
     constexpr int iterCount = 500;
 
-    ThreadExecutor executor;
     for (int i = 0; i < iterCount; ++i) {
         std::function<void()> operationFinished;
         std::atomic<bool> asyncOperationHandlerCalled = false;
         std::atomic<bool> cancelAsyncOperationCalled = false;
 
-        auto aoContext = std::make_unique<AOContext>(executor);
+        auto executor = std::make_unique<ThreadExecutor>();
+        auto aoContext = std::make_unique<AOContext>(*executor);
 
         auto aoHandler = std::make_unique<TestAOHandler>(
           [&asyncOperationHandlerCalled, &executor] {
-              EXPECT_EQ(std::this_thread::get_id(), executor.id());
+              EXPECT_EQ(std::this_thread::get_id(), executor->id());
               asyncOperationHandlerCalled = true;
           },
           [&cancelAsyncOperationCalled] {
@@ -102,6 +102,7 @@ TEST(AOContext, CancelAsyncOperation)   // NOLINT
         std::this_thread::sleep_for(5us);
 
         aoContext.reset();   // Destroy the aoContex and cancel the asyncOperation
+        executor.reset();
 
         EXPECT_TRUE(waitForPred(1s, [&] {
             return asyncOperationHandlerCalled || cancelAsyncOperationCalled;
