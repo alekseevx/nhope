@@ -459,7 +459,7 @@ TEST(Scheduler, WaitDeactivatedTask)   // NOLINT
     ASSERT_FALSE(f.isReady());
     scheduler.activate(0);
     f.get();
-    ASSERT_FALSE(f.valid());
+    ASSERT_FALSE(f.isValid());
 }
 
 TEST(Scheduler, CancelDeactivatedTask)   // NOLINT
@@ -519,9 +519,9 @@ TEST(Scheduler, DeactivateByRequest)   // NOLINT
         ASSERT_FALSE(deactivated.waitFor(200ms));
     }
 
-    ASSERT_TRUE(deactivated.valid());
+    ASSERT_TRUE(deactivated.isValid());
     deactivated.get();
-    ASSERT_FALSE(deactivated.valid());
+    ASSERT_FALSE(deactivated.isValid());
 }
 
 TEST(Scheduler, CancelNotStarted)   // NOLINT

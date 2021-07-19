@@ -1,14 +1,19 @@
 #pragma once
 
 #include <chrono>
-#include <exception>
+#include <functional>
 #include <list>
 #include <memory>
-#include <system_error>
+#include <thread>
+#include <type_traits>
 #include <utility>
 
-#include <nhope/async/ao-context.h>
-#include <nhope/async/detail/future.h>
+#include "nhope/async/ao-context.h"
+#include "nhope/async/detail/future.h"
+#include "nhope/async/event.h"
+#include "nhope/async/future-error.h"
+#include "nhope/async/thread-executor.h"
+#include "nhope/utils/detail/ref-ptr.h"
 
 namespace nhope {
 
@@ -21,9 +26,17 @@ using UnwrapFuture = typename detail::UnwrapFuture<T>::Type;
 template<typename T, typename Fn>
 using NextFutureState = typename detail::NextFutureState<T, Fn>::Type;
 
+template<typename T, typename Fn>
+using NextFuture = Future<typename NextFutureState<T, Fn>::Type>;
+
 template<typename T>
 inline constexpr bool isFuture = detail::isFuture<T>;
 
+/**
+ * @brief A Future represents the result of an asynchronous computation.
+ * 
+ * @tparam T Result type
+ */
 template<typename T>
 class Future final
 {
@@ -38,48 +51,111 @@ class Future final
 public:
     using Type = T;
 
+    /**
+     * @post isValid() == false
+     * @post isWaitFuture() = false
+     */
     Future() = default;
 
     Future(const Future&) = delete;
+
+    /**
+     * @post other.isValid() == false
+     * @post other.isWaitFuture() = false
+     */
     Future(Future&& other) noexcept = default;
+
+    /**
+     * @post other.isValid() == false
+     * @post other.isWaitFuture() = false
+     */
     Future& operator=(Future&& other) noexcept = default;
 
-    [[nodiscard]] bool valid() const
+    /**
+     * @brief Checks if the Future has state
+     */
+    [[nodiscard]] bool isValid() const
     {
         return m_state != nullptr;
     }
 
+    /**
+     * @brief Checks if the Future has result
+     * @pre isValid() == true
+     */
     [[nodiscard]] bool isReady() const
     {
-        return state().isReady();
+        return state().hasResult();
     }
 
+    /**
+     * @brief Waits and returns result
+     * 
+     * @pre isValid() == true
+     * @post isValid() == false
+     * @post isWaitFuture() = true
+     * @post isReady() = true
+     */
     T get()
     {
         auto state = this->detachState();
-        return state->lock([](detail::FutureStateLock<T> state) {
-            state.wait();
 
-            if (auto exPtr = state.getException()) {
-                std::rethrow_exception(exPtr);
-            }
+        if (!state->hasResult()) {
+            auto& futureReadyEvent = this->makeWaitFuture(*state);
+            futureReadyEvent.wait();
+        }
 
-            return state.getValue();
-        });
+        if (state->hasException()) {
+            std::rethrow_exception(state->getException());
+        }
+
+        if constexpr (!std::is_void_v<T>) {
+            return std::move(state->getValue());
+        }
     }
 
-    void wait() const
+    /**
+     * @brief Blocks until the result become available
+     *
+     * @pre isValid() == true
+     * @post isValid() == true
+     * @post isWaitFuture() == true
+     */
+    void wait()
     {
-        return state().wait();
+        auto& state = this->state();
+        auto& futureReadyEvent = this->makeWaitFuture(state);
+        futureReadyEvent.wait();
     }
 
-    [[nodiscard]] bool waitFor(std::chrono::nanoseconds time) const
+    /**
+     * @brief Blocks until specified time has elapsed or the result become available
+     *
+     * @pre isValid() == true
+     * @post isValid() == true
+     * @post isWaitFuture() == true
+     */
+    [[nodiscard]] bool waitFor(std::chrono::nanoseconds time)
     {
-        return state().waitFor(time);
+        auto& state = this->state();
+        auto& futureReadyEvent = this->makeWaitFuture(state);
+        return futureReadyEvent.waitFor(time);
     }
 
+    /**
+     * @brief Returns the next chaining Future, where fn is callback will be called
+     * when this Future is succeeds.
+     *
+     * @param aoCtx The AOContext on which the fn should be called.
+     *
+     * @pre isValid() == true
+     * @pre isWaitFuture() == false
+     * @post isValid() == false
+     *
+     * @return UnwrapFuture<NextFuture<T, Fn>>
+     */
     template<typename Fn>
-    auto then(AOContext& aoCtx, Fn&& fn)   // -> UnwrapFuture<NextFuture<T, Fn>>
+    UnwrapFuture<NextFuture<T, Fn>> then(AOContext& aoCtx, Fn&& fn)
     {
         using AOHandler = detail::FutureThenAOHandler<T, Fn>;
         using FutureCallback = detail::CallAOHandlerFutureCallback<T>;
@@ -90,16 +166,33 @@ public:
             static_assert(std::is_invocable_v<Fn, T>, "Fn must accept a single argument of same type as the Future");
         }
 
+        if (this->isWaitFuture()) {
+            throw MakeFutureChainAfterWaitError();
+        }
+
         auto state = this->detachState();
-        auto nextState = std::make_shared<NextFutureState<T, Fn>>();
+
+        auto nextState = detail::makeRefPtr<NextFutureState<T, Fn>>();
         auto aoHandler = std::make_unique<AOHandler>(std::forward<Fn>(fn), state, nextState);
         state->setCallback(std::make_unique<FutureCallback>(aoCtx, std::move(aoHandler)));
 
-        return Future<typename NextFutureState<T, Fn>::Type>(std::move(nextState)).unwrap();
+        return NextFuture<T, Fn>(std::move(nextState)).unwrap();
     }
 
+    /**
+     * @brief Returns the next chaining Future, where fn is callback will be called
+     * when this Future fails.
+     *
+     * @param aoCtx The AOContext on which the fn should be called.
+     *
+     * @pre isValid() == true
+     * @pre isWaitFuture() == false
+     * @post isValid() == false
+     *
+     * @return Future<T>
+     */
     template<typename Fn>
-    Future fail(AOContext& aoCtx, Fn&& fn)
+    Future<T> fail(AOContext& aoCtx, Fn&& fn)
     {
         using AOHandler = detail::FutureFailAOHandler<T, Fn>;
         using FutureCallback = detail::CallAOHandlerFutureCallback<T>;
@@ -108,16 +201,32 @@ public:
         static_assert(std::is_same_v<T, std::invoke_result_t<Fn, std::exception_ptr>>,
                       "Fn must return a result of same type as the Future");
 
+        if (this->isWaitFuture()) {
+            throw MakeFutureChainAfterWaitError();
+        }
+
         auto state = this->detachState();
-        auto nextState = std::make_shared<State>();
+
+        auto nextState = detail::makeRefPtr<State>();
         auto aoHandler = std::make_unique<AOHandler>(std::forward<Fn>(fn), state, nextState);
         state->setCallback(std::make_unique<FutureCallback>(aoCtx, std::move(aoHandler)));
 
         return Future(std::move(nextState)).unwrap();
     }
 
+    /**
+     * @brief Unwraps Future<Future<...<Future<T>...>> into Future<T>
+     *
+     * @pre isValid() == true
+     * @pre isWaitFuture() == false
+     * @post isValid() == false
+     */
     UnwrapFuture<T> unwrap()
     {
+        if (this->isWaitFuture()) {
+            throw MakeFutureChainAfterWaitError();
+        }
+
         if constexpr (std::is_same_v<Future, UnwrapFuture<T>>) {
             return std::move(*this);
         } else {
@@ -126,41 +235,78 @@ public:
             using FutureCallback = detail::UnwrapperFutureCallback<T, UnwrappedT>;
 
             auto state = this->detachState();
-            auto unwrapState = std::make_shared<UnwrapFutureState>();
+
+            auto unwrapState = detail::makeRefPtr<UnwrapFutureState>();
             state->setCallback(std::make_unique<FutureCallback>(unwrapState));
 
             return UnwrapFuture<T>(std::move(unwrapState));
         }
     }
 
+    /**
+     * @brief Checks whether was called #wait or #waitFor
+     * 
+     * If #wait or #waitFor was called, #then and #fail must not be called.
+     */
+    [[nodiscard]] bool isWaitFuture() const
+    {
+        return m_futureReadyEvent != nullptr;
+    }
+
 private:
     using State = detail::FutureState<T>;
 
-    explicit Future(std::shared_ptr<State> state)
+    /**
+     * @post other.isValid() == true if state != nullptr
+     * @post other.isWaitFuture() = false
+     */
+    explicit Future(detail::RefPtr<State> state)
       : m_state(std::move(state))
     {
         assert(m_state != nullptr);   // NOLINT
     }
 
-    const State& state() const
+    State& state()
     {
         if (m_state == nullptr) {
-            throw std::future_error(std::future_errc::no_state);
+            throw FutureNoStateError();
         }
 
         return *m_state;
     }
 
-    std::shared_ptr<State> detachState()
+    const State& state() const
     {
         if (m_state == nullptr) {
-            throw std::future_error(std::future_errc::no_state);
+            throw FutureNoStateError();
+        }
+
+        return *m_state;
+    }
+
+    detail::RefPtr<State> detachState()
+    {
+        if (m_state == nullptr) {
+            throw FutureNoStateError();
         }
 
         return std::move(m_state);
     }
 
-    std::shared_ptr<State> m_state;
+    Event& makeWaitFuture(State& state)
+    {
+        using FutureCallback = detail::SetEventFutureCallback<T>;
+
+        if (m_futureReadyEvent == nullptr) {
+            m_futureReadyEvent = detail::makeRefPtr<Event>();
+            state.setCallback(std::make_unique<FutureCallback>(m_futureReadyEvent));
+        }
+
+        return *m_futureReadyEvent;
+    }
+
+    detail::RefPtr<State> m_state;
+    detail::RefPtr<Event> m_futureReadyEvent;
 };
 
 template<typename T>
@@ -168,13 +314,13 @@ class Promise final
 {
 public:
     Promise()
-      : m_state(std::make_shared<State>())
+      : m_state(detail::makeRefPtr<State>())
     {}
 
     ~Promise()
     {
         if (!m_satisfiedFlag) {
-            auto exPtr = std::make_exception_ptr(std::future_error(std::future_errc::broken_promise));
+            auto exPtr = std::make_exception_ptr(BrokenPromiseError());
             setException(std::move(exPtr));
         }
     }
@@ -190,7 +336,7 @@ public:
 
     Promise& operator=(Promise&& other) noexcept
     {
-        m_state = std::exchange(other.m_state, nullptr);
+        m_state = std::move(other.m_state);
         m_satisfiedFlag = std::exchange(other.m_satisfiedFlag, true);
         m_retrievedFlag = std::exchange(other.m_retrievedFlag, true);
         return *this;
@@ -200,7 +346,7 @@ public:
     void setValue(Tp&&... args)
     {
         if (m_satisfiedFlag) {
-            throw std::future_error(std::future_errc::promise_already_satisfied);
+            throw PromiseAlreadySatisfiedError();
         }
 
         m_state->setValue(std::forward<Tp>(args)...);
@@ -210,7 +356,7 @@ public:
     void setException(std::exception_ptr ex)
     {
         if (m_satisfiedFlag) {
-            throw std::future_error(std::future_errc::promise_already_satisfied);
+            throw PromiseAlreadySatisfiedError();
         }
 
         m_state->setException(std::move(ex));
@@ -220,7 +366,7 @@ public:
     Future<T> future()
     {
         if (m_retrievedFlag) {
-            throw std::future_error(std::future_errc::future_already_retrieved);
+            throw FutureAlreadyRetrievedError();
         }
         m_retrievedFlag = true;
 
@@ -230,7 +376,7 @@ public:
 private:
     using State = detail::FutureState<T>;
 
-    std::shared_ptr<State> m_state;
+    detail::RefPtr<State> m_state;
     bool m_satisfiedFlag = false;
     bool m_retrievedFlag = false;
 };
@@ -252,12 +398,7 @@ template<typename T, typename... Args>
 void resolvePromises(std::list<Promise<T>>& promises, Args&&... args)
 {
     for (auto& p : promises) {
-        if constexpr (std::is_void_v<T>) {
-            p.setValue();
-        } else {
-            T val(std::forward<Args>(args)...);
-            p.setValue(std::move(val));
-        }
+        p.setValue(std::forward<Args>(args)...);
     }
     promises.clear();
 }

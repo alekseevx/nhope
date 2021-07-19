@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <memory>
 #include <stdexcept>
 #include <string_view>
@@ -24,6 +25,7 @@ public:
 };
 
 using AOHandlerId = std::uint64_t;
+inline constexpr AOHandlerId invalidId = UINT64_MAX;
 
 /**
  * @brief Обработчик асинхронной  операции.

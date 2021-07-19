@@ -1,7 +1,6 @@
 #include <cassert>
 #include <condition_variable>
 #include <cstddef>
-#include <map>
 #include <memory>
 #include <mutex>
 #include <stdexcept>
@@ -13,44 +12,14 @@
 #include "nhope/async/reverse_lock.h"
 #include "nhope/async/strand-executor.h"
 
+#include "ao-handler-storage.h"
+#include "make-strand.h"
+
 namespace nhope {
 
 namespace {
 
-enum HolderOwnMode
-{
-    HolderOwns,
-    HolderNotOwns
-};
-
-class HolderDeleter final
-{
-public:
-    HolderDeleter(HolderOwnMode ownMode)
-      : m_ownMode(ownMode)
-    {}
-
-    void operator()(SequenceExecutor* executor) const
-    {
-        if (m_ownMode == HolderOwns) {
-            delete executor;   // NOLINT(cppcoreguidelines-owning-memory)
-        }
-    }
-
-private:
-    const HolderOwnMode m_ownMode;
-};
-
-using ExecutorHolder = std::unique_ptr<SequenceExecutor, HolderDeleter>;
-
-ExecutorHolder strand(Executor& executor)
-{
-    /* Small optimization. We create StrandExecutor only if passed executor is not SequenceExecutor */
-    if (auto* seqExecutor = dynamic_cast<SequenceExecutor*>(&executor)) {
-        return ExecutorHolder{seqExecutor, HolderNotOwns};
-    }
-    return ExecutorHolder{new StrandExecutor(executor), HolderOwns};
-}
+using namespace detail;
 
 }   // namespace
 
@@ -78,19 +47,19 @@ class AOContextImpl final : public std::enable_shared_from_this<AOContextImpl>
 
 public:
     explicit AOContextImpl(Executor& executor)
-      : executorHolder(strand(executor))
+      : executorHolder(makeStrand(executor))
     {}
 
     AOHandlerCall putAOHandler(std::unique_ptr<AOHandler> handler)
     {
         std::unique_lock lock(this->mutex);
 
-        if (this->state == AOContextState::Closed) {
+        if (this->state != AOContextState::Open) {
             throw AOContextClosed();
         }
 
         auto id = this->aoHandlerCounter++;
-        this->aoHandlers.emplace_hint(this->aoHandlers.end(), id, std::move(handler));
+        this->aoHandlers.put(id, std::move(handler));
 
         return AOHandlerCall(id, weak_from_this());
     }
@@ -148,21 +117,13 @@ public:
         this->waitActiveHandler(lock);
         this->state = AOContextState::Closed;
 
-        this->cancelAsyncOperations(lock);
+        this->cancelAOHandlers(lock);
     }
 
     std::unique_ptr<AOHandler> getAOHandler([[maybe_unused]] std::unique_lock<std::mutex>& lock, AOHandlerId id)
     {
         assert(lock.owns_lock());   // NOLINT
-
-        const auto iter = this->aoHandlers.find(id);
-        if (iter == this->aoHandlers.end()) {
-            return nullptr;
-        }
-
-        auto handler = std::move(iter->second);
-        this->aoHandlers.erase(iter);
-        return handler;
+        return this->aoHandlers.get(id);
     }
 
     void waitActiveHandler(std::unique_lock<std::mutex>& lock)
@@ -179,20 +140,14 @@ public:
         }
     }
 
-    void cancelAsyncOperations(std::unique_lock<std::mutex>& lock)
+    void cancelAOHandlers(std::unique_lock<std::mutex>& lock)
     {
         assert(lock.owns_lock());   // NOLINT
 
-        const auto cancelledAOHandlers = std::move(this->aoHandlers);
+        auto cancelledAOHandlers = std::move(this->aoHandlers);
 
         ReverseLock unlock(lock);
-
-        for (const auto& [_, handler] : cancelledAOHandlers) {
-            try {
-                handler->cancel();
-            } catch (...) {
-            }
-        }
+        cancelledAOHandlers.cancelAll();
     }
 
     [[nodiscard]] bool isThisThreadTheThreadExecutor([[maybe_unused]] std::unique_lock<std::mutex>& lock) const
@@ -212,7 +167,7 @@ public:
 
     AOContextState state = AOContextState::Open;
     AOHandlerId aoHandlerCounter = 0;
-    std::map<AOHandlerId, std::unique_ptr<AOHandler>> aoHandlers;
+    AOHandlerStorage aoHandlers;
 };
 
 }   // namespace detail

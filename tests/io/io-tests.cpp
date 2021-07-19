@@ -19,10 +19,6 @@
 using namespace nhope;
 using namespace std::literals;
 
-namespace {
-TcpEchoServer echoServer;
-}
-
 TEST(IoTest, ReadWrite)   // NOLINT
 {
     constexpr int count = 100;
@@ -157,6 +153,7 @@ TEST(IoTest, Asio)   //NOLINT
 
 TEST(IoTest, Tcp)   //NOLINT
 {
+    TcpEchoServer echoServer;
     nhope::ThreadExecutor e;
 
     constexpr auto dataSize{9064};

@@ -4,8 +4,9 @@
 #include <stdexcept>
 #include <thread>
 
-#include <nhope/async/strand-executor.h>
-#include <nhope/async/thread-pool-executor.h>
+#include "nhope/async/strand-executor.h"
+#include "nhope/async/thread-executor.h"
+#include "nhope/async/thread-pool-executor.h"
 
 #include <gtest/gtest.h>
 
@@ -21,7 +22,7 @@ TEST(StrandExecutor, SequentialExecution)   // NOLINT
     ThreadPoolExecutor executor(executorThreadCount);
 
     StrandExecutor strandExecutor(executor);
-    
+
     EXPECT_EQ(&strandExecutor.originExecutor(), &executor);
     EXPECT_EQ(&strandExecutor.ioCtx(), &executor.ioCtx());
 
@@ -125,5 +126,31 @@ TEST(StrandExecutor, Destroy)   // NOLINT
     }
 
     // Tasks should run even after the StrandExecutor is destroyed
+    EXPECT_TRUE(waitForValue(100 * 1ms * taskCount, finishedTaskCount, taskCount));
+}
+
+TEST(StrandExecutor, ReuseImpl)   // NOLINT
+{
+    constexpr auto executorThreadCount = 10;
+    ThreadPoolExecutor executor(executorThreadCount);
+
+    StrandExecutor strandExecutor(executor);
+    StrandExecutor strandExecutor2(static_cast<Executor&>(strandExecutor));
+    EXPECT_EQ(&strandExecutor.originExecutor(), &strandExecutor2.originExecutor());
+}
+
+TEST(StrandExecutor, UseSequenceExecutor)   // NOLINT
+{
+    constexpr auto taskCount = 10;
+    ThreadExecutor seqExecutor;
+    StrandExecutor strandExecutor(seqExecutor);
+
+    std::atomic<int> finishedTaskCount = 0;
+    for (int i = 0; i < taskCount; ++i) {
+        strandExecutor.post([&] {
+            ++finishedTaskCount;
+        });
+    }
+
     EXPECT_TRUE(waitForValue(100 * 1ms * taskCount, finishedTaskCount, taskCount));
 }

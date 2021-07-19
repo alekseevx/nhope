@@ -1,16 +1,15 @@
 #include <chrono>
-#include <condition_variable>
-#include <gtest/gtest.h>
-
-#include <mutex>
-#include <nhope/async/ts-queue.h>
-#include <nhope/async/thread-executor.h>
 #include <thread>
+
+#include "nhope/async/ts-queue.h"
+#include "nhope/async/thread-executor.h"
+#include "nhope/async/event.h"
+#include <gtest/gtest.h>
 
 using namespace std::chrono_literals;
 using namespace nhope;
 
-TEST(QueueTests, OneWriterManyReaders)   // NOLINT
+TEST(TSQueue, OneWriterManyReaders)   // NOLINT
 {
     constexpr int iterCount = 100;
     constexpr int writeValue = 42;
@@ -47,7 +46,7 @@ TEST(QueueTests, OneWriterManyReaders)   // NOLINT
     queue.close();
 }
 
-TEST(QueueTests, CloseQueue)   // NOLINT
+TEST(TSQueue, CloseQueue)   // NOLINT
 {
     constexpr int iterCount = 100;
     constexpr int closeIter = 42;
@@ -63,7 +62,7 @@ TEST(QueueTests, CloseQueue)   // NOLINT
     EXPECT_EQ(queue.size(), closeIter);
 }
 
-TEST(QueueTests, WriteWithTimeout)   // NOLINT
+TEST(TSQueue, WriteWithTimeout)   // NOLINT
 {
     constexpr int iterCount = 100;
     constexpr std::size_t capacity = 42;
@@ -81,7 +80,7 @@ TEST(QueueTests, WriteWithTimeout)   // NOLINT
     EXPECT_EQ(queue.size(), capacity);
 }
 
-TEST(QueueTests, WriteWithCapacity)   // NOLINT
+TEST(TSQueue, WriteWithCapacity)   // NOLINT
 {
     constexpr int iterCount = 100;
     constexpr std::size_t capacity = 42;
@@ -105,7 +104,7 @@ TEST(QueueTests, WriteWithCapacity)   // NOLINT
     EXPECT_TRUE(queue.empty());
 }
 
-TEST(QueueTests, ReadFor)   // NOLINT
+TEST(TSQueue, ReadFor)   // NOLINT
 {
     constexpr int iterCount = 100;
     constexpr int writeValue = 42;
@@ -120,37 +119,14 @@ TEST(QueueTests, ReadFor)   // NOLINT
             std::this_thread::sleep_for(2ms);
             queue.write(int(writeValue));
         });
-        bool readed = queue.read(readValue, 50ms);
+        bool read = queue.read(readValue, 50ms);
 
-        EXPECT_TRUE(readed);
+        EXPECT_TRUE(read);
         EXPECT_EQ(readValue, writeValue);
     }
 }
 
-// FIXME: Move to sync
-struct Event
-{
-    std::mutex mutex;
-    bool signaled = false;
-    std::condition_variable cv;
-};
-
-static void set(Event& event)
-{
-    std::unique_lock lock(event.mutex);
-    event.signaled = true;
-    event.cv.notify_one();
-}
-
-static void wait(Event& event)
-{
-    std::unique_lock lock(event.mutex);
-    event.cv.wait(lock, [&event] {
-        return event.signaled;
-    });
-}
-
-TEST(QueueTests, GenerateAndRead)   // NOLINT
+TEST(TSQueue, GenerateAndRead)   // NOLINT
 {
     constexpr int iterCount = 100;
     constexpr int writeValue = 42;
@@ -169,21 +145,21 @@ TEST(QueueTests, GenerateAndRead)   // NOLINT
         });
         if (i < (iterCount / 2)) {
             readThread.post([&] {
-                auto readed = queue.read();
-                EXPECT_EQ(readed.value(), writeValue);
+                auto read = queue.read();
+                EXPECT_EQ(read.value(), writeValue);
             });
         }
     }
 
     writeThread.post([&] {
-        set(writterFinishedEvent);
+        writterFinishedEvent.set();
     });
     readThread.post([&] {
-        set(readerFinishedEvent);
+        readerFinishedEvent.set();
     });
 
-    wait(writterFinishedEvent);
-    wait(readerFinishedEvent);
+    writterFinishedEvent.wait();
+    readerFinishedEvent.wait();
 
     EXPECT_EQ(queue.size(), iterCount / 2);
     int readVal{0};
