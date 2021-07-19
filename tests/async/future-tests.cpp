@@ -1,6 +1,4 @@
 #include <exception>
-#include <future>
-#include <stdexcept>
 #include <string>
 #include <thread>
 
@@ -25,19 +23,19 @@ TEST(Future, makeReadyFuture)   // NOLINT
     {
         Future<void> future = makeReadyFuture();
         EXPECT_TRUE(future.isReady());
-        EXPECT_TRUE(future.valid());
+        EXPECT_TRUE(future.isValid());
     }
 
     {
         Future<void> future = makeReadyFuture<void>();
         EXPECT_TRUE(future.isReady());
-        EXPECT_TRUE(future.valid());
+        EXPECT_TRUE(future.isValid());
     }
 
     {
         Future<std::string> future = makeReadyFuture<std::string>("123"s);   // rvalue
         EXPECT_TRUE(future.isReady());
-        EXPECT_TRUE(future.valid());
+        EXPECT_TRUE(future.isValid());
         EXPECT_EQ(future.get(), "123");
     }
 
@@ -45,14 +43,14 @@ TEST(Future, makeReadyFuture)   // NOLINT
         const std::string value = "123";
         Future<std::string> future = makeReadyFuture<std::string>(value);   // const ref
         EXPECT_TRUE(future.isReady());
-        EXPECT_TRUE(future.valid());
+        EXPECT_TRUE(future.isValid());
         EXPECT_EQ(future.get(), value);
     }
 
     {
         Future<std::string> future = makeReadyFuture<std::string>("123", 3);   // variadic
         EXPECT_TRUE(future.isReady());
-        EXPECT_TRUE(future.valid());
+        EXPECT_TRUE(future.isValid());
         EXPECT_EQ(future.get(), "123");
     }
 }
@@ -60,30 +58,53 @@ TEST(Future, makeReadyFuture)   // NOLINT
 TEST(Future, retrievedFlag)   // NOLINT
 {
     Promise<void> p;
-    EXPECT_NO_THROW(p.future());                   // NOLINT
-    EXPECT_THROW(p.future(), std::future_error);   // NOLINT
-    p.setValue();
-    EXPECT_THROW(p.setValue(), std::future_error);                                                // NOLINT
-    EXPECT_THROW(p.setException(std::make_exception_ptr(std::exception())), std::future_error);   // NOLINT
+    EXPECT_NO_THROW(p.future());                             // NOLINT
+    EXPECT_THROW(p.future(), FutureAlreadyRetrievedError);   // NOLINT
+
+    EXPECT_NO_THROW(p.setValue());   // NOLINT
+}
+
+TEST(Future, satisfiedFlag)   // NOLINT
+{
+    {
+        Promise<void> p;
+
+        EXPECT_NO_THROW(p.setValue());                              // NOLINT
+        EXPECT_THROW(p.setValue(), PromiseAlreadySatisfiedError);   // NOLINT
+
+        auto exPtr = std::make_exception_ptr(std::exception());
+        EXPECT_THROW(p.setException(exPtr), PromiseAlreadySatisfiedError);   // NOLINT
+    }
+
+    {
+        Promise<void> p;
+
+        auto exPtr = std::make_exception_ptr(std::exception());
+
+        EXPECT_NO_THROW(p.setException(exPtr));   // NOLINT
+
+        EXPECT_THROW(p.setValue(), PromiseAlreadySatisfiedError);            // NOLINT
+        EXPECT_THROW(p.setException(exPtr), PromiseAlreadySatisfiedError);   // NOLINT
+    }
 }
 
 TEST(Future, noState)   // NOLINT
 {
     {
         auto f = makeReadyFuture();
-        EXPECT_TRUE(f.valid());
+        EXPECT_TRUE(f.isValid());
         EXPECT_TRUE(f.isReady());
 
         Future<int> fInt;
-        EXPECT_FALSE(fInt.valid());
+        EXPECT_FALSE(fInt.isValid());
 
         EXPECT_NO_THROW(f.get());   // NOLINT
 
         // Now future has no state
 
-        EXPECT_FALSE(f.valid());
-        EXPECT_THROW(f.get(), std::future_error);                // NOLINT
-        EXPECT_THROW(auto b = f.isReady(), std::future_error);   // NOLINT
+        EXPECT_FALSE(f.isValid());
+        EXPECT_THROW(f.get(), FutureNoStateError);                // NOLINT
+        EXPECT_THROW(auto b = f.isReady(), FutureNoStateError);   // NOLINT
     }
 
     {
@@ -91,17 +112,18 @@ TEST(Future, noState)   // NOLINT
         auto aoCtx = AOContext(executor);
         auto f = makeReadyFuture();
 
-        EXPECT_TRUE(f.valid());
+        EXPECT_TRUE(f.isValid());
         EXPECT_TRUE(f.isReady());
 
         f.then(aoCtx, [] {});
 
         // Now future has no state
 
-        EXPECT_FALSE(f.valid());
-        EXPECT_THROW(f.get(), std::future_error);                // NOLINT
-        EXPECT_THROW(f.then(aoCtx, [] {}), std::future_error);   // NOLINT
-        EXPECT_THROW(auto b = f.isReady(), std::future_error);   // NOLINT
+        EXPECT_FALSE(f.isValid());
+        EXPECT_THROW(f.get(), FutureNoStateError);                      // NOLINT
+        EXPECT_THROW(f.then(aoCtx, [] {}), FutureNoStateError);         // NOLINT
+        EXPECT_THROW(f.fail(aoCtx, [](auto) {}), FutureNoStateError);   // NOLINT
+        EXPECT_THROW(auto b = f.isReady(), FutureNoStateError);         // NOLINT
     }
 }
 
@@ -168,7 +190,7 @@ TEST(Future, notCaughtException)   // NOLINT
                               throw std::runtime_error("TestTest");
                           })
                     .then(aoCtx, [](int /*unused*/) -> int {
-                        ADD_FAILURE() << "This thenValue must not been called";
+                        ADD_FAILURE() << "This then must not been called";
                         return 0;
                     });
 
@@ -238,7 +260,7 @@ TEST(Future, skipThenExceptionWithAOCtx)   // NOLINT
                           })
                     .fail(aoCtx,
                           [](const std::exception_ptr& /*ex*/) -> int {
-                              ADD_FAILURE() << "This thenValue must not been called";
+                              ADD_FAILURE() << "This then must not been called";
                               return invalidValue;
                           })
                     .then(aoCtx, [](int value) {
@@ -299,7 +321,7 @@ TEST(Future, brokenPromise)   // NOLINT
         never = expired.future();
     }
 
-    EXPECT_THROW(never.get(), std::future_error);   // NOLINT
+    EXPECT_THROW(never.get(), BrokenPromiseError);   // NOLINT
 }
 
 TEST(Future, brokenPromiseAndThen)   // NOLINT
@@ -316,8 +338,23 @@ TEST(Future, brokenPromiseAndThen)   // NOLINT
                             FAIL() << "never";
                         })
                   .fail(aoCtx, [](auto e) {
-                      EXPECT_THROW(std::rethrow_exception(e), std::future_error);   // NOLINT
+                      EXPECT_THROW(std::rethrow_exception(e), BrokenPromiseError);   // NOLINT
                   });
     }
     never.wait();
+}
+
+TEST(Future, makeFutureChainAfterWait)   // NOLINT
+{
+    auto executor = ThreadExecutor();
+    auto aoCtx = AOContext(executor);
+
+    Promise<void> p;
+    auto f = p.future();
+
+    EXPECT_FALSE(f.waitFor(0s));
+
+    EXPECT_THROW(f.then(aoCtx, [] {}), MakeFutureChainAfterWaitError);         // NOLINT
+    EXPECT_THROW(f.fail(aoCtx, [](auto) {}), MakeFutureChainAfterWaitError);   // NOLINT
+    EXPECT_THROW(f.unwrap(), MakeFutureChainAfterWaitError);                   // NOLINT
 }

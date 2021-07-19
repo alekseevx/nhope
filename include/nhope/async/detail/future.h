@@ -1,17 +1,17 @@
 #pragma once
 
-#include <algorithm>
+#include <atomic>
 #include <cassert>
-#include <condition_variable>
 #include <exception>
-#include <future>
 #include <memory>
-#include <mutex>
 #include <optional>
 #include <type_traits>
 #include <utility>
 
 #include "nhope/async/ao-context.h"
+#include "nhope/async/event.h"
+#include "nhope/utils/detail/ref-ptr.h"
+#include "nhope/utils/detail/compiler.h"
 
 namespace nhope {
 
@@ -63,81 +63,52 @@ template<typename T>
 class FutureState;
 
 template<typename T>
-class FutureStateLock final
-{
-public:
-    explicit FutureStateLock(FutureState<T>* futureState)
-      : m_lock(futureState->m_mutex)
-      , m_futureState(futureState)
-    {}
-
-    explicit FutureStateLock(FutureState<T>* futureState, std::unique_lock<std::mutex> lock)
-      : m_lock(std::move(lock))
-      , m_futureState(futureState)
-    {}
-
-    std::exception_ptr getException()
-    {
-        return m_futureState->getException(m_lock);
-    }
-
-    T getValue()
-    {
-        return m_futureState->getValue(m_lock);
-    }
-
-    void wait()
-    {
-        m_futureState->wait(m_lock);
-    }
-
-    void unlock()
-    {
-        m_lock.unlock();
-    }
-
-private:
-    std::unique_lock<std::mutex> m_lock;
-    FutureState<T>* m_futureState;
-};
-
-template<typename T>
 class FutureCallback
 {
 public:
     virtual ~FutureCallback() = default;
 
-    virtual void satisfied(FutureStateLock<T> state) = 0;
+    virtual void futureReady(FutureState<T>& state) = 0;
+};
+
+enum FutureFlag : int
+{
+    HasResult = 1 << 0,
+    HasCallback = 1 << 1,
 };
 
 template<typename T>
 class FutureState final
 {
-    friend class FutureStateLock<T>;
-
 public:
     using Type = T;
-    using Callback = std::function<void(FutureStateLock<T> state)>;
 
     template<typename... Args>
     void setValue(Args&&... args)
     {
-        std::unique_lock lock(m_mutex);
-
-        assert(m_value == std::nullopt && m_exception == nullptr);
-
         m_value.emplace(std::forward<Args>(args)...);
-        this->satisfied(std::move(lock));
+        this->setFlag(FutureFlag::HasResult);
+    }
+
+    FutureValue<T>& getValue()
+    {
+        return m_value.value();
     }
 
     void setException(std::exception_ptr exception)
     {
-        std::unique_lock lock(m_mutex);
+        m_exception.emplace(std::move(exception));
+        this->setFlag(FutureFlag::HasResult);
+    }
 
-        assert(m_value == std::nullopt && m_exception == nullptr);
+    [[nodiscard]] bool hasException() const
+    {
+        return m_exception.has_value();
+    }
 
-        m_exception = std::move(exception);
-        this->satisfied(std::move(lock));
+    std::exception_ptr& getException()
+    {
+        return m_exception.value();
     }
 
     template<typename Fn, typename... Args>
@@ -155,104 +126,60 @@ public:
         }
     }
 
-    bool isReady() const
+    [[nodiscard]] bool hasResult() const
     {
-        std::scoped_lock lock(m_mutex);
-        return m_value != std::nullopt || m_exception != nullptr;
-    }
-
-    void wait() const
-    {
-        std::unique_lock lock(m_mutex);
-        this->wait(lock);
-    }
-
-    bool waitFor(std::chrono::nanoseconds time) const
-    {
-        std::unique_lock lock(m_mutex);
-        return this->waitFor(lock, time);
+        const int flags = m_flags.load(std::memory_order_acquire);
+        return (flags & FutureFlag::HasResult) != 0;
     }
 
     void setCallback(std::unique_ptr<FutureCallback<T>> callback)
     {
-        assert(callback != nullptr);
-
-        std::unique_lock lock(m_mutex);
-
-        assert(m_waiter == std::nullopt);   // NOLINT
-
-        if (m_value == std::nullopt && m_exception == nullptr) {
-            m_callback = std::move(callback);
-        } else {
-            callback->satisfied(FutureStateLock<T>(this, std::move(lock)));
-        }
+        m_callback = std::move(callback);
+        this->setFlag(FutureFlag::HasCallback);
     }
 
-    template<typename Fn>
-    auto lock(Fn&& fn)
+    [[nodiscard]] bool hasCallback() const
     {
-        return fn(FutureStateLock<T>(this));
+        const int flags = m_flags.load(std::memory_order_acquire);
+        return (flags & FutureFlag::HasCallback) != 0;
     }
 
 private:
-    void wait(std::unique_lock<std::mutex>& lock) const
+    void setFlag(FutureFlag flag)
     {
-        assert(m_callback == nullptr);
+        assert((m_flags & flag) == 0);   //  The flag is not set yet.
 
-        if (m_waiter == std::nullopt) {
-            m_waiter.emplace();
+        int curFlags = m_flags.load(std::memory_order_acquire);
+        if (curFlags == 0) {
+            bool ok{};
+            if constexpr (isClang && isThreadSanitizer) {
+                //  Clang TSAN ignores the passed failure order and infers failure order from
+                //  success order in atomic compare-exchange operations, which is broken for
+                //  cases like success-release/failure-acquire (https://github.com/facebook/folly.git).
+                ok = m_flags.compare_exchange_strong(curFlags, flag, std::memory_order_acq_rel);
+            } else {
+                ok = m_flags.compare_exchange_strong(curFlags, flag, std::memory_order_release,   //
+                                                     std::memory_order_acquire);
+            }
+            if (ok) {
+                // So far, only one flag is set.
+                return;
+            }
         }
 
-        m_waiter->wait(lock, [this] {
-            return m_value != std::nullopt || m_exception != nullptr;
-        });
+        assert((curFlags | flag) == (FutureFlag::HasResult | FutureFlag::HasCallback));
+        m_flags.store(FutureFlag::HasResult | FutureFlag::HasCallback, std::memory_order_relaxed);
+
+        // Now both flags are set.
+        m_callback->futureReady(*this);
     }
 
-    bool waitFor(std::unique_lock<std::mutex>& lock, std::chrono::nanoseconds time) const
-    {
-        assert(m_callback == nullptr);
-
-        if (m_waiter == std::nullopt) {
-            m_waiter.emplace();
-        }
-
-        return m_waiter->wait_for(lock, time, [this] {
-            return m_value != std::nullopt || m_exception != nullptr;
-        });
-    }
-
-    T getValue([[maybe_unused]] std::unique_lock<std::mutex>& lock)
-    {
-        if constexpr (std::is_void_v<T>) {
-            return;
-        } else {
-            return std::move(*m_value);
-        }
-    }
-
-    std::exception_ptr getException([[maybe_unused]] std::unique_lock<std::mutex>& lock)
-    {
-        return std::move(m_exception);
-    }
-
-    void satisfied(std::unique_lock<std::mutex> lock)
-    {
-        if (m_callback != nullptr) {
-            assert(m_waiter == std::nullopt);   // NOLINT
-
-            m_callback->satisfied(FutureStateLock<T>(this, std::move(lock)));
-        } else if (m_waiter != std::nullopt) {
-            m_waiter->notify_one();
-        }
-    }
-
-    mutable std::mutex m_mutex;
+    std::atomic<int> m_flags = 0;
 
     std::optional<FutureValue<T>> m_value;
-    std::exception_ptr m_exception;
+    std::optional<std::exception_ptr> m_exception;
 
     std::unique_ptr<FutureCallback<T>> m_callback;
-    mutable std::optional<std::condition_variable> m_waiter;
 };
 
 template<typename T>
@@ -263,7 +190,7 @@ public:
       : m_callAOHandler(aoCtx.putAOHandler(std::move(aoHandler)))
     {}
 
-    void satisfied(FutureStateLock<T> /*unused*/) override
+    void futureReady(FutureState<T>& /*unused*/) override
     {
         m_callAOHandler();
     }
@@ -272,19 +199,35 @@ private:
     AOHandlerCall m_callAOHandler;
 };
 
+template<typename T>
+class SetEventFutureCallback final : public FutureCallback<T>
+{
+public:
+    explicit SetEventFutureCallback(RefPtr<Event> event)
+      : m_event(std::move(event))
+    {}
+
+    void futureReady(FutureState<T>& /*unused*/) override
+    {
+        m_event->set();
+    }
+
+private:
+    RefPtr<Event> m_event;
+};
+
 template<typename T, typename UnwrappedT>
 class UnwrapperFutureCallback final : public FutureCallback<T>
 {
 public:
-    UnwrapperFutureCallback(std::shared_ptr<detail::FutureState<UnwrappedT>> unwrapState)
+    UnwrapperFutureCallback(RefPtr<detail::FutureState<UnwrappedT>> unwrapState)
       : m_unwrapState(std::move(unwrapState))
     {}
 
-    void satisfied(FutureStateLock<T> state) override
+    void futureReady(FutureState<T>& state) override
     {
-        if (auto exPtr = state.getException()) {
-            state.unlock();
-
+        if (state.hasException()) {
+            auto& exPtr = state.getException();
             m_unwrapState->setException(std::move(exPtr));
             return;
         }
@@ -294,24 +237,18 @@ public:
             using NextFutureCallaback = UnwrapperFutureCallback<NextT, UnwrappedT>;
 
             auto nextState = state.getValue().detachState();
-            state.unlock();
-
             auto nextCallback = std::make_unique<NextFutureCallaback>(std::move(m_unwrapState));
             nextState->setCallback(std::move(nextCallback));
         } else if constexpr (!std::is_void_v<UnwrappedT>) {
-            auto value = state.getValue();
-            state.unlock();
-
+            auto& value = state.getValue();
             m_unwrapState->setValue(std::move(value));
         } else {
-            state.unlock();
-
             m_unwrapState->setValue();
         }
     }
 
 private:
-    std::shared_ptr<detail::FutureState<UnwrappedT>> m_unwrapState;
+    RefPtr<detail::FutureState<UnwrappedT>> m_unwrapState;
 };
 
 template<typename T, typename Fn>
@@ -321,8 +258,7 @@ public:
     using NextFutureState = typename NextFutureState<T, Fn>::Type;
 
     template<typename F>
-    FutureThenAOHandler(F&& f, std::shared_ptr<FutureState<T>> futureState,
-                        std::shared_ptr<NextFutureState> nextFutureState)
+    FutureThenAOHandler(F&& f, RefPtr<FutureState<T>> futureState, RefPtr<NextFutureState> nextFutureState)
       : m_futureState(std::move(futureState))
       , m_nextFutureState(std::move(nextFutureState))
       , m_fn(std::forward<F>(f))
@@ -330,24 +266,20 @@ public:
 
     void call() override
     {
-        m_futureState->lock([this](FutureStateLock<T> state) {
-            if (auto exPtr = state.getException()) {
-                state.unlock();
-                m_nextFutureState->setException(std::move(exPtr));
-                return;
-            }
+        assert(m_futureState->hasResult());
 
-            if constexpr (std::is_void_v<T>) {
-                state.unlock();
+        if (m_futureState->hasException()) {
+            auto& exPtr = m_futureState->getException();
+            m_nextFutureState->setException(std::move(exPtr));
+            return;
+        }
 
-                m_nextFutureState->calcResult(std::move(m_fn));
-            } else {
-                auto value = state.getValue();
-                state.unlock();
-
-                m_nextFutureState->calcResult(m_fn, std::move(value));
-            }
-        });
+        if constexpr (std::is_void_v<T>) {
+            m_nextFutureState->calcResult(std::move(m_fn));
+        } else {
+            auto& value = m_futureState->getValue();
+            m_nextFutureState->calcResult(m_fn, std::move(value));
+        }
     }
 
     void cancel() override
@@ -357,8 +289,8 @@ public:
     }
 
 private:
-    std::shared_ptr<FutureState<T>> m_futureState;
-    std::shared_ptr<NextFutureState> m_nextFutureState;
+    RefPtr<FutureState<T>> m_futureState;
+    RefPtr<NextFutureState> m_nextFutureState;
     Fn m_fn;
 };
 
@@ -367,8 +299,7 @@ class FutureFailAOHandler final : public AOHandler
 {
 public:
     template<typename F>
-    FutureFailAOHandler(F&& f, std::shared_ptr<FutureState<T>> futureState,
-                        std::shared_ptr<FutureState<T>> nextFutureState)
+    FutureFailAOHandler(F&& f, RefPtr<FutureState<T>> futureState, RefPtr<FutureState<T>> nextFutureState)
       : m_futureState(std::move(futureState))
       , m_nextFutureState(std::move(nextFutureState))
       , m_fn(std::forward<F>(f))
@@ -376,22 +307,20 @@ public:
 
     void call() override
     {
-        m_futureState->lock([this](FutureStateLock<T> state) {
-            if (auto exPtr = state.getException()) {
-                state.unlock();
-                m_nextFutureState->calcResult(std::move(m_fn), std::move(exPtr));
-                return;
-            }
+        assert(m_futureState->hasResult());
 
-            if constexpr (std::is_void_v<T>) {
-                state.unlock();
-                m_nextFutureState->setValue();
-            } else {
-                T value = state.getValue();
-                state.unlock();
-                m_nextFutureState->setValue(std::move(value));
-            }
-        });
+        if (m_futureState->hasException()) {
+            auto& exPtr = m_futureState->getException();
+            m_nextFutureState->calcResult(std::move(m_fn), std::move(exPtr));
+            return;
+        }
+
+        if constexpr (std::is_void_v<T>) {
+            m_nextFutureState->setValue();
+        } else {
+            auto& value = m_futureState->getValue();
+            m_nextFutureState->setValue(std::move(value));
+        }
     }
 
     void cancel() override
@@ -401,8 +330,8 @@ public:
     }
 
 private:
-    std::shared_ptr<FutureState<T>> m_futureState;
-    std::shared_ptr<FutureState<T>> m_nextFutureState;
+    RefPtr<FutureState<T>> m_futureState;
+    RefPtr<FutureState<T>> m_nextFutureState;
     Fn m_fn;
 };
 

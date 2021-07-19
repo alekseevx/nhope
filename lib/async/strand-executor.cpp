@@ -8,15 +8,26 @@
 
 namespace nhope {
 
+bool isSequenceExecutor(Executor& executor)
+{
+    return dynamic_cast<SequenceExecutor*>(&executor) != nullptr;
+}
+
 class StrandExecutor::Impl final : public std::enable_shared_from_this<Impl>
 {
 public:
     explicit Impl(Executor& executor)
       : originExecutor(executor)
+      , isOriginSeqExecutor(isSequenceExecutor(executor))
     {}
 
     void post(Work& work)
     {
+        if (isOriginSeqExecutor) {
+            originExecutor.post(std::move(work));
+            return;
+        }
+
         std::scoped_lock lock(mutex);
 
         if (hasActiveWork) {
@@ -56,6 +67,7 @@ public:
     }
 
     Executor& originExecutor;
+    const bool isOriginSeqExecutor;
 
     std::mutex mutex;
     std::list<Work> waitingQueue;
@@ -64,8 +76,13 @@ public:
 };
 
 StrandExecutor::StrandExecutor(Executor& executor)
-  : m_d(std::make_shared<Impl>(executor))
-{}
+{
+    if (auto* strandExecutor = dynamic_cast<StrandExecutor*>(&executor)) {
+        m_d = strandExecutor->m_d;
+    } else {
+        m_d = std::make_shared<Impl>(executor);
+    }
+}
 
 StrandExecutor::~StrandExecutor() = default;
 
