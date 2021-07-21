@@ -98,7 +98,7 @@ private:
 void doNextIteration(benchmark::State& state, std::uint64_t& receivedBytes)
 {
     state.PauseTiming();
-    asio::io_context ioCtx;
+    asio::io_context ioCtx(1);
     auto workGuard = asio::make_work_guard(ioCtx);
     nhope::IOContextSequenceExecutor executor(ioCtx);
     nhope::AOContext aoCtx(executor);

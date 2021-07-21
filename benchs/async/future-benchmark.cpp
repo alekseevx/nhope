@@ -33,7 +33,7 @@ void callFutureThen(nhope::AOContext& aoCtx, std::uint64_t num)
 void doFutureThenIteration(benchmark::State& state, std::uint64_t num)
 {
     state.PauseTiming();
-    asio::io_context ioCtx;
+    asio::io_context ioCtx(1);
     auto workGuard = asio::make_work_guard(ioCtx);
     nhope::IOContextSequenceExecutor executor(ioCtx);
     nhope::AOContext aoCtx(executor);
