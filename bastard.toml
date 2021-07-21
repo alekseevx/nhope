@@ -14,7 +14,7 @@ path = "benchs"
 
 [dependencies]
 asio = {git = "git@gitlab.olimp.lan:github/standalone-asio.git", tag = "asio-1-18-2", interface = "asio/include"}
-fmt = {git = "git@gitlab.olimp.lan:github/fmtlib.git", tag = "8.0.1"}
+fmt = {git = "git@gitlab.olimp.lan:github/fmtlib.git", tag = "7.1.3"}
 gsl = {git = "git@gitlab.olimp.lan:github/gsl.git", tag = "v3.1.0", interface = "include"}
 
 [dev-dependencies]
