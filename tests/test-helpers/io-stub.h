@@ -25,13 +25,15 @@
 
 namespace nhope {
 
+using namespace std::literals;
+
 static inline constexpr auto badSize{42};
 
 class AsioStub
 {
 public:
     explicit AsioStub(asio::io_context& ctx)
-      : ioEx(ctx)
+      : m_ioCtx(ctx)
     {}
 
     void open(asio::error_code& /*unused*/)
@@ -39,13 +41,14 @@ public:
         m_isOpen = true;
     }
 
+    // NOLINTNEXTLINE(readability-identifier-naming)
     [[nodiscard]] bool is_open() const
     {
         return m_isOpen;
     }
 
     template<typename Buff, typename Handler>
-    void async_read_some(const Buff& buffers, Handler&& handler)
+    void async_read_some(const Buff& buffers, Handler&& handler)   // NOLINT(readability-identifier-naming)
     {
         // asio::post(ioEx, [&] {
         asio::error_code ec;
@@ -57,17 +60,13 @@ public:
     }
 
     template<typename Buff, typename Handler>
-    void async_write_some(const Buff& buffers, Handler&& handler)
+    void async_write_some(const Buff& buffers, Handler&& handler)   // NOLINT(readability-identifier-naming)
     {
         asio::error_code ec;
         if (buffers.size() == badSize) {
             ec.assign(1, asio::system_category());
         }
         handler(ec, buffers.size());
-
-        // asio::post(ioEx, [&] {
-
-        // });
     }
 
     void close()
@@ -76,8 +75,8 @@ public:
     }
 
 private:
-    asio::io_context& ioEx;
-    bool m_isOpen{};
+    asio::io_context& m_ioCtx;
+    bool m_isOpen = false;
 };
 using AsioStubDev = detail::AsioDevice<AsioStub>;
 
@@ -105,7 +104,7 @@ public:
     Future<std::vector<std::uint8_t>> read(size_t bytesCount) override
     {
         return asyncInvoke(m_ctx, [this, bytesCount] {
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            std::this_thread::sleep_for(100ms);
 
             if (bytesCount == badSize || m_closed) {
                 throw IoError("bad");
@@ -117,9 +116,9 @@ public:
 
     Future<size_t> write(gsl::span<const std::uint8_t> data) override
     {
-        return asyncInvoke(m_ctx, [this, data] {
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
-            if (data.size() == badSize || m_closed) {
+        return asyncInvoke(m_ctx, [this, dataSize = data.size()] {
+            std::this_thread::sleep_for(100ms);
+            if (dataSize == badSize || m_closed) {
                 throw IoError("bad");
             }
             return size_t(3);
@@ -137,9 +136,8 @@ private:
     nhope::AOContext m_ctx;
 };
 
-static inline const TcpClientParam echoSettings{55577, "127.0.0.1"};
-static inline const TcpServerParam echoServerSettings{55577, "127.0.0.1"};
-
+static inline const TcpClientParam echoSettings{55577, "127.0.0.1"};         // NOLINT(cert-err58-cpp)
+static inline const TcpServerParam echoServerSettings{55577, "127.0.0.1"};   // NOLINT(cert-err58-cpp)
 
 class TcpEchoServer final
 {
