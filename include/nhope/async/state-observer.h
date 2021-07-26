@@ -138,7 +138,7 @@ public:
     using StateSetter = std::function<Future<void>(const T&)>;
     using StateGetter = std::function<Future<T>()>;
 
-    static constexpr auto defaultPollTime = 100ms;
+    static constexpr auto defaultPollTime = 200ms;
 
     explicit StateObserver(StateSetter setter, StateGetter getter, Executor& executor,
                            std::chrono::nanoseconds pollTime = defaultPollTime)
