@@ -15,8 +15,8 @@ class AsyncInvokeAOHandler final : public AOHandler
 {
 public:
     AsyncInvokeAOHandler(Promise<Result> promise, Invoke invoke)
-      : m_invoke(std::move(invoke))
-      , m_promise(std::move(promise))
+      : m_promise(std::move(promise))
+      , m_invoke(std::move(invoke))
     {}
 
     void call() override

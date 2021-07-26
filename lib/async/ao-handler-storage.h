@@ -51,7 +51,7 @@ public:
         auto handler = std::move(iter->handler);
         m_storage.erase(iter);
 
-        return std::move(handler);
+        return handler;
     }
 
     void cancelAll()
