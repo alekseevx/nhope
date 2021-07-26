@@ -4,10 +4,12 @@
 #include <exception>
 #include <iostream>
 #include <memory>
+#include <system_error>
 #include <thread>
 #include <vector>
 
 #include <asio/buffer.hpp>
+#include <asio/connect.hpp>
 #include <asio/error_code.hpp>
 #include <asio/io_context.hpp>
 #include <asio/ip/address_v4.hpp>
@@ -34,12 +36,13 @@ constexpr std::uint64_t sizeOfTransmittedDataPerIteration = 1UL << 30;
 void startSend()
 {
     std::thread([] {
-        using namespace asio::ip;
+        using asio::ip::tcp;
+        using asio::ip::address_v4;
 
         try {
             asio::io_context ctx;
             tcp::socket sock(ctx);
-            tcp::endpoint endpoint(address_v4::from_string("127.0.0.1"), port);
+            tcp::endpoint endpoint(address_v4::loopback(), port);
             sock.connect(endpoint);
 
             std::vector<char> buf(sendBufSize);
@@ -109,8 +112,8 @@ void doNextIteration(benchmark::State& state, std::uint64_t& receivedBytes)
     srv->accept()
       .then(aoCtx,
             [&](auto client) {
-                state.ResumeTiming();
                 auto session = std::make_shared<Session>(executor, std::move(client));
+                state.ResumeTiming();
 
                 return session->start();
             })
@@ -136,3 +139,96 @@ void tcpReader(benchmark::State& state)
 BENCHMARK(tcpReader)   // NOLINT
   ->Iterations(iterCount)
   ->Unit(benchmark::TimeUnit::kMillisecond);
+
+// Benchmark for comparison with ASIO
+#if 1
+namespace {
+class AsioSession final : public std::enable_shared_from_this<AsioSession>
+{
+public:
+    AsioSession(asio::io_context& ioCtx, asio::ip::tcp::socket client)
+      : m_ioCtx(ioCtx)
+      , m_client(std::move(client))
+      , m_receiveBuf(receiveBufSize)
+    {}
+
+    void start()
+    {
+        this->startRead();
+        m_selfAnchor = shared_from_this();
+    }
+
+    void startRead()
+    {
+        auto asioBuf = asio::buffer(m_receiveBuf);
+        m_client.async_read_some(asioBuf, [this](const std::error_code& err, std::size_t n) {
+            if (err) {
+                throw std::system_error(err);
+            }
+
+            this->m_receivedBytes += n;
+            if (this->m_receivedBytes >= sizeOfTransmittedDataPerIteration) {
+                m_ioCtx.stop();
+                m_selfAnchor.reset();
+                return;
+            }
+
+            this->startRead();
+        });
+    }
+
+    std::uint64_t receivedBytes() const
+    {
+        return m_receivedBytes;
+    }
+
+private:
+    std::shared_ptr<AsioSession> m_selfAnchor;
+
+    asio::io_context& m_ioCtx;
+
+    asio::ip::tcp::socket m_client;
+    std::vector<std::uint8_t> m_receiveBuf;
+    std::uint64_t m_receivedBytes = 0;
+};
+
+void doNextAsioIteration(benchmark::State& state, std::uint64_t& receivedBytes)
+{
+    using asio::ip::tcp;
+    using asio::ip::address_v4;
+
+    state.PauseTiming();
+    asio::io_context ioCtx(1);
+    auto workGuard = asio::make_work_guard(ioCtx);
+
+    tcp::acceptor acceptor(ioCtx, tcp::endpoint(address_v4::loopback(), port));
+
+    startSend();
+
+    auto sock = acceptor.accept();
+    sock.set_option(tcp::no_delay());
+    state.ResumeTiming();
+
+    auto session = std::make_shared<AsioSession>(ioCtx, std::move(sock));
+    session->startRead();
+
+    ioCtx.run();
+
+    receivedBytes += session->receivedBytes();
+}
+
+void tcpAsioReader(benchmark::State& state)
+{
+    std::uint64_t receivedBytes = 0;
+    for (auto _ : state) {
+        doNextAsioIteration(state, receivedBytes);
+    }
+    state.SetBytesProcessed(static_cast<std::int64_t>(receivedBytes));
+}
+
+}   // namespace
+
+BENCHMARK(tcpAsioReader)   // NOLINT
+  ->Iterations(iterCount)
+  ->Unit(benchmark::TimeUnit::kMillisecond);
+#endif   // Benchmark for comparison with ASIO
