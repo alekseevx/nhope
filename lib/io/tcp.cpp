@@ -49,7 +49,7 @@ private:
         auto dev = std::make_unique<TcpDevice>(m_executor);
         auto& impl = dev->impl();
         m_acceptor.async_accept(impl,
-                                [this, d = std::move(dev), promise = std::move(promise)](const auto& err) mutable {
+                                [d = std::move(dev), promise = std::move(promise)](const auto& err) mutable {
                                     if (!err) {
                                         promise.setValue(std::move(d));
                                         return;

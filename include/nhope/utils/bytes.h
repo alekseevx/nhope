@@ -83,13 +83,15 @@ inline constexpr void fromBytes(std::uint16_t& var, gsl::span<const std::uint8_t
 {
     switch (byteOrder) {
     case Endian::Little:
-        var = static_cast<std::uint16_t>(bytes[0])             //
-              | (static_cast<std::uint16_t>(bytes[1]) << 8);   // NOLINT(readability-magic-numbers)
+        var = static_cast<std::uint16_t>(
+          (static_cast<std::uint16_t>(bytes[0]) << 0) |
+          (static_cast<std::uint16_t>(bytes[1]) << 8));   // NOLINT(readability-magic-numbers)
         break;
 
     case Endian::Big:
-        var = (static_cast<std::uint16_t>(bytes[0]) << 8)   // NOLINT(readability-magic-numbers)
-              | static_cast<std::uint16_t>(bytes[1]);       //
+        var = static_cast<std::uint16_t>(
+          (static_cast<std::uint16_t>(bytes[0]) << 8) |   // NOLINT(readability-magic-numbers)
+          static_cast<std::uint16_t>(bytes[1]));
         break;
     }
 }
@@ -98,17 +100,19 @@ inline constexpr void fromBytes(std::uint32_t& var, gsl::span<const std::uint8_t
 {
     switch (byteOrder) {
     case Endian::Little:
-        var = (static_cast<std::uint32_t>(bytes[0]) << 0)       //
-              | (static_cast<std::uint32_t>(bytes[1]) << 8)     // NOLINT(readability-magic-numbers)
-              | (static_cast<std::uint32_t>(bytes[2]) << 16)    // NOLINT(readability-magic-numbers)
-              | (static_cast<std::uint32_t>(bytes[3]) << 24);   // NOLINT(readability-magic-numbers)
+        var = static_cast<std::uint32_t>(
+          (static_cast<std::uint32_t>(bytes[0]) << 0) |
+          (static_cast<std::uint32_t>(bytes[1]) << 8) |    // NOLINT(readability-magic-numbers)
+          (static_cast<std::uint32_t>(bytes[2]) << 16) |   // NOLINT(readability-magic-numbers)
+          (static_cast<std::uint32_t>(bytes[3]) << 24));   // NOLINT(readability-magic-numbers)
         break;
 
     case Endian::Big:
-        var = (static_cast<std::uint32_t>(bytes[0]) << 24)     // NOLINT(readability-magic-numbers)
-              | (static_cast<std::uint32_t>(bytes[1]) << 16)   // NOLINT(readability-magic-numbers)
-              | (static_cast<std::uint32_t>(bytes[2]) << 8)    // NOLINT(readability-magic-numbers)
-              | (static_cast<std::uint32_t>(bytes[3]) << 0);   //
+        var = static_cast<std::uint32_t>(
+          (static_cast<std::uint32_t>(bytes[0]) << 24) |   // NOLINT(readability-magic-numbers)
+          (static_cast<std::uint32_t>(bytes[1]) << 16) |   // NOLINT(readability-magic-numbers)
+          (static_cast<std::uint32_t>(bytes[2]) << 8) |    // NOLINT(readability-magic-numbers)
+          (static_cast<std::uint32_t>(bytes[3]) << 0));
         break;
     }
 }
