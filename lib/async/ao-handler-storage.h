@@ -1,10 +1,9 @@
 #pragma once
 
 #include <algorithm>
-#include <list>
+#include <vector>
 #include <memory>
 #include <utility>
-#include <limits>
 
 #include "nhope/async/ao-context.h"
 
@@ -36,29 +35,30 @@ public:
 
     void put(AOHandlerId id, std::unique_ptr<AOHandler> handler)
     {
-        m_storage.emplace_back(AOHandlerRec{id, std::move((handler))});
+        auto& rec = this->findFreeRec();
+        rec.id = id;
+        rec.handler = std::move(handler);
     }
 
     std::unique_ptr<AOHandler> get(AOHandlerId id)
     {
-        const auto iter = std::find_if(m_storage.begin(), m_storage.end(), [id](auto& r) {
+        const auto it = std::find_if(m_storage.begin(), m_storage.end(), [id](const auto& r) {
             return r.id == id;
         });
-        if (iter == m_storage.end()) {
+        if (it == m_storage.end()) {
             return nullptr;
         }
 
-        auto handler = std::move(iter->handler);
-        m_storage.erase(iter);
-
-        return handler;
+        return freeRec(*it);
     }
 
     void cancelAll()
     {
         for (auto& r : m_storage) {
             try {
-                r.handler->cancel();
+                if (r.handler != nullptr) {
+                    r.handler->cancel();
+                }
             } catch (...) {
             }
         }
@@ -67,7 +67,25 @@ public:
     }
 
 private:
-    std::list<AOHandlerRec> m_storage;
+    AOHandlerRec& findFreeRec()
+    {
+        const auto it = std::find_if(m_storage.begin(), m_storage.end(), [](const auto& r) {
+            return r.id == invalidId;
+        });
+        if (it == m_storage.end()) {
+            return m_storage.emplace_back();
+        }
+
+        return *it;
+    }
+
+    static std::unique_ptr<AOHandler> freeRec(AOHandlerRec& rec)
+    {
+        rec.id = invalidId;
+        return std::move(rec.handler);
+    }
+
+    std::vector<AOHandlerRec> m_storage;
 };
 
 }   // namespace nhope::detail
