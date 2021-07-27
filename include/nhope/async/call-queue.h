@@ -7,9 +7,8 @@
 #include <utility>
 
 #include "nhope/async/ao-context.h"
-#include "nhope/async/detail/future.h"
-#include "nhope/async/future.h"
 #include "nhope/async/async-invoke.h"
+#include "nhope/async/future.h"
 
 namespace nhope {
 
@@ -17,56 +16,40 @@ class CallQueue final
 {
 public:
     explicit CallQueue(AOContext& ctx)
-      : m_nextWork(makeReadyFuture())
+      : m_callChain(makeReadyFuture())
       , m_ctx(ctx.executor())   // TODO Сделать дочерний ао контекст
     {}
 
     template<typename Fn, typename... Args>
     auto push(Fn&& fn, Args&&... args)
     {
+        using Result = typename UnwrapFuture<std::invoke_result_t<Fn, Args...>>::Type;
+
         auto binded = std::bind(std::forward<Fn>(fn), std::forward<Args>(args)...);
+        return asyncInvoke(m_ctx, [this, fn = std::move(binded)]() mutable {
+            auto resultPromise = std::make_shared<Promise<Result>>();
 
-        using Rt = typename std::invoke_result_t<decltype(binded)>;
-        using ResultType = typename UnwrapFuture<Rt>::Type;
+            auto callFuture = m_callChain.then(m_ctx, std::move(fn));
+            if constexpr (std::is_void_v<Result>) {
+                m_callChain = callFuture.then(m_ctx, [resultPromise] {
+                    resultPromise->setValue();
+                });
+            } else {
+                m_callChain = callFuture.then(m_ctx, [resultPromise](auto value) {
+                    resultPromise->setValue(std::move(value));
+                });
+            }
 
-        auto promise = std::make_shared<Promise<ResultType>>();
-        auto result = promise->future();
-
-        asyncInvoke(m_ctx, [this, promise, fn = std::move(binded)]() mutable {
-            auto complete = m_nextWork.then(m_ctx, [this, fn = std::move(fn)]() mutable {
-                return fn();
+            m_callChain = m_callChain.fail(m_ctx, [resultPromise](auto ex) {
+                resultPromise->setException(std::move(ex));
             });
 
-            resolve(std::move(complete), std::move(promise));
+            return resultPromise->future();
         });
-
-        return result;
     }
 
 private:
-    template<typename T>
-    void resolve(Future<T> f, std::shared_ptr<Promise<T>> p)
-    {
-        if constexpr (std::is_void_v<T>) {
-            m_nextWork = f.then(m_ctx,
-                                [p] {
-                                    p->setValue();
-                                })
-                           .fail(m_ctx, [p](auto ex) {
-                               p->setException(ex);
-                           });
-        } else {
-            m_nextWork = f.then(m_ctx,
-                                [p](T v) {
-                                    p->setValue(std::move(v));
-                                })
-                           .fail(m_ctx, [p](auto ex) {
-                               p->setException(ex);
-                           });
-        }
-    }
-
-    Future<void> m_nextWork;
+    Future<void> m_callChain;
     AOContext m_ctx;
 };
 

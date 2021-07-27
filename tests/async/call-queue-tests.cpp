@@ -17,18 +17,13 @@ using namespace std::chrono_literals;
 Future<int> doWork(int value)
 {
     static std::atomic_int counter{};
-    Promise<int> pr;
-    auto r = pr.future();
-
-    std::thread([value, pr = std::move(pr)]() mutable {
+    return toThread<int>([value] {
         EXPECT_EQ(counter, 0);
         ++counter;
-        std::this_thread::sleep_for(100ms);
+        std::this_thread::sleep_for(10ms);
         --counter;
-        pr.setValue(value + 4);
-    }).detach();
-
-    return r;
+        return value + 4;
+    });
 }
 
 }   // namespace
