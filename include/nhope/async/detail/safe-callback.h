@@ -26,7 +26,7 @@ private:
 };
 
 template<typename Callback>
-std::unique_ptr<AOHandler> makeSafeCallbackAsyncOperationHandler(Callback callback)
+std::unique_ptr<AOHandler> makeSafeCallbackAOHandler(Callback callback)
 {
     return std::make_unique<SafeCallbackAOHandler<Callback>>(std::move(callback));
 }

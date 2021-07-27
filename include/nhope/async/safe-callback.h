@@ -24,7 +24,7 @@ template<typename... Args>
 std::function<void(Args...)> makeSafeCallback(AOContext& aoCtx, std::function<void(Args...)> callback)
 {
     return [aoCtx = AOContextWeekRef(aoCtx), callback = std::move(callback)](Args... args) mutable {
-        auto aoHandler = detail::makeSafeCallbackAsyncOperationHandler([callback, args...] {
+        auto aoHandler = detail::makeSafeCallbackAOHandler([callback, args...] {
             callback(args...);
         });
 

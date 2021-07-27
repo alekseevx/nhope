@@ -125,7 +125,6 @@ TEST(RefPtr, MoveConstructor)   // NOLINT
         TestClass* rawPtr = ptr.get();
 
         auto ptr2 = std::move(ptr);
-        EXPECT_EQ(ptr.get(), nullptr);
         EXPECT_EQ(ptr2.get(), rawPtr);
         EXPECT_EQ(ptr2.refCount(), 1);
         EXPECT_EQ(ptr2->data(), etaloneData);
@@ -144,14 +143,12 @@ TEST(RefPtr, MoveOperator)   // NOLINT
     TestClass* rawPtr = ptr.get();
 
     auto ptr2 = std::move(ptr);
-    EXPECT_EQ(ptr.get(), nullptr);
     EXPECT_EQ(ptr2.get(), rawPtr);
     EXPECT_EQ(ptr2.refCount(), 1);
     EXPECT_EQ(ptr2->data(), etaloneData);
 
     RefPtr<TestClass> ptr3;
     ptr3 = std::move(ptr2);
-    EXPECT_EQ(ptr.get(), nullptr);
     EXPECT_EQ(ptr3.get(), rawPtr);
     EXPECT_EQ(ptr3.refCount(), 1);
     EXPECT_EQ(ptr3->data(), etaloneData);

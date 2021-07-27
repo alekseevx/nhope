@@ -80,9 +80,7 @@ public:
             other.m_ptr->addRef();
         }
 
-        if (m_ptr != nullptr) {
-            m_ptr->release();
-        }
+        this->release();
         m_ptr = other.m_ptr;
 
         return *this;
@@ -90,9 +88,7 @@ public:
 
     RefPtr& operator=(RefPtr&& other) noexcept
     {
-        if (m_ptr != nullptr) {
-            m_ptr->release();
-        }
+        this->release();
 
         m_ptr = other.m_ptr;
         other.m_ptr = nullptr;
@@ -101,9 +97,7 @@ public:
 
     ~RefPtr() noexcept
     {
-        if (m_ptr != nullptr) {
-            m_ptr->release();
-        }
+        this->release();
     }
 
     T& operator*() const noexcept
@@ -142,6 +136,14 @@ public:
             return 0;
         }
         return m_ptr->refCount();
+    }
+
+    void release()
+    {
+        if (m_ptr != nullptr) {
+            m_ptr->release();
+            m_ptr = nullptr;
+        }
     }
 
 private:
