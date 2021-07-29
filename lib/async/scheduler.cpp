@@ -187,6 +187,7 @@ public:
         if (m_activeTask != nullptr && m_activeTask->id == id) {
             m_activeTask->pause();
             m_delayedTasks.emplace_back(std::move(m_activeTask));
+            m_activeTask = nullptr;
 
             resumeNextTask();
 
@@ -299,6 +300,7 @@ private:
             if (m_activeTask->wasPaused()) {
                 m_activeTask->pause();
                 m_delayedTasks.emplace_back(std::move(m_activeTask));
+                m_activeTask = nullptr;
                 resumeNextTask();
             } else {
                 m_activeTask->resume();
