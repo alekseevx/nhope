@@ -31,16 +31,16 @@ class IoDevice : public Noncopyable
 {
 public:
     virtual ~IoDevice() = default;
-    virtual Future<std::vector<std::uint8_t>> read(size_t bytesCount) = 0;
+    virtual Future<std::vector<std::uint8_t>> read(std::size_t bytesCount) = 0;
     virtual Future<size_t> write(gsl::span<const std::uint8_t> data) = 0;
     [[nodiscard]] virtual Executor& executor() const = 0;
 };
 using IoDevicePtr = std::unique_ptr<IoDevice>;
 
-Future<std::vector<std::uint8_t>> read(IoDevice& device, size_t bytesCount);
+Future<std::vector<std::uint8_t>> read(IoDevice& device, std::size_t bytesCount);
 Future<size_t> write(IoDevice& device, gsl::span<const std::uint8_t> data);
 
-Future<std::vector<std::uint8_t>> readExactly(IoDevice& device, size_t bytesCount);
+Future<std::vector<std::uint8_t>> readExactly(IoDevice& device, std::size_t bytesCount);
 Future<size_t> writeExactly(IoDevice& device, gsl::span<const std::uint8_t> data);
 
 Future<std::string> readLine(IoDevice& device);

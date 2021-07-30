@@ -6,7 +6,7 @@
 #include <memory>
 
 #include "consumer.h"
-#include "nhope/async/reverse_lock.h"
+#include "nhope/async/reverse-lock.h"
 
 namespace nhope {
 

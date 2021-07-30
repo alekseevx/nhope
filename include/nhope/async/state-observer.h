@@ -110,7 +110,7 @@ public:
         return m_state.index() == 1;
     }
 
-    [[nodiscard]] T value() const
+    [[nodiscard]] const T& value() const
     {
         return std::get<0>(m_state);
     }

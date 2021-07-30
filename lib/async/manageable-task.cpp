@@ -7,7 +7,7 @@
 #include <utility>
 
 #include "nhope/async/future.h"
-#include "nhope/async/reverse_lock.h"
+#include "nhope/async/reverse-lock.h"
 #include "nhope/async/manageable-task.h"
 
 namespace {

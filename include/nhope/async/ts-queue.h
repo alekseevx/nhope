@@ -18,7 +18,7 @@ public:
     TSQueue(const TSQueue&) = delete;
     TSQueue& operator=(const TSQueue&) = delete;
 
-    explicit TSQueue(size_t capacity = std::numeric_limits<size_t>::max())
+    explicit TSQueue(std::size_t capacity = std::numeric_limits<std::size_t>::max())
       : m_capacity(capacity)
     {
         assert(capacity > 0);
@@ -141,7 +141,7 @@ public:
     }
 
 private:
-    const size_t m_capacity;
+    const std::size_t m_capacity;
 
     mutable std::mutex m_mutex;
     std::condition_variable m_rcv;

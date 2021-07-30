@@ -8,7 +8,7 @@
 #include <shared_mutex>
 
 #include "nhope/async/lockable-value.h"
-#include "nhope/async/reverse_lock.h"
+#include "nhope/async/reverse-lock.h"
 #include "nhope/async/future.h"
 #include "nhope/utils/noncopyable.h"
 

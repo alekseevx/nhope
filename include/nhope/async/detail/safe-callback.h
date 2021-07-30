@@ -9,7 +9,7 @@ template<typename Callback>
 class SafeCallbackAOHandler final : public AOHandler
 {
 public:
-    SafeCallbackAOHandler(Callback callback)
+    explicit SafeCallbackAOHandler(Callback callback)
       : m_callback(std::move(callback))
     {}
 

@@ -9,7 +9,7 @@
 
 #include "nhope/async/ao-context.h"
 #include "nhope/async/executor.h"
-#include "nhope/async/reverse_lock.h"
+#include "nhope/async/reverse-lock.h"
 #include "nhope/async/strand-executor.h"
 
 #include "ao-handler-storage.h"
