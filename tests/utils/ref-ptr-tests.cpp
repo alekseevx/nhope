@@ -190,3 +190,13 @@ TEST(RefPtr, ThreadConcurrency)   // NOLINT
 
     EXPECT_EQ(TestClass::instaceCount, 0);
 }
+
+TEST(RefPtr, refPtrFromRawPtr)   // NOLINT
+{
+    auto* p = new RefCounter<int>();   // NOLINT
+    auto rp = refPtrFromRawPtr(p, notAddRef);
+    EXPECT_EQ(rp->refCount(), 1);
+
+    auto rp2 = refPtrFromRawPtr(p);
+    EXPECT_EQ(rp2->refCount(), 2);
+}

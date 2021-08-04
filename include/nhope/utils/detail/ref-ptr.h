@@ -3,53 +3,74 @@
 #include <cassert>
 #include <atomic>
 #include <cstddef>
+#include <type_traits>
 #include <utility>
 
 namespace nhope::detail {
 
-template<typename T>
-class RefCounter final
+class BaseRefCounter
 {
 public:
-    template<typename... Args>
-    explicit RefCounter(Args&&... args)
-      : m_data(std::forward<Args>(args)...)
-    {}
-
     void addRef() noexcept
     {
         m_ref.fetch_add(1, std::memory_order_relaxed);
     }
 
-    void release() noexcept
+    [[nodiscard]] bool release() noexcept
     {
-        if (m_ref.fetch_sub(1, std::memory_order_acq_rel) == 1) {
-            delete this;
-        }
+        return m_ref.fetch_sub(1, std::memory_order_acq_rel) == 1;
     }
 
-    [[nodiscard]] int refCount() const noexcept
+    [[nodiscard]] std::size_t refCount() const noexcept
     {
         return m_ref.load(std::memory_order_relaxed);
     }
 
+private:
+    std::atomic<std::size_t> m_ref = 1;
+};
+
+template<typename T>
+class RefCounterImpl final : public BaseRefCounter
+
+{
+public:
+    template<typename... Args>
+    explicit RefCounterImpl(Args&&... args)
+      : m_date(std::forward<Args>(args)...)
+    {}
+
     T* data() noexcept
     {
-        return &m_data;
+        return &m_date;
     }
 
 private:
-    ~RefCounter() noexcept = default;
-
-    std::atomic<std::size_t> m_ref = 1;
-    T m_data;
+    T m_date;
 };
+
+template<typename T>
+struct RefCounterT
+{
+    using Type = std::conditional_t<std::is_base_of_v<BaseRefCounter, T>, T, RefCounterImpl<T>>;
+};
+
+template<typename T>
+using RefCounter = typename RefCounterT<T>::Type;
+
+struct NotAddRefTag;
 
 template<typename T>
 class RefPtr final
 {
     template<typename Tp, typename... Args>
     friend RefPtr<Tp> makeRefPtr(Args&&... args);
+
+    template<typename Tp>
+    friend RefPtr<Tp> refPtrFromRawPtr(Tp* rawPtr);
+
+    template<typename Tp>
+    friend RefPtr<Tp> refPtrFromRawPtr(Tp* rawPtr, NotAddRefTag /*unused*/);
 
 public:
     RefPtr(std::nullptr_t = nullptr) noexcept
@@ -98,18 +119,18 @@ public:
     T& operator*() const noexcept
     {
         assert(m_ptr != nullptr);
-        return *m_ptr->data();
+        return *this->data();
     }
 
     T* operator->() const noexcept
     {
         assert(m_ptr != nullptr);
-        return m_ptr->data();
+        return this->data();
     }
 
     T* get() const noexcept
     {
-        return m_ptr ? m_ptr->data() : nullptr;
+        return m_ptr ? this->data() : nullptr;
     }
 
     bool operator==(std::nullptr_t) const noexcept
@@ -129,16 +150,30 @@ public:
 
     void release() noexcept
     {
-        if (m_ptr != nullptr) {
-            m_ptr->release();
+        if (m_ptr != nullptr && m_ptr->release()) {
+            delete m_ptr;
             m_ptr = nullptr;
         }
+    }
+
+    [[nodiscard]] T* take() noexcept
+    {
+        return std::exchange(m_ptr, nullptr);
     }
 
 private:
     explicit RefPtr(RefCounter<T>* ptr) noexcept
       : m_ptr(ptr)
     {}
+
+    T* data() const noexcept
+    {
+        if constexpr (std::is_same_v<RefCounter<T>, T>) {
+            return m_ptr;
+        } else {
+            return m_ptr->data();
+        }
+    }
 
     RefCounter<T>* m_ptr = nullptr;
 };
@@ -147,6 +182,23 @@ template<typename T, typename... Args>
 RefPtr<T> makeRefPtr(Args&&... args)
 {
     return RefPtr<T>(new RefCounter<T>(std::forward<Args>(args)...));
+}
+
+struct NotAddRefTag
+{};
+inline constexpr auto notAddRef = NotAddRefTag();
+
+template<typename T>
+RefPtr<T> refPtrFromRawPtr(T* rawPtr)
+{
+    rawPtr->addRef();
+    return RefPtr<T>(rawPtr);
+}
+
+template<typename T>
+RefPtr<T> refPtrFromRawPtr(T* rawPtr, NotAddRefTag /*unused*/)
+{
+    return RefPtr<T>(rawPtr);
 }
 
 }   // namespace nhope::detail
