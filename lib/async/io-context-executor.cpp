@@ -1,5 +1,7 @@
 #include <utility>
+#include <asio/dispatch.hpp>
 #include <asio/io_context.hpp>
+#include <asio/post.hpp>
 
 #include <nhope/async/io-context-executor.h>
 
@@ -9,9 +11,13 @@ IOContextExecutor::IOContextExecutor(asio::io_context& ioCtx)
   : m_ioCtx(ioCtx)
 {}
 
-void IOContextExecutor::post(Work work)
+void IOContextExecutor::exec(Work work, ExecMode mode)
 {
-    m_ioCtx.post(std::move(work));
+    if (mode == ExecMode::AddInQueue) {
+        asio::post(m_ioCtx, std::move(work));
+    } else {
+        asio::dispatch(m_ioCtx, std::move(work));
+    }
 }
 
 asio::io_context& IOContextExecutor::ioCtx()
@@ -23,9 +29,13 @@ IOContextSequenceExecutor::IOContextSequenceExecutor(asio::io_context& ioCtx)
   : m_ioCtx(ioCtx)
 {}
 
-void IOContextSequenceExecutor::post(Work work)
+void IOContextSequenceExecutor::exec(Work work, ExecMode mode)
 {
-    m_ioCtx.post(std::move(work));
+    if (mode == ExecMode::AddInQueue) {
+        asio::post(m_ioCtx, std::move(work));
+    } else {
+        asio::dispatch(m_ioCtx, std::move(work));
+    }
 }
 
 asio::io_context& IOContextSequenceExecutor::ioCtx()

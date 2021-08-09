@@ -4,7 +4,6 @@
 
 #include <gtest/gtest.h>
 
-#include "nhope/async/detail/future.h"
 #include "nhope/async/thread-executor.h"
 #include "nhope/async/thread-pool-executor.h"
 #include "nhope/async/call-queue.h"

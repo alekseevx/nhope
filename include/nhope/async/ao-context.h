@@ -1,50 +1,12 @@
 #pragma once
 
-#include <cstdint>
 #include <memory>
-#include <stdexcept>
-#include <string_view>
-#include <utility>
+
+#include "nhope/async/ao-handler.h"
+#include "nhope/async/ao-context-error.h"
+#include "nhope/async/executor.h"
 
 namespace nhope {
-
-class Executor;
-class SequenceExecutor;
-
-class AsyncOperationWasCancelled final : public std::runtime_error
-{
-public:
-    AsyncOperationWasCancelled();
-    explicit AsyncOperationWasCancelled(std::string_view errMessage);
-};
-
-class AOContextClosed final : public std::runtime_error
-{
-public:
-    AOContextClosed();
-};
-
-using AOHandlerId = std::uint64_t;
-inline constexpr AOHandlerId invalidId = UINT64_MAX;
-
-/**
- * @brief Обработчик асинхронной  операции.
- */
-class AOHandler
-{
-public:
-    virtual ~AOHandler() = default;
-
-    /**
-     * @brief Обработчик асинхронной операции.
-     */
-    virtual void call() = 0;
-
-    /**
-     * @brief Вызывается при уничтожении AOContext-а.
-     */
-    virtual void cancel() = 0;
-};
 
 namespace detail {
 class AOContextImpl;
@@ -55,26 +17,25 @@ class AOContextImpl;
  */
 class AOHandlerCall final
 {
-    friend class detail::AOContextImpl;
+    friend class AOContext;
+    friend class AOContextWeekRef;
 
 public:
     AOHandlerCall() = default;
-
-    operator bool() const;
 
     /**
      * @brief Вызов AOHandler-а в контексте AOContext-а.
      * @note Вызов можно произвести только один раз.
      */
-    void operator()();
+    void operator()(Executor::ExecMode mode = Executor::ExecMode::AddInQueue);
 
 private:
-    using AOContextImplWPtr = std::weak_ptr<detail::AOContextImpl>;
+    using AOContextImplPtr = std::shared_ptr<detail::AOContextImpl>;
 
-    AOHandlerCall(AOHandlerId id, AOContextImplWPtr aoImpl);
+    AOHandlerCall(AOHandlerId id, AOContextImplPtr aoImpl);
 
     AOHandlerId m_id{};
-    AOContextImplWPtr m_aoImpl;
+    AOContextImplPtr m_aoImpl;
 };
 
 /**
@@ -109,11 +70,21 @@ public:
     /**
      * Помещает AOHandler в AOContext.
      */
-    AOHandlerCall putAOHandler(std::unique_ptr<AOHandler> handler);
+    [[nodiscard]] AOHandlerCall putAOHandler(std::unique_ptr<AOHandler> handler);
+    void callAOHandler(std::unique_ptr<AOHandler> handler, Executor::ExecMode mode = Executor::ExecMode::AddInQueue);
+
+    /**
+     * @brief Проверяет работает ли AOContext в потоке, из которого произведен
+     *        вызов workInThisThread.
+     * 
+     * @return true AOContext работает в этом потоке.
+     * @return false AOContext в данный момент не работает в этом потоке.
+     */
+    [[nodiscard]] bool workInThisThread() const;
 
 private:
     using AOContextImplPtr = std::shared_ptr<detail::AOContextImpl>;
-    AOContextImplPtr m_d;
+    AOContextImplPtr m_aoImpl;
 };
 
 class AOContextWeekRef final
@@ -121,11 +92,12 @@ class AOContextWeekRef final
 public:
     explicit AOContextWeekRef(AOContext& aoCtx);
 
-    AOHandlerCall putAOHandler(std::unique_ptr<AOHandler> handler);
+    [[nodiscard]] AOHandlerCall putAOHandler(std::unique_ptr<AOHandler> handler);
+    void callAOHandler(std::unique_ptr<AOHandler> handler, Executor::ExecMode mode = Executor::ExecMode::AddInQueue);
 
 private:
-    using AOContextImplWPtr = std::weak_ptr<detail::AOContextImpl>;
-    AOContextImplWPtr m_aoImpl;
+    using AOContextImplPtr = std::shared_ptr<detail::AOContextImpl>;
+    AOContextImplPtr m_aoImpl;
 };
 
 }   // namespace nhope

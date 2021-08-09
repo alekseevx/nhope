@@ -1,16 +1,14 @@
+#include <atomic>
 #include <cassert>
-#include <condition_variable>
 #include <cstddef>
 #include <memory>
 #include <mutex>
-#include <stdexcept>
 #include <thread>
 #include <utility>
 
 #include "nhope/async/ao-context.h"
 #include "nhope/async/executor.h"
-#include "nhope/async/reverse-lock.h"
-#include "nhope/async/strand-executor.h"
+#include "nhope/utils/stack-set.h"
 
 #include "ao-handler-storage.h"
 #include "make-strand.h"
@@ -21,206 +19,317 @@ namespace {
 
 using namespace detail;
 
-}   // namespace
-
-AsyncOperationWasCancelled::AsyncOperationWasCancelled()
-  : std::runtime_error("AsyncOperationWasCancelled")
-{}
-
-AsyncOperationWasCancelled::AsyncOperationWasCancelled(std::string_view errMessage)
-  : std::runtime_error(errMessage.data())
-{}
-
-AOContextClosed::AOContextClosed()
-  : std::runtime_error("AOContextClosed")
-{}
-
-namespace detail {
-class AOContextImpl final : public std::enable_shared_from_this<AOContextImpl>
+class AOContextState final
 {
-    enum class AOContextState
-    {
-        Open,
-        Closing,
-        Closed
-    };
-
 public:
-    explicit AOContextImpl(Executor& executor)
-      : executorHolder(makeStrand(executor))
-    {}
-
-    AOHandlerCall putAOHandler(std::unique_ptr<AOHandler> handler)
+    enum Flags : std::size_t
     {
-        std::unique_lock lock(this->mutex);
+        Closing = static_cast<size_t>(1) << (SIZE_WIDTH - 1),
+        Closed = static_cast<size_t>(1) << (SIZE_WIDTH - 2),
+    };
+    static constexpr auto flagsMask = Flags::Closed | Flags::Closing;
+    static constexpr auto blockCloseCounterMask = ~flagsMask;
 
-        if (this->state != AOContextState::Open) {
-            throw AOContextClosed();
-        }
+    [[nodiscard]] bool blockClose() noexcept
+    {
+        const auto oldState = m_state.fetch_add(1, std::memory_order_acquire);
+        if ((oldState & Flags::Closing) != 0) {
+            this->unblockClose();
+            return false;
+        };
 
-        auto id = this->aoHandlerCounter++;
-        this->aoHandlers.put(id, std::move(handler));
-
-        return AOHandlerCall(id, weak_from_this());
+        return true;
     }
 
-    void callAOHandler(AOHandlerId id)
+    void unblockClose() noexcept
     {
-        std::unique_lock lock(this->mutex);
-        if (this->state != AOContextState::Open) {
+        const auto oldState = m_state.fetch_sub(1, std::memory_order_release);
+
+        if ((oldState & Flags::Closing) == 0) {
             return;
         }
 
-        this->executorHolder->post([weakSelf = weak_from_this(), id] {
-            auto self = weakSelf.lock();
-            if (self == nullptr) {
-                return;
-            }
+        const auto blockCloseCounter = oldState & blockCloseCounterMask;
+        if (blockCloseCounter == 1) {
+            m_state.fetch_or(Flags::Closed, std::memory_order_relaxed);
+        }
+    }
 
-            std::unique_lock lock(self->mutex);
-            if (self->state != AOContextState::Open) {
-                return;
-            }
+    void startClose() noexcept
+    {
+        const auto oldState = m_state.fetch_or(Flags::Closing, std::memory_order_relaxed);
+        const auto blockCloseCounter = oldState & blockCloseCounterMask;
+        if (blockCloseCounter == 0) {
+            m_state.fetch_or(Flags::Closed, std::memory_order_acquire);
+        }
+    }
 
-            assert(self->hasActiveAOHandler == false);   // NOLINT
+    [[nodiscard]] bool isOpen() const noexcept
+    {
+        return (m_state.load(std::memory_order_relaxed) & Flags::Closing) == 0;
+    }
 
-            auto handler = self->getAOHandler(lock, id);
-            if (handler == nullptr) {
-                return;
-            }
+    void waitForClosed() const noexcept
+    {
+        while ((m_state.load(std::memory_order_acquire) & Flags::Closed) == 0) {
+            std::this_thread::yield();   // FIXME: Use atomic::wait from C++20
+        }
+    }
 
-            self->hasActiveAOHandler = true;
-            self->executorThreadId = std::this_thread::get_id();
-            lock.unlock();
+    [[nodiscard]] bool isClosed() const noexcept
+    {
+        return (m_state.load(std::memory_order_relaxed) & Flags::Closed) != 0;
+    }
 
-            try {
-                handler->call();
-            } catch (...) {
-            }
-            handler.reset();
+private:
+    std::atomic<std::size_t> m_state = 0;
+};
 
-            lock.lock();
-            self->hasActiveAOHandler = false;
-            if (self->state == AOContextState::Closing) {
-                self->noActiveHandlerCV.notify_one();
-            }
-        });
+class BlockClose final
+{
+public:
+    explicit BlockClose(AOContextState& state) noexcept
+      : m_state(state)
+      , m_closeBlocked(state.blockClose())
+    {}
+
+    ~BlockClose()
+    {
+        if (m_closeBlocked) {
+            m_state.unblockClose();
+        }
+    }
+
+    operator bool() const noexcept
+    {
+        return m_closeBlocked;
+    }
+
+private:
+    AOContextState& m_state;
+    const bool m_closeBlocked;
+};
+
+}   // namespace
+
+namespace detail {
+
+class AOContextImpl final : public std::enable_shared_from_this<AOContextImpl>
+{
+public:
+    explicit AOContextImpl(Executor& executor)
+      : m_executorHolder(makeStrand(executor))
+    {}
+
+    template<typename Work>
+    void exec(Work&& work, Executor::ExecMode mode)
+    {
+        if (const auto blockClose = BlockClose(m_state)) {
+            m_executorHolder->exec(
+              [work = std::forward<Work>(work), self = shared_from_this()] {
+                  self->doWork(work);
+              },
+              mode);
+        }
+    }
+
+    [[nodiscard]] AOHandlerId putAOHandler(std::unique_ptr<AOHandler> handler)
+    {
+        const auto blockClose = BlockClose(m_state);
+        if (!blockClose) {
+            throw AOContextClosed();
+        }
+        return this->putAOHandlerImpl(std::move(handler));
+    }
+
+    void callAOHandler(AOHandlerId id, Executor::ExecMode mode)
+    {
+        this->exec(
+          [id, this] {
+              this->callAOHandlerImpl(id);
+          },
+          mode);
     }
 
     void close()
     {
-        std::unique_lock lock(this->mutex);
+        assert(m_state.isOpen());   // NOLINT
 
-        assert(this->state == AOContextState::Open);   // NOLINT
+        m_state.startClose();
+        this->waitForClosed();
 
-        this->state = AOContextState::Closing;
-        this->waitActiveHandler(lock);
-        this->state = AOContextState::Closed;
-
-        this->cancelAOHandlers(lock);
+        this->cancelAOHandlers();
     }
 
-    std::unique_ptr<AOHandler> getAOHandler([[maybe_unused]] std::unique_lock<std::mutex>& lock, AOHandlerId id)
+    [[nodiscard]] bool aoContextWorkInThisThread() const noexcept
     {
-        assert(lock.owns_lock());   // NOLINT
-        return this->aoHandlers.get(id);
+        return WorkingInThisThreadSet::contains(this);
     }
 
-    void waitActiveHandler(std::unique_lock<std::mutex>& lock)
+    SequenceExecutor& executor()
     {
-        assert(lock.owns_lock());   // NOLINT
+        return *m_executorHolder;
+    }
 
-        if (this->isThisThreadTheThreadExecutor(lock)) {
-            // we can't wait, we can get an infinite loop
+private:
+    using WorkingInThisThreadSet = StackSet<const AOContextImpl*>;
+
+    template<typename Work>
+    void doWork(const Work& work)
+    {
+        if (const auto blockClose = BlockClose(m_state)) {
+            /* Note that we are working in this thread.
+               Now you can work with the internal storage only from this thread.  */
+            WorkingInThisThreadSet::Item thisAOContexItem(this);
+            try {
+                work();
+            } catch (...) {
+            }
+        }
+    }
+
+    std::unique_ptr<AOHandler> getAOHandler(AOHandlerId id)
+    {
+        assert(this->aoContextWorkInThisThread());   // NOLINT
+
+        if (isExternalId(id)) {
+            std::scoped_lock lock(m_externalAOHandlersMutex);
+            return this->m_externalAOHandlers.get(id);
+        }
+        return this->m_internalAOHandlers.get(id);
+    }
+
+    AOHandlerId putAOHandlerImpl(std::unique_ptr<AOHandler> handler)
+    {
+        AOHandlerId id{};
+        if (this->aoContextWorkInThisThread()) {
+            id = this->nextInternalId();
+            this->m_internalAOHandlers.put(id, std::move(handler));
+        } else {
+            std::unique_lock lock(this->m_externalAOHandlersMutex);
+            id = this->nextExternalId(lock);
+            this->m_externalAOHandlers.put(id, std::move(handler));
+        }
+
+        return id;
+    }
+
+    void callAOHandlerImpl(AOHandlerId id)
+    {
+        assert(this->aoContextWorkInThisThread());   // NOLINT
+
+        if (auto handler = this->getAOHandler(id)) {
+            handler->call();
+        }
+    }
+
+    AOHandlerId nextInternalId() noexcept
+    {
+        assert(this->aoContextWorkInThisThread());   // NOLINT
+        return 2 * this->m_internalAOHandlerCounter++;
+    }
+
+    AOHandlerId nextExternalId([[maybe_unused]] std::unique_lock<std::mutex>& lock) noexcept
+    {
+        assert(!this->aoContextWorkInThisThread());   // NOLINT
+        assert(lock.owns_lock());
+        return 2 * this->m_externalAOHandlerCounter++ + 1;
+    }
+
+    static bool isExternalId(AOHandlerId id) noexcept
+    {
+        return (id & 1) != 0;
+    }
+
+    void waitForClosed() const noexcept
+    {
+        if (this->aoContextWorkInThisThread()) {
+            // We can't wait, closing is done from AOHandler and we will get a deadlock.
             return;
         }
 
-        while (this->hasActiveAOHandler) {
-            this->noActiveHandlerCV.wait(lock);
-        }
+        this->m_state.waitForClosed();
     }
 
-    void cancelAOHandlers(std::unique_lock<std::mutex>& lock)
+    void cancelAOHandlers() noexcept
     {
-        assert(lock.owns_lock());   // NOLINT
-
-        auto cancelledAOHandlers = std::move(this->aoHandlers);
-
-        ReverseLock unlock(lock);
-        cancelledAOHandlers.cancelAll();
+        this->m_internalAOHandlers.cancelAll();
+        this->m_externalAOHandlers.cancelAll();
     }
 
-    [[nodiscard]] bool isThisThreadTheThreadExecutor([[maybe_unused]] std::unique_lock<std::mutex>& lock) const
-    {
-        assert(lock.owns_lock());   // NOLINT
-        const auto thisThreadId = std::this_thread::get_id();
-        return thisThreadId == executorThreadId;
-    }
+    AOContextState m_state;
 
-    ExecutorHolder executorHolder;
+    /* External storage can be accessed from any thread,
+       but mutex protection is required */
+    std::mutex m_externalAOHandlersMutex;
+    AOHandlerId m_externalAOHandlerCounter = 0;
+    AOHandlerStorage m_externalAOHandlers;
 
-    std::mutex mutex;
+    /* The internal storage can only be accessed from the thread in which AOContex is running,
+       but mutex protection is not required */
+    AOHandlerId m_internalAOHandlerCounter = 0;
+    AOHandlerStorage m_internalAOHandlers;
 
-    std::condition_variable noActiveHandlerCV;
-    bool hasActiveAOHandler = false;
-    std::thread::id executorThreadId{};
-
-    AOContextState state = AOContextState::Open;
-    AOHandlerId aoHandlerCounter = 0;
-    AOHandlerStorage aoHandlers;
+    SequenceExecutorHolder m_executorHolder;
 };
 
 }   // namespace detail
 
-AOHandlerCall::AOHandlerCall(AOHandlerId id, AOContextImplWPtr aoImpl)
+AOHandlerCall::AOHandlerCall(AOHandlerId id, AOContextImplPtr aoImpl)
   : m_id(id)
   , m_aoImpl(std::move(aoImpl))
 {}
 
-AOHandlerCall::operator bool() const
+void AOHandlerCall::operator()(Executor::ExecMode mode)
 {
-    return !m_aoImpl.expired();
-}
-
-void AOHandlerCall::operator()()
-{
-    if (auto aoImpl = m_aoImpl.lock()) {
-        aoImpl->callAOHandler(m_id);
-        m_aoImpl.reset();
-    }
+    m_aoImpl->callAOHandler(m_id, mode);
 }
 
 AOContext::AOContext(Executor& executor)
-  : m_d(std::make_shared<detail::AOContextImpl>(executor))
+  : m_aoImpl(std::make_shared<detail::AOContextImpl>(executor))
 {}
 
 AOContext::~AOContext()
 {
-    m_d->close();
+    m_aoImpl->close();
 }
 
 AOHandlerCall AOContext::putAOHandler(std::unique_ptr<AOHandler> handler)
 {
-    return m_d->putAOHandler(std::move(handler));
+    const auto id = m_aoImpl->putAOHandler(std::move(handler));
+    return AOHandlerCall(id, m_aoImpl);
+}
+
+void AOContext::callAOHandler(std::unique_ptr<AOHandler> handler, Executor::ExecMode mode)
+{
+    const auto id = m_aoImpl->putAOHandler(std::move(handler));
+    m_aoImpl->callAOHandler(id, mode);
+}
+
+[[nodiscard]] bool AOContext::workInThisThread() const
+{
+    return m_aoImpl->aoContextWorkInThisThread();
 }
 
 SequenceExecutor& AOContext::executor()
 {
-    return *m_d->executorHolder;
+    return m_aoImpl->executor();
 }
 
 AOContextWeekRef::AOContextWeekRef(AOContext& aoCtx)
-  : m_aoImpl(aoCtx.m_d)
+  : m_aoImpl(aoCtx.m_aoImpl)
 {}
 
 AOHandlerCall AOContextWeekRef::putAOHandler(std::unique_ptr<AOHandler> handler)
 {
-    auto aoImpl = m_aoImpl.lock();
-    if (aoImpl == nullptr) {
-        throw AOContextClosed();
-    }
+    const auto id = m_aoImpl->putAOHandler(std::move(handler));
+    return AOHandlerCall(id, m_aoImpl);
+}
 
-    return aoImpl->putAOHandler(std::move(handler));
+void AOContextWeekRef::callAOHandler(std::unique_ptr<AOHandler> handler, Executor::ExecMode mode)
+{
+    const auto id = m_aoImpl->putAOHandler(std::move(handler));
+    m_aoImpl->callAOHandler(id, mode);
 }
 
 }   // namespace nhope

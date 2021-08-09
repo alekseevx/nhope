@@ -13,8 +13,8 @@
 #include <nhope/async/thread-pool-executor.h>
 
 #include <fmt/format.h>
-
 #include <gtest/gtest.h>
+
 #include "test-helpers/wait.h"
 
 namespace {
@@ -25,7 +25,7 @@ using namespace std::literals;
 class TestAOHandler final : public AOHandler
 {
 public:
-    TestAOHandler(std::function<void()> call, std::function<void()> cancel = nullptr)
+    explicit TestAOHandler(std::function<void()> call, std::function<void()> cancel = nullptr)
       : m_call(std::move(call))
       , m_cancel(std::move(cancel))
     {}
@@ -75,7 +75,6 @@ TEST(AOContext, CancelAsyncOperation)   // NOLINT
     constexpr int iterCount = 500;
 
     for (int i = 0; i < iterCount; ++i) {
-        std::function<void()> operationFinished;
         std::atomic<bool> asyncOperationHandlerCalled = false;
         std::atomic<bool> cancelAsyncOperationCalled = false;
 
@@ -91,12 +90,9 @@ TEST(AOContext, CancelAsyncOperation)   // NOLINT
               cancelAsyncOperationCalled = true;
           });
 
-        auto callAOHandler = aoContext->putAOHandler(std::move(aoHandler));
-        EXPECT_TRUE(callAOHandler);
-        std::thread([callAOHandler]() mutable {
+        std::thread([callAOHandler = aoContext->putAOHandler(std::move(aoHandler))]() mutable {
             // A thread performing an asynchronous operation
             callAOHandler();
-            EXPECT_FALSE(callAOHandler);
         }).detach();
 
         std::this_thread::sleep_for(5us);
@@ -134,8 +130,7 @@ TEST(AOContext, SequentialHandlerCall)   // NOLINT
             ++finishedHandlerCount;
         });
 
-        auto callAOHandler = aoContext.putAOHandler(std::move(aoHandler));
-        callAOHandler();
+        aoContext.callAOHandler(std::move(aoHandler));
     }
 
     EXPECT_TRUE(waitForValue(100 * 1ms * iterCount, finishedHandlerCount, iterCount));
@@ -155,8 +150,7 @@ TEST(AOContext, ExceptionInAOHandler)   // NOLINT
             throw std::runtime_error("TestException");
         });
 
-        auto callAOHandler = aoContext.putAOHandler(std::move(aoHandler));
-        callAOHandler();
+        aoContext.callAOHandler(std::move(aoHandler));
     }
 
     EXPECT_TRUE(waitForValue(1s, asyncOperationHandlerCalled, iterCount));
@@ -172,7 +166,7 @@ TEST(AOContext, ExceptionInCancelAsyncOperation)   // NOLINT
     });
 
     EXPECT_NO_THROW({   // NOLINT
-        aoContext->putAOHandler(std::move(aoHandler));
+        [[maybe_unused]] auto call = aoContext->putAOHandler(std::move(aoHandler));
         aoContext.reset();
     });
 }

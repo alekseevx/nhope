@@ -5,7 +5,6 @@
 #include <string>
 #include <system_error>
 
-#include "nhope/async/detail/future.h"
 #include "nhope/async/executor.h"
 #include "nhope/io/io-device.h"
 #include "nhope/io/network.h"

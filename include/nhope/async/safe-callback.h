@@ -5,7 +5,7 @@
 #include <utility>
 
 #include "nhope/async/ao-context.h"
-#include "nhope/async/detail/safe-callback.h"
+#include "nhope/async/detail/safe-callback-aohandler.h"
 
 namespace nhope {
 
@@ -28,8 +28,7 @@ std::function<void(Args...)> makeSafeCallback(AOContext& aoCtx, std::function<vo
             callback(args...);
         });
 
-        auto callAOHandler = aoCtx.putAOHandler(std::move(aoHandler));
-        callAOHandler();
+        aoCtx.callAOHandler(std::move(aoHandler));
     };
 }
 

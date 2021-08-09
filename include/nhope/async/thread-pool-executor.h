@@ -16,7 +16,7 @@ public:
 
     [[nodiscard]] std::size_t threadCount() const noexcept;
 
-    void post(Work work) override;
+    void exec(Work work, ExecMode mode = ExecMode::AddInQueue) override;
     asio::io_context& ioCtx() override;
 
     static ThreadPoolExecutor& defaultExecutor();

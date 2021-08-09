@@ -5,7 +5,7 @@
 #include <utility>
 
 #include "nhope/async/ao-context.h"
-#include "nhope/async/detail/async-invoke.h"
+#include "nhope/async/detail/async-invoke-aohandler.h"
 #include "nhope/async/future.h"
 
 namespace nhope {
@@ -20,8 +20,7 @@ auto asyncInvoke(AOContext& aoCtx, Fn&& fn, Args&&... args)
 
     auto aoHandler = detail::makeAsyncInvokeAOHandler(std::move(promise),
                                                       std::bind(std::forward<Fn>(fn), std::forward<Args>(args)...));
-    auto callAOHandler = aoCtx.putAOHandler(std::move(aoHandler));
-    callAOHandler();
+    aoCtx.callAOHandler(std::move(aoHandler));
 
     return future.unwrap();
 }
@@ -29,6 +28,10 @@ auto asyncInvoke(AOContext& aoCtx, Fn&& fn, Args&&... args)
 template<typename Fn, typename... Args>
 auto invoke(AOContext& aoCtx, Fn&& fn, Args&&... args)
 {
+    if (aoCtx.workInThisThread()) {
+        throw DetectedDeadlock();
+    }
+
     auto future = asyncInvoke(aoCtx, std::forward<Fn>(fn), std::forward<Args>(args)...);
     return future.get();
 }

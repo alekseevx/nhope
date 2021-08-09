@@ -20,23 +20,23 @@ TEST(TSQueue, OneWriterManyReaders)   // NOLINT
     ThreadExecutor readThread1;
     ThreadExecutor readThread2;
     ThreadExecutor readThread3;
-    readThread1.post([&] {
+    readThread1.exec([&] {
         while (auto read = queue.read()) {
             EXPECT_EQ(read.value(), writeValue);
         }
     });
-    readThread2.post([&] {
+    readThread2.exec([&] {
         while (auto read = queue.read()) {
             EXPECT_EQ(read.value(), writeValue);
         }
     });
-    readThread3.post([&] {
+    readThread3.exec([&] {
         while (auto read = queue.read()) {
             EXPECT_EQ(read.value(), writeValue);
         }
     });
     for (int i = 0; i < iterCount; ++i) {
-        writeThread.post([&] {
+        writeThread.exec([&] {
             queue.write(int(writeValue));
         });
     }
@@ -72,7 +72,7 @@ TEST(TSQueue, WriteWithTimeout)   // NOLINT
 
     ThreadExecutor writeThread;
     for (int i = 0; i < iterCount; ++i) {
-        writeThread.post([&] {
+        writeThread.exec([&] {
             queue.write(writeValue, 100ms);
         });
     }
@@ -90,7 +90,7 @@ TEST(TSQueue, WriteWithCapacity)   // NOLINT
 
     ThreadExecutor writeThread;
     for (int i = 0; i < iterCount; ++i) {
-        writeThread.post([&] {
+        writeThread.exec([&] {
             queue.write(int(writeValue));
         });
     }
@@ -115,7 +115,7 @@ TEST(TSQueue, ReadFor)   // NOLINT
     int readValue{0};
 
     for (int i = 0; i < iterCount; ++i) {
-        thread.post([&] {
+        thread.exec([&] {
             std::this_thread::sleep_for(2ms);
             queue.write(int(writeValue));
         });
@@ -139,22 +139,22 @@ TEST(TSQueue, GenerateAndRead)   // NOLINT
     ThreadExecutor writeThread;
     ThreadExecutor readThread;
     for (int i = 0; i < iterCount; ++i) {
-        writeThread.post([&] {
+        writeThread.exec([&] {
             std::this_thread::sleep_for(4ms);
             queue.write(int(writeValue));
         });
         if (i < (iterCount / 2)) {
-            readThread.post([&] {
+            readThread.exec([&] {
                 auto read = queue.read();
                 EXPECT_EQ(read.value(), writeValue);
             });
         }
     }
 
-    writeThread.post([&] {
+    writeThread.exec([&] {
         writterFinishedEvent.set();
     });
-    readThread.post([&] {
+    readThread.exec([&] {
         readerFinishedEvent.set();
     });
 

@@ -1,10 +1,8 @@
 #include <cassert>
 #include <chrono>
-#include <cstdint>
 #include <exception>
 #include <functional>
 #include <memory>
-#include <stdexcept>
 #include <system_error>
 #include <utility>
 
@@ -33,18 +31,18 @@ public:
     {
         m_callAOHandler = std::move(callAOHandler);
         m_impl.expires_at(expiresAt);
-        m_impl.async_wait([weekSelf = weak_from_this()](auto& err) mutable {
+        m_impl.async_wait([weekSelf = weak_from_this()](const auto& err) mutable {
             if (err == std::errc::operation_canceled) {
                 return;
             }
 
-            auto self = weekSelf.lock();
+            const auto self = weekSelf.lock();
             if (self == nullptr) {
                 return;
             }
 
             self->m_errorCode = err;
-            self->m_callAOHandler();
+            self->m_callAOHandler(Executor::ExecMode::ImmediatelyIfPossible);
         });
     }
 
@@ -103,6 +101,7 @@ public:
         if (err) {
             auto exPtr = std::make_exception_ptr(std::system_error(err));
             m_promise.setException(std::move(exPtr));
+            return;
         }
 
         m_promise.setValue();
