@@ -20,7 +20,7 @@ public:
 
     [[nodiscard]] Id id() const noexcept;
 
-    void post(Work work) override;
+    void exec(Work work, ExecMode mode = ExecMode::AddInQueue) override;
     asio::io_context& ioCtx() override;
 
 private:

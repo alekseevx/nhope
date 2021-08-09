@@ -79,7 +79,7 @@ private:   // Функции выполняемые в ThreadExecuter
 
 void freezeExecutor(ThreadExecutor& executor, std::chrono::nanoseconds sleepTime)
 {
-    executor.post([sleepTime] {
+    executor.exec([sleepTime] {
         std::this_thread::sleep_for(sleepTime);
     });
 }
@@ -173,4 +173,16 @@ TEST(AsyncInvoke, DestructionObjectWhenInvokeActive)   // NOLINT
         int actualInvokeNum = future.get();
         EXPECT_EQ(actualInvokeNum, expectedInvokeNum);
     }
+}
+
+TEST(AsyncInvoke, DetectedDeadlock)   // NOLINT
+{
+    ThreadExecutor executor;
+    AOContext aoCtx(executor);
+
+    invoke(aoCtx, [&aoCtx] {
+        // Теперь мы в AOContext и повторный invoke на том же AOContext
+        // должен выкинуть исключение DetectedDeadlock
+        EXPECT_THROW(invoke(aoCtx, [] {}), DetectedDeadlock);   // NOLINT
+    });
 }

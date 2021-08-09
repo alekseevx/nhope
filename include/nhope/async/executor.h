@@ -18,6 +18,11 @@ class Executor : Noncopyable
 {
 public:
     using Work = std::function<void()>;
+    enum class ExecMode
+    {
+        AddInQueue,              // Гарантирует, что Work не будет запущен из exec
+        ImmediatelyIfPossible,   // Запустить Work прямо в exec-e, если это возможно
+    };
 
     virtual ~Executor() = default;
 
@@ -27,7 +32,7 @@ public:
      * @note В зависимости от реализации задачи могут выполнять как параллельно,
      * так и последовательно.
      */
-    virtual void post(Work work) = 0;
+    virtual void exec(Work work, ExecMode mode = ExecMode::AddInQueue) = 0;
 
     /**
      * Функция для получения контекста для выполнения операций ввода-вывода на заданном
@@ -35,6 +40,11 @@ public:
      * Если executor не поддерживает операции ввода-вывода, будет сгенерировано исключение.
      */
     virtual asio::io_context& ioCtx() = 0;
+
+    [[deprecated("Use exec insted")]] void post(Work work)
+    {
+        this->exec(std::move(work), ExecMode::AddInQueue);
+    }
 };
 
 /**
@@ -51,7 +61,7 @@ public:
      * Добавляет функцию в очередь для выполнения на заданном executor-е.
      * Гарантируется, что задачи будут выполняться последовательно.
      */
-    void post(Work work) override = 0;
+    void exec(Work work, ExecMode mode = ExecMode::AddInQueue) override = 0;
 };
 
 }   // namespace nhope

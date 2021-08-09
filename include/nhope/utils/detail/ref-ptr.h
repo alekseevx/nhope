@@ -1,9 +1,8 @@
 #pragma once
 
-#include <atomic>
 #include <cassert>
+#include <atomic>
 #include <cstddef>
-#include <type_traits>
 #include <utility>
 
 namespace nhope::detail {
@@ -13,7 +12,7 @@ class RefCounter final
 {
 public:
     template<typename... Args>
-    RefCounter(Args&&... args)
+    explicit RefCounter(Args&&... args)
       : m_data(std::forward<Args>(args)...)
     {}
 
@@ -34,15 +33,15 @@ public:
         return m_ref.load(std::memory_order_relaxed);
     }
 
-    T* data()
+    T* data() noexcept
     {
         return &m_data;
     }
 
 private:
-    ~RefCounter() = default;
+    ~RefCounter() noexcept = default;
 
-    mutable std::atomic<int> m_ref = 1;
+    std::atomic<std::size_t> m_ref = 1;
     T m_data;
 };
 
@@ -70,19 +69,15 @@ public:
         other.m_ptr = nullptr;
     }
 
-    RefPtr& operator=(const RefPtr& other)
+    RefPtr& operator=(const RefPtr& other) noexcept
     {
-        if (this == &other) {
-            return *this;
+        if (this != &other) {
+            this->release();
+            m_ptr = other.m_ptr;
+            if (m_ptr != nullptr) {
+                m_ptr->addRef();
+            }
         }
-
-        if (other.m_ptr != nullptr) {
-            other.m_ptr->addRef();
-        }
-
-        this->release();
-        m_ptr = other.m_ptr;
-
         return *this;
     }
 
@@ -114,10 +109,7 @@ public:
 
     T* get() const noexcept
     {
-        if (m_ptr == nullptr) {
-            return nullptr;
-        }
-        return m_ptr->data();
+        return m_ptr ? m_ptr->data() : nullptr;
     }
 
     bool operator==(std::nullptr_t) const noexcept
@@ -132,13 +124,10 @@ public:
 
     [[nodiscard]] int refCount() const noexcept
     {
-        if (m_ptr == nullptr) {
-            return 0;
-        }
-        return m_ptr->refCount();
+        return m_ptr ? m_ptr->refCount() : 0;
     }
 
-    void release()
+    void release() noexcept
     {
         if (m_ptr != nullptr) {
             m_ptr->release();

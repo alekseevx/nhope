@@ -2,6 +2,7 @@
 #include <utility>
 #include <thread>
 
+#include <asio/dispatch.hpp>
 #include <asio/executor_work_guard.hpp>
 #include <asio/post.hpp>
 
@@ -31,9 +32,13 @@ ThreadExecutor::Id ThreadExecutor::id() const noexcept
     return m_thread.get_id();
 }
 
-void ThreadExecutor::post(Work work)
+void ThreadExecutor::exec(Work work, ExecMode mode)
 {
-    asio::post(m_ioCtx, std::move(work));
+    if (mode == ExecMode::AddInQueue) {
+        asio::post(m_ioCtx, std::move(work));
+    } else {
+        asio::dispatch(m_ioCtx, std::move(work));
+    }
 }
 
 asio::io_context& ThreadExecutor::ioCtx()

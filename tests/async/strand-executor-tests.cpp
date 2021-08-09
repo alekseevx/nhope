@@ -31,7 +31,7 @@ TEST(StrandExecutor, SequentialExecution)   // NOLINT
 
     const auto startTime = std::chrono::steady_clock::now();
     for (int taskNum = 0; taskNum < taskCount; ++taskNum) {
-        strandExecutor.post([&, taskNum] {
+        strandExecutor.exec([&, taskNum] {
             ++activeTaskCount;
 
             EXPECT_EQ(activeTaskCount, 1);
@@ -66,7 +66,7 @@ TEST(StrandExecutor, ThreadSafe)   // NOLINT
     for (auto threadNum = 0; threadNum < threadCount; ++threadNum) {
         std::thread([&] {
             for (int i = 0; i < taskCountPerThread; ++i) {
-                strandExecutor.post([&] {
+                strandExecutor.exec([&] {
                     ++activeTaskCount;
                     EXPECT_EQ(activeTaskCount, 1);
                     --activeTaskCount;
@@ -91,7 +91,7 @@ TEST(StrandExecutor, ExceptionInWork)   // NOLINT
     std::atomic<int> finishedTaskCount = 0;
 
     for (int i = 0; i < taskCount; ++i) {
-        strandExecutor.post([&] {
+        strandExecutor.exec([&] {
             ++finishedTaskCount;
             throw std::runtime_error("TestException");
         });
@@ -112,7 +112,7 @@ TEST(StrandExecutor, Destroy)   // NOLINT
         StrandExecutor strandExecutor(executor);
 
         for (int i = 0; i < taskCount; ++i) {
-            strandExecutor.post([&] {
+            strandExecutor.exec([&] {
                 ++activeTaskCount;
 
                 EXPECT_EQ(activeTaskCount, 1);
@@ -147,7 +147,7 @@ TEST(StrandExecutor, UseSequenceExecutor)   // NOLINT
 
     std::atomic<int> finishedTaskCount = 0;
     for (int i = 0; i < taskCount; ++i) {
-        strandExecutor.post([&] {
+        strandExecutor.exec([&] {
             ++finishedTaskCount;
         });
     }

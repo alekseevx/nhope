@@ -1,3 +1,5 @@
+#include <asio/dispatch.hpp>
+#include <asio/post.hpp>
 #include <nhope/async/thread-pool-executor.h>
 
 namespace nhope {
@@ -28,9 +30,13 @@ std::size_t ThreadPoolExecutor::threadCount() const noexcept
     return m_threads.size();
 }
 
-void ThreadPoolExecutor::post(Work work)
+void ThreadPoolExecutor::exec(Work work, ExecMode mode)
 {
-    m_ioCtx.post(std::move(work));
+    if (mode == ExecMode::AddInQueue) {
+        asio::post(m_ioCtx, std::move(work));
+    } else {
+        asio::dispatch(m_ioCtx, std::move(work));
+    }
 }
 
 asio::io_context& ThreadPoolExecutor::ioCtx()

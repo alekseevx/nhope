@@ -2,16 +2,16 @@
 
 #include <atomic>
 #include <cassert>
+#include <cstddef>
 #include <exception>
 #include <memory>
-#include <optional>
 #include <type_traits>
 #include <utility>
 
 #include "nhope/async/ao-context.h"
 #include "nhope/async/event.h"
-#include "nhope/utils/detail/ref-ptr.h"
 #include "nhope/utils/detail/compiler.h"
+#include "nhope/utils/detail/ref-ptr.h"
 
 namespace nhope {
 
@@ -53,14 +53,14 @@ inline constexpr bool isFuture = false;
 template<typename T>
 inline constexpr bool isFuture<Future<T>> = true;
 
-class Void
-{};
-
-template<typename T>
-using FutureValue = std::conditional_t<std::is_void_v<T>, Void, T>;
-
 template<typename T>
 class FutureState;
+
+enum FutureFlag : std::size_t
+{
+    HasResult = 1 << 0,
+    HasCallback = 1 << 1,
+};
 
 template<typename T>
 class FutureCallback
@@ -68,13 +68,87 @@ class FutureCallback
 public:
     virtual ~FutureCallback() = default;
 
-    virtual void futureReady(FutureState<T>& state) = 0;
+    virtual void futureReady(FutureState<T>& state, FutureFlag trigger) = 0;
 };
 
-enum FutureFlag : int
+template<typename T>
+class FutureResultStorage final
 {
-    HasResult = 1 << 0,
-    HasCallback = 1 << 1,
+public:
+    FutureResultStorage()
+      : m_curVariant(ContentVariants::Nothing)
+    {}
+
+    ~FutureResultStorage()
+    {
+        if (m_curVariant == ContentVariants::Value) {
+            if constexpr (!std::is_void_v<T>) {
+                // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
+                m_value.~T();
+            }
+        } else if (m_curVariant == ContentVariants::Exception) {
+            // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
+            m_exception.~exception_ptr();
+        }
+    }
+
+    template<typename... Args>
+    void setValue(Args&&... args)
+    {
+        assert(m_curVariant == ContentVariants::Nothing);
+        if constexpr (!std::is_void_v<T>) {
+            // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
+            new (std::addressof(m_value)) T(std::forward<Args>(args)...);
+        }
+        m_curVariant = ContentVariants::Value;
+    }
+
+    template<typename Tp = T, typename = std::enable_if_t<!std::is_void_v<Tp>>>
+    Tp& value() noexcept
+    {
+        assert(m_curVariant == ContentVariants::Value);
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
+        return m_value;
+    }
+
+    template<typename... Args>
+    void setException(Args&&... args)
+    {
+        assert(m_curVariant == ContentVariants::Nothing);
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
+        new (std::addressof(m_exception)) std::exception_ptr(std::forward<Args>(args)...);
+        m_curVariant = ContentVariants::Exception;
+    }
+
+    [[nodiscard]] std::exception_ptr& exception() noexcept
+    {
+        assert(m_curVariant == ContentVariants::Exception);
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
+        return m_exception;
+    }
+
+    [[nodiscard]] bool hasException() const noexcept
+    {
+        return m_curVariant == ContentVariants::Exception;
+    }
+
+private:
+    enum class ContentVariants : std::size_t
+    {
+        Nothing,
+        Value,
+        Exception,
+    };
+
+    class Void
+    {};
+
+    ContentVariants m_curVariant;
+    union
+    {
+        std::conditional_t<!std::is_void_v<T>, T, Void> m_value;   // NOLINT(readability-identifier-naming)
+        std::exception_ptr m_exception;                            // NOLINT(readability-identifier-naming)
+    };
 };
 
 template<typename T>
@@ -86,34 +160,45 @@ public:
     template<typename... Args>
     void setValue(Args&&... args)
     {
-        m_value.emplace(std::forward<Args>(args)...);
+        assert(!this->hasResult());
+
+        m_resultStorage.setValue(std::forward<Args>(args)...);
         this->setFlag(FutureFlag::HasResult);
     }
 
-    FutureValue<T>& getValue()
+    T value()
     {
-        return m_value.value();
+        assert(this->hasResult());
+
+        if constexpr (!std::is_void_v<T>) {
+            return std::move(m_resultStorage.value());
+        }
     }
 
     void setException(std::exception_ptr exception)
     {
-        m_exception.emplace(std::move(exception));
+        assert(!this->hasResult());
+        m_resultStorage.setException(std::move(exception));
         this->setFlag(FutureFlag::HasResult);
     }
 
-    [[nodiscard]] bool hasException() const
+    [[nodiscard]] bool hasException() const noexcept
     {
-        return m_exception.has_value();
+        assert(this->hasResult());
+        return m_resultStorage.hasException();
     }
 
-    std::exception_ptr& getException()
+    std::exception_ptr& exception() noexcept
     {
-        return m_exception.value();
+        assert(this->hasResult());
+        return m_resultStorage.exception();
     }
 
     template<typename Fn, typename... Args>
     void calcResult(Fn&& fn, Args&&... args)
     {
+        assert(!this->hasResult());
+
         try {
             if constexpr (std::is_void_v<T>) {
                 fn(std::forward<Args>(args)...);
@@ -126,7 +211,7 @@ public:
         }
     }
 
-    [[nodiscard]] bool hasResult() const
+    [[nodiscard]] bool hasResult() const noexcept
     {
         const int flags = m_flags.load(std::memory_order_acquire);
         return (flags & FutureFlag::HasResult) != 0;
@@ -134,11 +219,13 @@ public:
 
     void setCallback(std::unique_ptr<FutureCallback<T>> callback)
     {
+        assert(!this->hasCallback());
+
         m_callback = std::move(callback);
         this->setFlag(FutureFlag::HasCallback);
     }
 
-    [[nodiscard]] bool hasCallback() const
+    [[nodiscard]] bool hasCallback() const noexcept
     {
         const int flags = m_flags.load(std::memory_order_acquire);
         return (flags & FutureFlag::HasCallback) != 0;
@@ -149,7 +236,7 @@ private:
     {
         assert((m_flags & flag) == 0);   //  The flag is not set yet.
 
-        int curFlags = m_flags.load(std::memory_order_acquire);
+        auto curFlags = m_flags.load(std::memory_order_acquire);
         if (curFlags == 0) {
             bool ok{};
             if constexpr (isClang && isThreadSanitizer) {
@@ -171,14 +258,12 @@ private:
         m_flags.store(FutureFlag::HasResult | FutureFlag::HasCallback, std::memory_order_relaxed);
 
         // Now both flags are set.
-        m_callback->futureReady(*this);
+        m_callback->futureReady(*this, flag);
     }
 
-    std::atomic<int> m_flags = 0;
+    std::atomic<std::size_t> m_flags = 0;
 
-    std::optional<FutureValue<T>> m_value;
-    std::optional<std::exception_ptr> m_exception;
-
+    FutureResultStorage<T> m_resultStorage;
     std::unique_ptr<FutureCallback<T>> m_callback;
 };
 
@@ -190,9 +275,15 @@ public:
       : m_callAOHandler(aoCtx.putAOHandler(std::move(aoHandler)))
     {}
 
-    void futureReady(FutureState<T>& /*unused*/) override
+    void futureReady(FutureState<T>& /*unused*/, FutureFlag trigger) override
     {
-        m_callAOHandler();
+        if (trigger == FutureFlag::HasResult) {
+            m_callAOHandler(Executor::ExecMode::ImmediatelyIfPossible);
+        } else {
+            /* This branch we exclude a situation where the 
+                callback will be called from Future::then or Future::fail. */
+            m_callAOHandler(Executor::ExecMode::AddInQueue);
+        }
     }
 
 private:
@@ -207,7 +298,7 @@ public:
       : m_event(std::move(event))
     {}
 
-    void futureReady(FutureState<T>& /*unused*/) override
+    void futureReady(FutureState<T>& /*unused*/, FutureFlag /*unused*/) override
     {
         m_event->set();
     }
@@ -220,15 +311,14 @@ template<typename T, typename UnwrappedT>
 class UnwrapperFutureCallback final : public FutureCallback<T>
 {
 public:
-    UnwrapperFutureCallback(RefPtr<detail::FutureState<UnwrappedT>> unwrapState)
+    explicit UnwrapperFutureCallback(RefPtr<detail::FutureState<UnwrappedT>> unwrapState)
       : m_unwrapState(std::move(unwrapState))
     {}
 
-    void futureReady(FutureState<T>& state) override
+    void futureReady(FutureState<T>& state, FutureFlag /*unused*/) override
     {
         if (state.hasException()) {
-            auto& exPtr = state.getException();
-            m_unwrapState->setException(std::move(exPtr));
+            m_unwrapState->setException(state.exception());
             return;
         }
 
@@ -236,12 +326,11 @@ public:
             using NextT = typename T::Type;
             using NextFutureCallaback = UnwrapperFutureCallback<NextT, UnwrappedT>;
 
-            auto nextState = state.getValue().detachState();
+            auto nextState = state.value().detachState();
             auto nextCallback = std::make_unique<NextFutureCallaback>(std::move(m_unwrapState));
             nextState->setCallback(std::move(nextCallback));
         } else if constexpr (!std::is_void_v<UnwrappedT>) {
-            auto& value = state.getValue();
-            m_unwrapState->setValue(std::move(value));
+            m_unwrapState->setValue(state.value());
         } else {
             m_unwrapState->setValue();
         }
@@ -269,16 +358,14 @@ public:
         assert(m_futureState->hasResult());
 
         if (m_futureState->hasException()) {
-            auto& exPtr = m_futureState->getException();
-            m_nextFutureState->setException(std::move(exPtr));
+            m_nextFutureState->setException(m_futureState->exception());
             return;
         }
 
         if constexpr (std::is_void_v<T>) {
             m_nextFutureState->calcResult(std::move(m_fn));
         } else {
-            auto& value = m_futureState->getValue();
-            m_nextFutureState->calcResult(m_fn, std::move(value));
+            m_nextFutureState->calcResult(std::move(m_fn), m_futureState->value());
         }
     }
 
@@ -310,16 +397,14 @@ public:
         assert(m_futureState->hasResult());
 
         if (m_futureState->hasException()) {
-            auto& exPtr = m_futureState->getException();
-            m_nextFutureState->calcResult(std::move(m_fn), std::move(exPtr));
+            m_nextFutureState->calcResult(std::move(m_fn), m_futureState->exception());
             return;
         }
 
         if constexpr (std::is_void_v<T>) {
             m_nextFutureState->setValue();
         } else {
-            auto& value = m_futureState->getValue();
-            m_nextFutureState->setValue(std::move(value));
+            m_nextFutureState->setValue(m_futureState->value());
         }
     }
 

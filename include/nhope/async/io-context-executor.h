@@ -16,7 +16,7 @@ class IOContextExecutor final : public Executor
 public:
     explicit IOContextExecutor(asio::io_context& ioCtx);
 
-    void post(Work work) override;
+    void exec(Work work, ExecMode mode = ExecMode::AddInQueue) override;
     asio::io_context& ioCtx() override;
 
 private:
@@ -33,7 +33,7 @@ class IOContextSequenceExecutor final : public SequenceExecutor
 public:
     explicit IOContextSequenceExecutor(asio::io_context& ioCtx);
 
-    void post(Work work) override;
+    void exec(Work work, ExecMode mode = ExecMode::AddInQueue) override;
     asio::io_context& ioCtx() override;
 
 private:

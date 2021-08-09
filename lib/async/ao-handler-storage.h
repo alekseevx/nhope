@@ -40,7 +40,7 @@ public:
         rec.handler = std::move(handler);
     }
 
-    std::unique_ptr<AOHandler> get(AOHandlerId id)
+    std::unique_ptr<AOHandler> get(AOHandlerId id) noexcept
     {
         const auto it = std::find_if(m_storage.begin(), m_storage.end(), [id](const auto& r) {
             return r.id == id;
@@ -52,7 +52,7 @@ public:
         return freeRec(*it);
     }
 
-    void cancelAll()
+    void cancelAll() noexcept
     {
         for (auto& r : m_storage) {
             try {
@@ -79,7 +79,7 @@ private:
         return *it;
     }
 
-    static std::unique_ptr<AOHandler> freeRec(AOHandlerRec& rec)
+    static std::unique_ptr<AOHandler> freeRec(AOHandlerRec& rec) noexcept
     {
         rec.id = invalidId;
         return std::move(rec.handler);

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chrono>
+#include <exception>
 #include <functional>
 #include <list>
 #include <memory>
@@ -9,7 +10,7 @@
 #include <utility>
 
 #include "nhope/async/ao-context.h"
-#include "nhope/async/detail/future.h"
+#include "nhope/async/detail/future-state.h"
 #include "nhope/async/event.h"
 #include "nhope/async/future-error.h"
 #include "nhope/async/thread-executor.h"
@@ -106,11 +107,11 @@ public:
         }
 
         if (state->hasException()) {
-            std::rethrow_exception(state->getException());
+            std::rethrow_exception(state->exception());
         }
 
         if constexpr (!std::is_void_v<T>) {
-            return std::move(state->getValue());
+            return std::move(state->value());
         }
     }
 

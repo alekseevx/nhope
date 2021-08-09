@@ -21,10 +21,10 @@ public:
       , isOriginSeqExecutor(isSequenceExecutor(executor))
     {}
 
-    void post(Work& work)
+    void exec(Work& work, ExecMode mode)
     {
         if (isOriginSeqExecutor) {
-            originExecutor.post(std::move(work));
+            originExecutor.exec(std::move(work), mode);
             return;
         }
 
@@ -43,7 +43,7 @@ public:
         assert(!hasActiveWork);   // NOLINT
 
         hasActiveWork = true;
-        originExecutor.post([self = shared_from_this(), work = std::move(work)] {
+        originExecutor.exec([self = shared_from_this(), work = std::move(work)] {
             try {
                 work();
             } catch (...) {
@@ -91,9 +91,9 @@ Executor& StrandExecutor::originExecutor() noexcept
     return m_d->originExecutor;
 }
 
-void StrandExecutor::post(Work work)
+void StrandExecutor::exec(Work work, ExecMode mode)
 {
-    m_d->post(work);
+    m_d->exec(work, mode);
 }
 
 asio::io_context& StrandExecutor::ioCtx()
