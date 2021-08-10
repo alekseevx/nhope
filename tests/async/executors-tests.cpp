@@ -115,7 +115,7 @@ void testExecMode(Executor& executor)
             execEnabled = false;
         });
 
-        EXPECT_TRUE(finished.waitFor(100ms));
+        EXPECT_TRUE(finished.waitFor(100s));
     }
 
     {
@@ -133,11 +133,11 @@ void testExecMode(Executor& executor)
               },
               Executor::ExecMode::AddInQueue);
 
-            // После возврата в цикл событий, должена быть выполнен запланированный Work
+            // После возврата в цикл событий должен быть выполнен запланированный Work
             execEnabled = true;
         });
 
-        EXPECT_TRUE(finished.waitFor(100ms));
+        EXPECT_TRUE(finished.waitFor(100s));
     }
 }
 
