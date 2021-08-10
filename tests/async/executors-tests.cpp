@@ -202,7 +202,7 @@ TEST(IOContextSequenceExecutor, ExecMode)   // NOLINT
 TEST(IOContextExecutor, ioCtx)   // NOLINT
 {
     auto ioCtx = startIoContext(4);
-    IOContextSequenceExecutor executor(*ioCtx);
+    IOContextExecutor executor(*ioCtx);
 
     EXPECT_EQ(ioCtx, &executor.ioCtx());
 }
