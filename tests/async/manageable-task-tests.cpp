@@ -94,9 +94,9 @@ TEST(ManageableTask, checkStopPausedTask)   // NOLINT
     ASSERT_EQ(task->state(), ManageableTask::State::Running);
     ASSERT_TRUE(isChanged(counter));
 
-    auto pauseFuture = task->asyncPause();
+    ASSERT_TRUE(task->asyncPause().waitFor(1s));
     auto taskState = task->state();
-    ASSERT_TRUE(taskState == ManageableTask::State::Pausing || taskState == ManageableTask::State::Paused);
+    ASSERT_TRUE(taskState == ManageableTask::State::Paused);
     ASSERT_FALSE(isChanged(counter));
 
     task->asyncStop();

@@ -97,47 +97,48 @@ void testExec(Executor& executor, int maxParallelTasks = 1)
 void testExecMode(Executor& executor)
 {
     {
-        Event finished;
-        std::atomic<bool> execEnabled = false;
-        executor.exec([&] {   // Переходим в Executor
+        auto firstWorkFinished = std::make_shared<Event>();
+        executor.exec([&, firstWorkFinished] {   // Переходим в Executor
             /* Executor делжен запустить следующий Work непосредственно из следующего exec
                т.к. мы явно попросили его об этом и мы уже находимся внутри Executor-а. */
-            execEnabled = true;
-
+            auto secondWorkFinished = std::make_shared<Event>();
             executor.exec(
-              [&] {
-                  EXPECT_TRUE(execEnabled);
-                  finished.set();
+              [secondWorkFinished] {
+                  secondWorkFinished->set();
               },
               Executor::ExecMode::ImmediatelyIfPossible);
 
-            /* Work уже должен был отработать */
-            execEnabled = false;
+            /* Если все верно, то SecondWork уже должен был отработать */
+            EXPECT_TRUE(secondWorkFinished->waitFor(0ms));
+
+            firstWorkFinished->set();
         });
 
-        EXPECT_TRUE(finished.waitFor(100s));
+        firstWorkFinished->wait();
     }
 
     {
-        Event finished;
+        auto finished = std::make_shared<Event>();
         std::atomic<bool> execEnabled = false;
-        executor.exec([&] {   // Переходим в Executor
+        executor.exec([finished, &executor] {   // Переходим в Executor
             /* Executor не может запускать следующий Work непосредственно из следующего exec
-               т.к. мы явно запретили ему это делать. */
-            execEnabled = false;
+               т.к. мы явно запретили ему это делать. Work может быть запущен либо в текущем потоке, но только
+               после выхода из текущего exec, либо будет запушен в другом потоке параллельно с нашим exec.  */
+            static thread_local bool execEnabled = true;
 
+            execEnabled = false;   // В нашем потоке Work пока не может быть запущен...
             executor.exec(
-              [&] {
+              [finished] {
                   EXPECT_TRUE(execEnabled);
-                  finished.set();
+                  finished->set();
               },
               Executor::ExecMode::AddInQueue);
 
-            // После возврата в цикл событий должен быть выполнен запланированный Work
+            // После возврата в цикл событий Work может быть запущен в нашем потоке...
             execEnabled = true;
         });
 
-        EXPECT_TRUE(finished.waitFor(100s));
+        EXPECT_TRUE(finished->waitFor(100s));
     }
 }
 
