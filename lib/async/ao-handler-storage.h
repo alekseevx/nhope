@@ -26,7 +26,9 @@ class AOHandlerStorage final
 {
 public:
     AOHandlerStorage() = default;
+
     AOHandlerStorage(AOHandlerStorage&&) noexcept = default;
+    AOHandlerStorage& operator=(AOHandlerStorage&&) noexcept = default;
 
     ~AOHandlerStorage()
     {

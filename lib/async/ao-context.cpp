@@ -256,8 +256,15 @@ private:
 
     void cancelAOHandlers() noexcept
     {
-        this->m_internalAOHandlers.cancelAll();
-        this->m_externalAOHandlers.cancelAll();
+        AOHandlerStorage internalAOHandlers = std::move(m_internalAOHandlers);
+        AOHandlerStorage externalAOHandlers;
+        {
+            std::scoped_lock lock(m_externalAOHandlersMutex);
+            externalAOHandlers = std::move(m_externalAOHandlers);
+        }
+
+        internalAOHandlers.cancelAll();
+        externalAOHandlers.cancelAll();
     }
 
     AOContextState m_state;
