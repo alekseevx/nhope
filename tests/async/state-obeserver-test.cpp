@@ -1,5 +1,7 @@
 #include <exception>
+#include <ostream>
 #include <stdexcept>
+#include <string>
 #include <thread>
 #include <type_traits>
 #include <utility>
@@ -8,6 +10,7 @@
 
 #include <gtest/gtest.h>
 
+#include "fmt/core.h"
 #include "nhope/async/ao-context.h"
 #include "nhope/async/future.h"
 #include "nhope/async/state-observer.h"
@@ -55,6 +58,23 @@ private:
 };
 
 }   // namespace
+
+namespace nhope {
+template<typename T>
+void PrintTo(const ObservableState<T>& state, std::ostream* os)   // NOLINT(readability-identifier-naming)
+{
+    if (state.hasException()) {
+        try {
+            std::rethrow_exception(state.exception());
+        } catch (const std::exception& ex) {
+            *os << fmt::format("Exception: {}", ex.what());
+        }
+        return;
+    }
+
+    *os << fmt::format("{}", state.value());
+}
+}   // namespace nhope
 
 TEST(StateObserver, SimpleObserver)   // NOLINT
 {
@@ -108,9 +128,10 @@ TEST(StateObserver, ObserverFailConstruct)   // NOLINT
 TEST(StateObserver, Exception)   // NOLINT
 {
     using namespace nhope;
+    constexpr auto initValue = 0;
     constexpr auto magic = 42;
 
-    std::atomic<int> value{};
+    std::atomic<int> value = initValue;
 
     StateObserver<int> observer(
       [&](int newVal) {
@@ -121,7 +142,7 @@ TEST(StateObserver, Exception)   // NOLINT
           return makeReadyFuture();
       },
       [&] {
-          auto current = value.load();
+          const auto current = value.load();
           if (current == magic + 1) {
               value = 2;
               throw std::runtime_error("magic get");
@@ -134,12 +155,17 @@ TEST(StateObserver, Exception)   // NOLINT
           }
           return makeReadyFuture<int>(current);
       },
-      nhope::ThreadPoolExecutor::defaultExecutor());
+      nhope::ThreadPoolExecutor::defaultExecutor(), 10ms);
 
     Chan<ObservableState<int>> stateChan;
+
+    /* Устанавливаем magic и только затем подключаемся к observer-у.
+       Если сделать в другом порядке, иногда в канал будет успевать попадать initValue
+       из-за чего тест не будет проходить.
+       https://gitlab.olimp.lan/alekseev/nhope/-/issues/9  */
+    observer.setState(magic);
     stateChan.attachToProduser(observer);
 
-    observer.setState(magic);
     EXPECT_EQ(stateChan.get().value(), magic);
     EXPECT_TRUE(stateChan.get()->hasException());   // setter: throw Exception
     EXPECT_EQ(stateChan.get().value(), 0);          // getter: return current value (0)
