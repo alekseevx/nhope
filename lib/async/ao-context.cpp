@@ -1,6 +1,7 @@
 #include <atomic>
 #include <cassert>
 #include <cstddef>
+#include <limits>
 #include <memory>
 #include <mutex>
 #include <thread>
@@ -19,13 +20,15 @@ namespace {
 
 using namespace detail;
 
+constexpr auto flagsWidth = std::numeric_limits<size_t>::digits;
+
 class AOContextState final
 {
 public:
     enum Flags : std::size_t
     {
-        Closing = static_cast<size_t>(1) << (SIZE_WIDTH - 1),
-        Closed = static_cast<size_t>(1) << (SIZE_WIDTH - 2),
+        Closing = static_cast<size_t>(1) << (flagsWidth - 1),
+        Closed = static_cast<size_t>(1) << (flagsWidth - 2),
     };
     static constexpr auto flagsMask = Flags::Closed | Flags::Closing;
     static constexpr auto blockCloseCounterMask = ~flagsMask;
@@ -232,7 +235,7 @@ private:
     AOHandlerId nextExternalId([[maybe_unused]] std::unique_lock<std::mutex>& lock) noexcept
     {
         assert(!this->aoContextWorkInThisThread());   // NOLINT
-        assert(lock.owns_lock());
+        assert(lock.owns_lock());                     // NOLINT
         return 2 * this->m_externalAOHandlerCounter++ + 1;
     }
 
