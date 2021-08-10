@@ -23,9 +23,12 @@ namespace nhope {
 template<typename... Args>
 std::function<void(Args...)> makeSafeCallback(AOContext& aoCtx, std::function<void(Args...)> callback)
 {
-    return [aoCtx = AOContextWeekRef(aoCtx), callback = std::move(callback)](Args... args) mutable {
-        auto aoHandler = detail::makeSafeCallbackAOHandler([callback, args...] {
-            callback(args...);
+    // https://gitlab.olimp.lan/alekseev/nhope/-/issues/8
+    auto callbackPtr = std::make_shared<std::function<void(Args...)>>(std::move(callback));
+
+    return [aoCtx = AOContextWeekRef(aoCtx), callbackPtr](Args... args) mutable {
+        auto aoHandler = detail::makeSafeCallbackAOHandler([callbackPtr, args...] {
+            (*callbackPtr)(args...);
         });
 
         aoCtx.callAOHandler(std::move(aoHandler));

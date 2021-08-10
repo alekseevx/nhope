@@ -1,10 +1,12 @@
-#include <nhope/async/ao-context.h>
-#include <nhope/async/safe-callback.h>
-#include <nhope/async/thread-executor.h>
+#include "nhope/async/ao-context.h"
+#include "nhope/async/safe-callback.h"
+#include "nhope/async/thread-executor.h"
 
+#include <atomic>
 #include <fmt/format.h>
 
 #include <gtest/gtest.h>
+#include <memory>
 #include "test-helpers/wait.h"
 
 using namespace nhope;
@@ -65,4 +67,49 @@ TEST(CallSafeCallback, CallAfterDestroyAOContext)   // NOLINT
         aoContextDestroyed = true;
         callbackCaller.join();
     }
+}
+
+// https://gitlab.olimp.lan/alekseev/nhope/-/issues/8
+// Оборачиваемый callback можно копировать только при создании safeCallback.
+//
+// callback может захватывать данные, которые будут уничтожены одновременно с уничтожением
+// AOContext. Поэтому, либо мы должны  гарантировать, что не будет делать копию после уничтожения AOContext,
+// либо мы должны вообще отказаться от копирования callback после создания SafeCallback.
+// С учетом того, что потенциально копирование callback-а может быть дорогим, был выбран второй вариант.
+TEST(CallSafeCallback, ProhibitingCopyingCallbackWhenCallSafeCallback)   // NOLINT
+{
+    class CopiedClass
+    {
+    public:
+        CopiedClass() = default;
+
+        CopiedClass(const CopiedClass& other)
+        {
+            EXPECT_TRUE(*other.copyingIsProhibited);
+            copyingIsProhibited = other.copyingIsProhibited;
+        }
+
+        CopiedClass& operator=(const CopiedClass& /*unused*/) = delete;
+
+        std::shared_ptr<bool> copyingIsProhibited = std::make_shared<bool>(true);
+    };
+
+    ThreadExecutor executor;
+    AOContext aoCtx(executor);
+
+    CopiedClass copiedObject;
+    *copiedObject.copyingIsProhibited = true;   // При создании SafeCallback-а копирование callback-а разрешено
+
+    std::atomic<bool> finished = false;
+    std::function callback = [&, copiedObject] {
+        finished = true;
+    };
+    std::function safeCallback = makeSafeCallback(aoCtx, callback);
+
+    // safeCallback создан, копировать callback больше нельзя
+    *copiedObject.copyingIsProhibited = false;
+
+    // Вызываем callback и убеждаемся, что копирование callback выполнено не будет.
+    safeCallback();
+    waitForValue(10s, finished, true);
 }
