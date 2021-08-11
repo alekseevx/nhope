@@ -22,9 +22,8 @@ public:
     Chan& operator=(const Chan&) = delete;
 
     Chan(bool autoClose = true, size_t capacity = std::numeric_limits<size_t>::max())
-    {
-        m_d = std::make_shared<Prv>(autoClose, capacity);
-    }
+      : m_d(std::make_shared<Prv>(autoClose, capacity))
+    {}
 
     ~Chan()
     {

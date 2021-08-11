@@ -1,12 +1,11 @@
 #pragma once
 
-#include <deque>
 #include <list>
-#include <mutex>
 #include <memory>
+#include <mutex>
 
-#include "consumer.h"
 #include "nhope/async/reverse-lock.h"
+#include "nhope/seq/consumer.h"
 
 namespace nhope {
 
@@ -45,7 +44,7 @@ public:
             nhope::ReverseLock unlock(lock);
             auto it = list.begin();
             while (it != list.end()) {
-                switch ((*it)->consume(value)) {
+                switch (exceptionSafeConsume(*it, value)) {
                 case Consumer<T>::Status::Ok:
                     it++;
                     break;
@@ -61,6 +60,17 @@ public:
     }
 
 private:
+    static typename Consumer<T>::Status exceptionSafeConsume(std::unique_ptr<Consumer<T>>& consumer,
+                                                             const T& value) noexcept
+    {
+        try {
+            return consumer->consume(value);
+        } catch (...) {
+            // The consumer did not return Closed - we will not delete it
+            return Consumer<T>::Status::Ok;
+        }
+    }
+
     using List = std::list<std::unique_ptr<Consumer<T>>>;
 
     std::mutex m_mutex;
