@@ -35,40 +35,6 @@ TEST(CallSafeCallback, Call)   // NOLINT
     EXPECT_TRUE(waitForValue(1s, callbackCalled, iterCount));
 }
 
-TEST(CallSafeCallback, CallAfterDestroyAOContext)   // NOLINT
-{
-    constexpr auto iterCount = 100;
-
-    ThreadExecutor executor;
-
-    for (int i = 0; i < iterCount; ++i) {
-        auto aoContext = std::make_unique<AOContext>(executor);
-        std::atomic<bool> aoContextDestroyed = false;
-
-        const auto safeCallback = makeSafeCallback(*aoContext, std::function([&] {
-            EXPECT_EQ(executor.id(), std::this_thread::get_id());
-            EXPECT_FALSE(aoContextDestroyed);
-        }));
-
-        auto callbackCaller = std::thread([safeCallback, &aoContextDestroyed] {
-            for (;;) {
-                try {
-                    safeCallback();
-                } catch (const AOContextClosed&) {
-                    return;
-                }
-            }
-        });
-
-        const auto sleepTime = (i % 10) * 1ms;
-        std::this_thread::sleep_for(sleepTime);
-
-        aoContext.reset();
-        aoContextDestroyed = true;
-        callbackCaller.join();
-    }
-}
-
 // https://gitlab.olimp.lan/alekseev/nhope/-/issues/8
 // Оборачиваемый callback можно копировать только при создании safeCallback.
 //
@@ -112,4 +78,52 @@ TEST(CallSafeCallback, ProhibitingCopyingCallbackWhenCallSafeCallback)   // NOLI
     // Вызываем callback и убеждаемся, что копирование callback выполнено не будет.
     safeCallback();
     waitForValue(10s, finished, true);
+}
+
+TEST(CallSafeCallback, AOContextClosedActions_ThrowAOContextClosed)   // NOLINT
+{
+    constexpr auto iterCount = 100;
+
+    ThreadExecutor executor;
+
+    for (int i = 0; i < iterCount; ++i) {
+        auto aoContext = std::make_unique<AOContext>(executor);
+        std::atomic<bool> aoContextDestroyed = false;
+
+        const auto safeCallback = makeSafeCallback(*aoContext, std::function([&] {
+            EXPECT_EQ(executor.id(), std::this_thread::get_id());
+            EXPECT_FALSE(aoContextDestroyed);
+        }));
+
+        auto callbackCaller = std::thread([safeCallback, &aoContextDestroyed] {
+            for (;;) {
+                try {
+                    safeCallback();
+                } catch (const AOContextClosed&) {
+                    return;
+                }
+            }
+        });
+
+        const auto sleepTime = (i % 10) * 1ms;
+        std::this_thread::sleep_for(sleepTime);
+
+        aoContext.reset();
+        aoContextDestroyed = true;
+        callbackCaller.join();
+    }
+}
+
+TEST(CallSafeCallback, AOContextClosedActions_NotThrowAOContextClosed)   // NOLINT
+{
+    constexpr auto iterCount = 100;
+
+    ThreadExecutor executor;
+    auto aoContext = std::make_unique<AOContext>(executor);
+
+    const auto safeCallback = makeSafeCallback(
+      *aoContext, [&] {}, nhope::NotThrowAOContextClosed);
+
+    aoContext.reset();
+    EXPECT_NO_THROW(safeCallback());   // NOLINT
 }
