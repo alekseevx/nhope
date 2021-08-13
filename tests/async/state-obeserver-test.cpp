@@ -1,16 +1,11 @@
-#include <exception>
 #include <ostream>
 #include <stdexcept>
 #include <string>
-#include <thread>
-#include <type_traits>
 #include <utility>
-#include <variant>
-#include <iostream>
 
+#include <fmt/core.h>
 #include <gtest/gtest.h>
 
-#include "fmt/core.h"
 #include "nhope/async/ao-context.h"
 #include "nhope/async/future.h"
 #include "nhope/async/state-observer.h"
