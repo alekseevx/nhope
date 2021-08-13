@@ -20,13 +20,13 @@ TEST(CallSafeCallback, Call)   // NOLINT
     AOContext aoContext(executor);
 
     std::atomic<int> callbackCalled = 0;
-    const auto safeCallback = makeSafeCallback(aoContext, std::function([&](int arg1, const std::string& arg2) {
-                                                   EXPECT_EQ(executor.id(), std::this_thread::get_id());
-                                                   EXPECT_EQ(arg1, callbackCalled);
-                                                   EXPECT_EQ(arg2, fmt::format("{}", callbackCalled));
+    const auto safeCallback = makeSafeCallback(aoContext, [&](int arg1, const std::string& arg2) {
+        EXPECT_EQ(executor.id(), std::this_thread::get_id());
+        EXPECT_EQ(arg1, callbackCalled);
+        EXPECT_EQ(arg2, fmt::format("{}", callbackCalled));
 
-                                                   ++callbackCalled;
-                                               }));
+        ++callbackCalled;
+    });
 
     for (int i = 0; i < iterCount; ++i) {
         safeCallback(i, fmt::format("{}", i));
@@ -67,10 +67,10 @@ TEST(CallSafeCallback, ProhibitingCopyingCallbackWhenCallSafeCallback)   // NOLI
     *copiedObject.copyingIsProhibited = true;   // При создании SafeCallback-а копирование callback-а разрешено
 
     std::atomic<bool> finished = false;
-    std::function callback = [&, copiedObject] {
+    auto callback = [&, copiedObject] {
         finished = true;
     };
-    std::function safeCallback = makeSafeCallback(aoCtx, callback);
+    auto safeCallback = makeSafeCallback(aoCtx, callback);
 
     // safeCallback создан, копировать callback больше нельзя
     *copiedObject.copyingIsProhibited = false;
@@ -90,10 +90,10 @@ TEST(CallSafeCallback, AOContextClosedActions_ThrowAOContextClosed)   // NOLINT
         auto aoContext = std::make_unique<AOContext>(executor);
         std::atomic<bool> aoContextDestroyed = false;
 
-        const auto safeCallback = makeSafeCallback(*aoContext, std::function([&] {
+        const auto safeCallback = makeSafeCallback(*aoContext, [&] {
             EXPECT_EQ(executor.id(), std::this_thread::get_id());
             EXPECT_FALSE(aoContextDestroyed);
-        }));
+        });
 
         auto callbackCaller = std::thread([safeCallback, &aoContextDestroyed] {
             for (;;) {
