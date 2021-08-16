@@ -395,8 +395,8 @@ inline Future<void> makeReadyFuture()
     return makeReadyFuture<void>();
 }
 
-template<typename T, typename... Args>
-void resolvePromises(std::list<Promise<T>>& promises, Args&&... args)
+template<template<typename, typename> typename Cont, typename T, typename Alloc, typename... Args>
+void resolvePromises(Cont<Promise<T>, Alloc>& promises, Args&&... args)
 {
     for (auto& p : promises) {
         p.setValue(std::forward<Args>(args)...);
