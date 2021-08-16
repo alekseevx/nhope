@@ -154,14 +154,19 @@ TEST(StateObserver, Exception)   // NOLINT
 
     Chan<ObservableState<int>> stateChan;
 
-    /* Устанавливаем magic и только затем подключаемся к observer-у.
-       Если сделать в другом порядке, иногда в канал будет успевать попадать initValue
-       из-за чего тест не будет проходить.
-       https://gitlab.olimp.lan/alekseev/nhope/-/issues/9  */
-    observer.setState(magic);
     stateChan.attachToProduser(observer);
+    observer.setState(magic);
 
-    EXPECT_EQ(stateChan.get().value(), magic);
+    {
+        // Учтём, что в канал может попадать initValue
+        // https://gitlab.olimp.lan/alekseev/nhope/-/issues/9
+        auto curState = stateChan.get().value();
+        if (curState == initValue) {
+            curState = stateChan.get().value();
+        }
+        EXPECT_EQ(curState, magic);
+    }
+
     EXPECT_TRUE(stateChan.get()->hasException());   // setter: throw Exception
     EXPECT_EQ(stateChan.get().value(), 0);          // getter: return current value (0)
 
@@ -196,9 +201,16 @@ TEST(StateObserver, AsyncExceptionInSetter)   // NOLINT
     Chan<ObservableState<int>> stateChan;
 
     stateChan.attachToProduser(observer);
-    EXPECT_EQ(stateChan.get(), magic);
     observer.setState(magic + 1);
 
-    EXPECT_EQ(stateChan.get(), magic + 1);
+    {
+        // Учтём, что в канал может попадать initValue(magic)
+        auto curState = stateChan.get().value();
+        if (curState == magic) {
+            curState = stateChan.get().value();
+        }
+        EXPECT_EQ(curState, magic + 1);
+    }
+
     EXPECT_TRUE(stateChan.get()->hasException());   // NOLINT
 }
