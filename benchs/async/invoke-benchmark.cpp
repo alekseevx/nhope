@@ -21,7 +21,7 @@ void invoke(benchmark::State& state)
     nhope::ThreadExecutor executor;
     nhope::AOContext aoCtx(executor);
 
-    for (auto _ : state) {
+    for ([[maybe_unused]] auto _ : state) {
         doInvokeIteration(aoCtx, state.range());
     }
 }

@@ -46,7 +46,7 @@ void doFutureThenIteration(benchmark::State& state, std::uint64_t num)
 
 void futureThen(benchmark::State& state)
 {
-    for (auto _ : state) {
+    for ([[maybe_unused]] auto _ : state) {
         doFutureThenIteration(state, state.range());
     }
 }

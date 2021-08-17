@@ -21,7 +21,7 @@ void fileReader(benchmark::State& state)
 
     auto dev = openFile(e, s);
 
-    for (auto _ : state) {
+    for ([[maybe_unused]] auto _ : state) {
         nhope::readExactly(*dev, bufSize).get();
     }
 }
@@ -37,11 +37,10 @@ void fileWriter(benchmark::State& state)
 
     auto dev = openFile(e, s);
 
-    for (auto _ : state) {
+    for ([[maybe_unused]] auto _ : state) {
         nhope::writeExactly(*dev, buffer).get();
     }
 }
 
 BENCHMARK(fileReader)->Iterations(100000)->Unit(benchmark::TimeUnit::kMillisecond);   //NOLINT
 BENCHMARK(fileWriter)->Iterations(100000)->Unit(benchmark::TimeUnit::kMillisecond);   //NOLINT
-

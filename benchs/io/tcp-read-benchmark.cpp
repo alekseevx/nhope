@@ -128,7 +128,7 @@ void doNextIteration(benchmark::State& state, std::uint64_t& receivedBytes)
 void tcpReader(benchmark::State& state)
 {
     std::uint64_t receivedBytes = 0;
-    for (auto _ : state) {
+    for ([[maybe_unused]] auto _ : state) {
         doNextIteration(state, receivedBytes);
     }
     state.SetBytesProcessed(static_cast<std::int64_t>(receivedBytes));
@@ -220,7 +220,7 @@ void doNextAsioIteration(benchmark::State& state, std::uint64_t& receivedBytes)
 void tcpAsioReader(benchmark::State& state)
 {
     std::uint64_t receivedBytes = 0;
-    for (auto _ : state) {
+    for ([[maybe_unused]] auto _ : state) {
         doNextAsioIteration(state, receivedBytes);
     }
     state.SetBytesProcessed(static_cast<std::int64_t>(receivedBytes));
