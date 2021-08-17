@@ -18,10 +18,4 @@ public:
     AOContextClosed();
 };
 
-class DetectedDeadlock final : public std::runtime_error
-{
-public:
-    DetectedDeadlock();
-};
-
 }   // namespace nhope
