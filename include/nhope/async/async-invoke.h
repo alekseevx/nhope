@@ -29,7 +29,7 @@ template<typename Fn, typename... Args>
 auto invoke(AOContext& aoCtx, Fn&& fn, Args&&... args)
 {
     if (aoCtx.workInThisThread()) {
-        throw DetectedDeadlock();
+        return std::invoke(std::forward<Fn>(fn), std::forward<Args>(args)...);
     }
 
     auto future = asyncInvoke(aoCtx, std::forward<Fn>(fn), std::forward<Args>(args)...);
