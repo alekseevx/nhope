@@ -1,62 +1,83 @@
+#include <cstddef>
+#include <list>
+#include <memory>
+#include <thread>
+
 #include <asio/dispatch.hpp>
+#include <asio/io_context.hpp>
 #include <asio/post.hpp>
-#include <nhope/async/thread-pool-executor.h>
+
+#include "nhope/async/thread-pool-executor.h"
 
 namespace nhope {
 
-ThreadPoolExecutor::ThreadPoolExecutor(std::size_t threadCount)
-  : m_ioCtx(static_cast<int>(threadCount))
-{
-    try {
-        for (std::size_t i = 0; i < threadCount; ++i) {
-            m_threads.emplace_back(std::thread([this] {
-                auto workGuard = asio::make_work_guard(m_ioCtx);
-                m_ioCtx.run();
-            }));
-        }
-    } catch (...) {
-        this->stop();
-        throw;
-    }
-}
+using WorkGuard = asio::executor_work_guard<asio::io_context::executor_type>;
 
-ThreadPoolExecutor::~ThreadPoolExecutor()
+struct ThreadPoolExecutor::Impl final
 {
-    this->stop();
-}
+    explicit Impl(std::size_t threadCount)
+      : ioCtx(static_cast<int>(threadCount))
+      , workGuard(ioCtx.get_executor())
+    {
+        try {
+            for (std::size_t i = 0; i < threadCount; ++i) {
+                threads.emplace_back([this] {
+                    ioCtx.run();
+                });
+            }
+        } catch (...) {
+            this->stop();
+            throw;
+        }
+    }
+
+    ~Impl()
+    {
+        this->stop();
+    }
+
+    void stop()
+    {
+        ioCtx.stop();
+        for (auto& thread : threads) {
+            thread.join();
+        }
+    }
+
+    asio::io_context ioCtx;
+    std::list<std::thread> threads;
+    WorkGuard workGuard;
+};
+
+ThreadPoolExecutor::ThreadPoolExecutor(std::size_t threadCount)
+  : m_d(std::make_unique<Impl>(threadCount))
+{}
+
+ThreadPoolExecutor::~ThreadPoolExecutor() = default;
 
 std::size_t ThreadPoolExecutor::threadCount() const noexcept
 {
-    return m_threads.size();
+    return m_d->threads.size();
 }
 
 void ThreadPoolExecutor::exec(Work work, ExecMode mode)
 {
     if (mode == ExecMode::AddInQueue) {
-        asio::post(m_ioCtx, std::move(work));
+        asio::post(m_d->ioCtx, std::move(work));
     } else {
-        asio::dispatch(m_ioCtx, std::move(work));
+        asio::dispatch(m_d->ioCtx, std::move(work));
     }
 }
 
 asio::io_context& ThreadPoolExecutor::ioCtx()
 {
-    return m_ioCtx;
+    return m_d->ioCtx;
 }
 
 ThreadPoolExecutor& ThreadPoolExecutor::defaultExecutor()
 {
     static auto executor = ThreadPoolExecutor(std::thread::hardware_concurrency());
     return executor;
-}
-
-void ThreadPoolExecutor::stop()
-{
-    m_ioCtx.stop();
-    for (auto& thread : m_threads) {
-        thread.join();
-    }
-    m_threads.clear();
 }
 
 }   // namespace nhope

@@ -1,10 +1,7 @@
 #include <cstddef>
-#include <list>
-#include <thread>
+#include <memory>
 
-#include <asio/io_context.hpp>
-
-#include <nhope/async/executor.h>
+#include "nhope/async/executor.h"
 
 namespace nhope {
 
@@ -22,10 +19,8 @@ public:
     static ThreadPoolExecutor& defaultExecutor();
 
 private:
-    void stop();
-
-    asio::io_context m_ioCtx;
-    std::list<std::thread> m_threads;
+    struct Impl;
+    std::unique_ptr<Impl> m_d;
 };
 
 }   // namespace nhope

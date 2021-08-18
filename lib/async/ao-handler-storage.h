@@ -5,7 +5,8 @@
 #include <memory>
 #include <utility>
 
-#include "nhope/async/ao-context.h"
+#include "nhope/async/ao-handler.h"
+#include "nhope/async/detail/ao-handler-id.h"
 
 namespace nhope::detail {
 
@@ -18,7 +19,7 @@ struct AOHandlerRec final
 
     ~AOHandlerRec() noexcept = default;
 
-    AOHandlerId id = invalidId;
+    AOHandlerId id = invalidAOHandlerId;
     std::unique_ptr<AOHandler> handler;
 };
 
@@ -72,7 +73,7 @@ private:
     AOHandlerRec& findFreeRec()
     {
         const auto it = std::find_if(m_storage.begin(), m_storage.end(), [](const auto& r) {
-            return r.id == invalidId;
+            return r.id == invalidAOHandlerId;
         });
         if (it == m_storage.end()) {
             return m_storage.emplace_back();
@@ -83,7 +84,7 @@ private:
 
     static std::unique_ptr<AOHandler> freeRec(AOHandlerRec& rec) noexcept
     {
-        rec.id = invalidId;
+        rec.id = invalidAOHandlerId;
         return std::move(rec.handler);
     }
 

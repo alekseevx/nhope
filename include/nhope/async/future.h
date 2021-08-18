@@ -245,9 +245,9 @@ public:
     }
 
     /**
-     * @brief Checks whether was called #wait or #waitFor
+     * @brief Checks whether was called wait or waitFor
      * 
-     * If #wait or #waitFor was called, #then and #fail must not be called.
+     * If #wait or waitFor was called, then and fail must not be called.
      */
     [[nodiscard]] bool isWaitFuture() const
     {

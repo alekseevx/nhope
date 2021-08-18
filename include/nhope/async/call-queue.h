@@ -15,10 +15,15 @@ namespace nhope {
 class CallQueue final
 {
 public:
-    explicit CallQueue(AOContext& ctx)
+    explicit CallQueue(AOContext& parentCtx)
       : m_callChain(makeReadyFuture())
-      , m_ctx(ctx.executor())   // TODO Сделать дочерний ао контекст
+      , m_ctx(parentCtx)
     {}
+
+    ~CallQueue()
+    {
+        m_ctx.close();
+    }
 
     template<typename Fn, typename... Args>
     auto push(Fn&& fn, Args&&... args)

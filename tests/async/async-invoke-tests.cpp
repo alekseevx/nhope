@@ -181,8 +181,21 @@ TEST(AsyncInvoke, InvokeFromInvoke)   // NOLINT
     AOContext aoCtx(executor);
 
     invoke(aoCtx, [&aoCtx] {
-        // Теперь мы в AOContext и повторный invoke на том же AOContext
-        // должен выкинуть тут же выполнить функцию.
+        // Теперь мы в AOContext и invoke на том же AOContext
+        // должен тут же выполнить функцию.
         invoke(aoCtx, [] {});
+    });
+}
+
+TEST(AsyncInvoke, InvokeFromParentInvoke)   // NOLINT
+{
+    ThreadExecutor executor;
+    AOContext parent(executor);
+    AOContext child(parent);
+
+    invoke(parent, [&child] {
+        // Теперь мы в контексте parent и invoke на контексте child
+        // должен тут же выполнить функцию.
+        invoke(child, [] {});
     });
 }
