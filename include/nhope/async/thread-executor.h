@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <string>
 #include <thread>
 
 #include "nhope/async/executor.h"
@@ -12,7 +13,7 @@ class ThreadExecutor final : public SequenceExecutor
 public:
     using Id = std::thread::id;
 
-    ThreadExecutor();
+    explicit ThreadExecutor(const std::string& name = "ThrEx");
     ~ThreadExecutor() override;
 
     [[nodiscard]] Id id() const noexcept;
