@@ -1,5 +1,6 @@
 #include <cassert>
 #include <memory>
+#include <string>
 #include <utility>
 #include <thread>
 
@@ -8,6 +9,7 @@
 #include <asio/io_context.hpp>
 #include <asio/post.hpp>
 
+#include "nhope/async/detail/thread-name.h"
 #include "nhope/async/thread-executor.h"
 
 namespace nhope {
@@ -16,10 +18,11 @@ using WorkGuard = asio::executor_work_guard<asio::io_context::executor_type>;
 
 struct ThreadExecutor::Impl final
 {
-    Impl()
+    explicit Impl(const std::string& name)
       : ioCtx(1)
       , workGuard(ioCtx.get_executor())
-      , thread([this] {
+      , thread([this, name] {
+          detail::setThreadName(name);
           ioCtx.run();
       })
     {}
@@ -41,8 +44,8 @@ struct ThreadExecutor::Impl final
     std::thread thread;
 };
 
-ThreadExecutor::ThreadExecutor()
-  : m_d(std::make_unique<Impl>())
+ThreadExecutor::ThreadExecutor(const std::string& name)
+  : m_d(std::make_unique<Impl>(name))
 {}
 
 ThreadExecutor::~ThreadExecutor() = default;
