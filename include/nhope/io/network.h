@@ -7,7 +7,7 @@ namespace nhope {
 
 struct Endpoint
 {
-    uint16_t port;
+    std::uint16_t port = 0;
     std::string host{"0.0.0.0"};
 };
 

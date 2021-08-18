@@ -1,12 +1,9 @@
 #pragma once
 
+#include <memory>
 #include <thread>
-#include <utility>
 
-#include <asio/io_context.hpp>
-
-#include <nhope/async/executor.h>
-#include <nhope/utils/noncopyable.h>
+#include "nhope/async/executor.h"
 
 namespace nhope {
 
@@ -24,8 +21,8 @@ public:
     asio::io_context& ioCtx() override;
 
 private:
-    asio::io_context m_ioCtx;
-    std::thread m_thread;
+    struct Impl;
+    std::unique_ptr<Impl> m_d;
 };
 
 }   // namespace nhope

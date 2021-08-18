@@ -1,10 +1,6 @@
 #pragma once
 
-#include <nhope/async/executor.h>
-
-namespace asio {
-class io_context;
-}
+#include "nhope/async/executor.h"
 
 namespace nhope {
 

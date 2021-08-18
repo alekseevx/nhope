@@ -1,6 +1,7 @@
 #pragma once
 
 #include <exception>
+#include <memory>
 #include <type_traits>
 #include <utility>
 #include <chrono>
@@ -145,22 +146,21 @@ public:
       : m_setter(std::move(setter))
       , m_getter(std::move(getter))
       , m_pollTime(pollTime)
-      , m_executor(executor)
-      , m_stateCtx(m_executor)
+      , m_stateAOCtx(executor)
     {
-        m_aoCtx = std::make_unique<AOContext>(m_executor);
-
         if (!(m_getter && m_setter)) {
             throw StateUninitialized("getter and setter must be set"sv);
         }
 
-        asyncInvoke(*m_aoCtx, [this] {
+        m_updateAOCtx = std::make_unique<AOContext>(m_stateAOCtx);
+        asyncInvoke(*m_updateAOCtx, [this] {
             updateState();
         });
     }
 
     ~StateObserver()
     {
+        m_stateAOCtx.close();
         m_consumers.close();
     }
 
@@ -174,7 +174,7 @@ public:
 
     [[nodiscard]] ObservableState<T> getState() const
     {
-        return invoke(m_stateCtx, [this] {
+        return invoke(m_stateAOCtx, [this] {
             return m_state;
         });
     }
@@ -182,18 +182,18 @@ public:
     template<typename V>
     void setState(V&& v)
     {
-        asyncInvoke(m_stateCtx, [this, newVal = std::forward<V>(v)] {
+        asyncInvoke(m_stateAOCtx, [this, newVal = std::forward<V>(v)] {
             setNewState(newVal);
-            m_aoCtx = std::make_unique<AOContext>(m_executor);
-            asyncInvoke(*m_aoCtx,
+            m_updateAOCtx = std::make_unique<AOContext>(m_stateAOCtx);
+            asyncInvoke(*m_updateAOCtx,
                         [this, newVal]() mutable {
                             return m_setter(newVal);
                         })
-              .fail(*m_aoCtx,
+              .fail(*m_updateAOCtx,
                     [this](auto exception) {
                         setNewState(std::move(exception));
                     })
-              .then(*m_aoCtx, [this] {
+              .then(*m_updateAOCtx, [this] {
                   updateState();
               });
         });
@@ -204,22 +204,22 @@ private:
     {
         try {
             m_getter()
-              .then(*m_aoCtx,
+              .then(*m_updateAOCtx,
                     [this](T state) {
                         setNewState(std::move(state));
                     })
-              .fail(*m_aoCtx,
+              .fail(*m_updateAOCtx,
                     [this](auto exception) {
                         setNewState(exception);
                     })
-              .then(*m_aoCtx, [this] {
-                  setTimeout(*m_aoCtx, m_pollTime, [this](auto /*unused*/) {
+              .then(*m_updateAOCtx, [this] {
+                  setTimeout(*m_updateAOCtx, m_pollTime, [this](auto /*unused*/) {
                       updateState();
                   });
               });
         } catch (...) {
             setNewState(std::current_exception());
-            setTimeout(*m_aoCtx, m_pollTime, [this](auto /*unused*/) {
+            setTimeout(*m_updateAOCtx, m_pollTime, [this](auto /*unused*/) {
                 updateState();
             });
         }
@@ -241,9 +241,8 @@ private:
 
     ObservableState<T> m_state;
     ConsumerList<ObservableState<T>> m_consumers;
-    StrandExecutor m_executor;
-    std::unique_ptr<AOContext> m_aoCtx;
-    mutable AOContext m_stateCtx;
+    std::unique_ptr<AOContext> m_updateAOCtx;
+    mutable AOContext m_stateAOCtx;
 };
 
 }   // namespace nhope

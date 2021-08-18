@@ -7,10 +7,10 @@
 #include <thread>
 #include <utility>
 
-#include <nhope/async/ao-context.h>
-#include <nhope/async/safe-callback.h>
-#include <nhope/async/thread-executor.h>
-#include <nhope/async/thread-pool-executor.h>
+#include "nhope/async/ao-context-error.h"
+#include "nhope/async/ao-context.h"
+#include "nhope/async/thread-executor.h"
+#include "nhope/async/thread-pool-executor.h"
 
 #include <fmt/format.h>
 #include <gtest/gtest.h>
@@ -169,4 +169,124 @@ TEST(AOContext, ExceptionInCancelAsyncOperation)   // NOLINT
         [[maybe_unused]] auto call = aoContext->putAOHandler(std::move(aoHandler));
         aoContext.reset();
     });
+}
+
+TEST(AOContext, ExplicitClose)   // NOLINT
+{
+    ThreadExecutor executor;
+    AOContext aoContext(executor);
+    aoContext.close();
+
+    // NOLINTNEXTLINE
+    EXPECT_THROW(
+      {
+          aoContext.callAOHandler(std::make_unique<TestAOHandler>([] {
+              GTEST_FAIL();
+          }));
+      },
+      AOContextClosed);
+}
+
+TEST(AOContext, ExplicitCloseFromAOHandler)   // NOLINT
+{
+    constexpr auto iterCount = 100;
+
+    ThreadExecutor executor;
+
+    for (int i = 0; i < iterCount; ++i) {
+        AOContext aoContext(executor);
+
+        aoContext.callAOHandler(std::make_unique<TestAOHandler>([&aoContext] {
+            aoContext.close();
+        }));
+
+        std::this_thread::yield();
+
+        std::atomic<bool> wasCancelled = false;
+        try {
+            aoContext.callAOHandler(std::make_unique<TestAOHandler>(
+              [] {
+                  GTEST_FAIL();
+              },
+              [&wasCancelled] {
+                  wasCancelled = true;
+              }));
+        } catch (const AOContextClosed&) {
+            std::this_thread::sleep_for(10ms);
+            EXPECT_FALSE(wasCancelled);
+        }
+    }
+}
+
+TEST(AOContext, CloseParent)   // NOLINT
+{
+    AOContext parent(ThreadPoolExecutor::defaultExecutor());
+
+    AOContext child(parent);
+    EXPECT_EQ(&parent.executor(), &child.executor());
+
+    parent.close();
+    EXPECT_FALSE(child.isOpen());
+}
+
+TEST(AOContext, CloseParentFromChild)   // NOLINT
+{
+    AOContext parent(ThreadPoolExecutor::defaultExecutor());
+
+    std::atomic<bool> parentClosed = false;
+    AOContext child(parent);
+    child.callAOHandler(std::make_unique<TestAOHandler>([&] {
+        parent.close();
+        EXPECT_FALSE(parent.isOpen());
+        EXPECT_FALSE(child.isOpen());
+
+        parentClosed = true;
+    }));
+
+    waitForValue(10s, parentClosed, true);
+}
+
+TEST(AOContext, WorkWithParentAndChildren)   // NOLINT
+{
+    constexpr auto executorThreadCount = 10;
+    ThreadPoolExecutor executor(executorThreadCount);
+
+    std::atomic<int> activeWorkCount = 0;
+
+    // NOLINTNEXTLINE(readability-function-cognitive-complexity)
+    const auto workFn = [&activeWorkCount](AOContext& aoCtx) {
+        for (;;) {
+            try {
+                aoCtx.callAOHandler(std::make_unique<TestAOHandler>([&] {
+                    EXPECT_EQ(activeWorkCount.fetch_add(1), 0);
+
+                    std::this_thread::yield();
+
+                    EXPECT_EQ(activeWorkCount.fetch_sub(1), 1);
+                }));
+
+                std::this_thread::yield();
+            } catch (const AOContextClosed&) {
+                return;
+            }
+        }
+    };
+
+    AOContext parent(executor);
+    std::thread(workFn, std::ref(parent)).detach();
+
+    AOContext firstChild(parent);
+    std::thread(workFn, std::ref(firstChild)).detach();
+
+    AOContext secondChild(parent);
+    std::thread(workFn, std::ref(secondChild)).detach();
+
+    std::this_thread::sleep_for(5s);
+
+    parent.close();
+    EXPECT_FALSE(firstChild.isOpen());
+    EXPECT_FALSE(secondChild.isOpen());
+    EXPECT_FALSE(waitForPred(100ms, [&activeWorkCount] {
+        return activeWorkCount != 0;
+    }));
 }
