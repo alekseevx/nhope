@@ -1,3 +1,4 @@
+#include <array>
 #include <cstddef>
 #include <cstring>
 
@@ -8,18 +9,15 @@
 
 namespace nhope::detail {
 
-constexpr std::size_t maxTheardNameLen = 16;
-
 void setThreadName(const std::string& name)
 {
-    // NOLINTNEXTLINE
-    char buf[maxTheardNameLen] = {};
+    constexpr std::size_t maxThreadNameLen = 16;
+    std::array<char, maxThreadNameLen> buf{};
+
+    std::strncpy(buf.data(), name.c_str(), buf.size());
 
     // NOLINTNEXTLINE
-    strncpy(buf, name.c_str(), maxTheardNameLen);
-
-    // NOLINTNEXTLINE
-    prctl(PR_SET_NAME, buf, 0L, 0L, 0L);
+    prctl(PR_SET_NAME, buf.data(), 0L, 0L, 0L);
 }
 
 }   // namespace nhope::detail
