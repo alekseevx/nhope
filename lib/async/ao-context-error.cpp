@@ -15,4 +15,8 @@ AOContextClosed::AOContextClosed()
   : std::runtime_error("AOContextClosed")
 {}
 
+DetectedDeadlock::DetectedDeadlock()
+  : std::runtime_error("DetectedDeadlock")
+{}
+
 }   // namespace nhope
