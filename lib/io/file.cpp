@@ -69,7 +69,7 @@ public:
             }
             checkFile();
             auto before = m_file.tellp();
-            if (m_file.write(send.data(), static_cast<long>(send.size()))) {
+            if (m_file.write((char*)send.data(), static_cast<long>(send.size()))) {
                 m_file.flush();
                 return static_cast<std::size_t>(m_file.tellp() - before);
             }
@@ -109,7 +109,7 @@ Future<std::vector<std::uint8_t>> readFile(const std::filesystem::path& fileName
 {
     FileSettings s;
     s.mode = FileMode::ReadOnly;
-    s.fileName = fileName;
+    s.fileName = fileName.string();
     std::shared_ptr<IoDevice> d = openFile(executor, s);
     auto ctx = std::make_shared<AOContext>(executor);
     return readAll(*d).then(*ctx, [d, ctx](auto r) {

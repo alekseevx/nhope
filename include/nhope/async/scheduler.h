@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <optional>
 
 #include <nhope/async/manageable-task.h>
 #include <nhope/utils/noncopyable.h>

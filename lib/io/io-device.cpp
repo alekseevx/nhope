@@ -67,7 +67,7 @@ public:
 private:
     void startReadOneByOne()
     {
-        constexpr unsigned char terminator = '\n';
+        static constexpr unsigned char terminator = '\n';
 
         m_dev.read(1)
           .then(m_ctx,
