@@ -175,15 +175,15 @@ TEST(AsyncInvoke, DestructionObjectWhenInvokeActive)   // NOLINT
     }
 }
 
-TEST(AsyncInvoke, InvokeFromInvoke)   // NOLINT
+TEST(AsyncInvoke, DetectedDeadlock)   // NOLINT
 {
     ThreadExecutor executor;
     AOContext aoCtx(executor);
 
     invoke(aoCtx, [&aoCtx] {
-        // Теперь мы в AOContext и invoke на том же AOContext
-        // должен тут же выполнить функцию.
-        invoke(aoCtx, [] {});
+        // Теперь мы в AOContext и повторный invoke на том же AOContext
+        // должен выкинуть исключение DetectedDeadlock
+        EXPECT_THROW(invoke(aoCtx, [] {}), DetectedDeadlock);   // NOLINT
     });
 }
 
@@ -195,7 +195,7 @@ TEST(AsyncInvoke, InvokeFromParentInvoke)   // NOLINT
 
     invoke(parent, [&child] {
         // Теперь мы в контексте parent и invoke на контексте child
-        // должен тут же выполнить функцию.
-        invoke(child, [] {});
+        // должен выкинуть исключение DetectedDeadlock
+        EXPECT_THROW(invoke(child, [] {}), DetectedDeadlock);   // NOLINT
     });
 }
