@@ -25,7 +25,7 @@ struct ThreadPoolExecutor::Impl final
     {
         try {
             for (std::size_t i = 0; i < threadCount; ++i) {
-                auto& th = threads.emplace_back([this, name, i] {
+                threads.emplace_back([this, name, i] {
                     detail::setThreadName(fmt::format("{}[{}]", name, i));
                     ioCtx.run();
                 });
@@ -81,7 +81,7 @@ asio::io_context& ThreadPoolExecutor::ioCtx()
 
 ThreadPoolExecutor& ThreadPoolExecutor::defaultExecutor()
 {
-    static auto executor = ThreadPoolExecutor(std::thread::hardware_concurrency(), "default");
+    static auto executor = ThreadPoolExecutor(std::thread::hardware_concurrency(), "DftThrPoolEx");
     return executor;
 }
 
