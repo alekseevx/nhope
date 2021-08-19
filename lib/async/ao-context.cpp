@@ -66,7 +66,7 @@ public:
     {
         const auto oldState = m_state.fetch_or(Flags::PreparingForClosing, std::memory_order_relaxed);
         if ((oldState & Flags::PreparingForClosing) != 0) {
-            /**/
+            /* Someone has already started the closing AOContext. */
             return false;
         }
 
@@ -213,6 +213,8 @@ public:
                 m_parent->childClosed(this);
             }
         } else {
+            /* Someone has already started the closing AOContext,
+               we'll just wait until the closing is over. */
             this->waitForClosed();
         }
     }
@@ -443,17 +445,17 @@ SequenceExecutor& AOContext::executor()
     return m_aoImpl->executor();
 }
 
-AOContextWeekRef::AOContextWeekRef(AOContext& aoCtx)
+AOContextRef::AOContextRef(AOContext& aoCtx)
   : m_aoImpl(aoCtx.m_aoImpl)
 {}
 
-AOHandlerCall AOContextWeekRef::putAOHandler(std::unique_ptr<AOHandler> handler)
+AOHandlerCall AOContextRef::putAOHandler(std::unique_ptr<AOHandler> handler)
 {
     const auto id = m_aoImpl->putAOHandler(std::move(handler));
     return AOHandlerCall(id, m_aoImpl);
 }
 
-void AOContextWeekRef::callAOHandler(std::unique_ptr<AOHandler> handler, Executor::ExecMode mode)
+void AOContextRef::callAOHandler(std::unique_ptr<AOHandler> handler, Executor::ExecMode mode)
 {
     const auto id = m_aoImpl->putAOHandler(std::move(handler));
     m_aoImpl->callAOHandler(id, mode);

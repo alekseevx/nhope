@@ -129,7 +129,7 @@ struct IntervalTimerData final
       , userHandler(std::move(userHandler))
     {}
 
-    AOContextWeekRef aoCtx;
+    AOContextRef aoCtx;
 
     std::shared_ptr<Timer> timer;
     std::chrono::nanoseconds interval;

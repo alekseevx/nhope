@@ -92,7 +92,7 @@ public:
 class AOHandlerCall final
 {
     friend class AOContext;
-    friend class AOContextWeekRef;
+    friend class AOContextRef;
 
 public:
     AOHandlerCall() = default;

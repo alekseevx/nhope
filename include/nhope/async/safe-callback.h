@@ -34,7 +34,7 @@ std::function<void(Args...)> makeSafeCallback(AOContext& aoCtx, std::function<vo
     // https://gitlab.olimp.lan/alekseev/nhope/-/issues/8
     auto callbackPtr = std::make_shared<std::function<void(Args...)>>(std::move(callback));
 
-    return [aoContextClosedActions, aoCtx = AOContextWeekRef(aoCtx), callbackPtr](Args... args) mutable {
+    return [aoContextClosedActions, aoCtx = AOContextRef(aoCtx), callbackPtr](Args... args) mutable {
         auto aoHandler = detail::makeSafeCallbackAOHandler([callbackPtr, args...] {
             (*callbackPtr)(args...);
         });

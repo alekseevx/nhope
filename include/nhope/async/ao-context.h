@@ -14,8 +14,6 @@ class AOContextImpl;
 }
 
 /**
- * @class AOContext
- *
  * @brief Контекст для выполнения асинхронных операций на заданном Executor
  * 
  * AOContext решает следующие задачи:
@@ -31,7 +29,7 @@ class AOContextImpl;
  */
 class AOContext final
 {
-    friend class AOContextWeekRef;
+    friend class AOContextRef;
 
 public:
     AOContext(const AOContext&) = delete;
@@ -109,6 +107,8 @@ public:
      *
      * @note метод потокобезопасный
      *
+     * @throw AOContextClosed если AOContext был закрыт на момент вызова функции.
+     *
      * @see AOHandler
      * @see AOHandlerCall
      */
@@ -118,6 +118,8 @@ public:
      * @brief Помещает AOHandler в AOContext и тут же его вызывает.
      *
      * @note метод потокобезопасный
+     *
+     * @throw AOContextClosed если AOContext был закрыт на момент вызова функции.
      *
      * @see AOHandler
      */
@@ -139,10 +141,21 @@ private:
     AOContextImplPtr m_aoImpl;
 };
 
-class AOContextWeekRef final
+/**
+ * @brief Ссылка на AOContext
+ * 
+ * На AOContext может быть несколько ссылок. Ссылки не могут закрыть или блокировать
+ * закрытие AOContext.
+ *
+ * Ссылки нужны для тех случаев, когда нам нужен доступ к AOContext, но мы не можем
+ * контролировать время его жизни.
+ *
+ * @see AOContext
+ */
+class AOContextRef final
 {
 public:
-    explicit AOContextWeekRef(AOContext& aoCtx);
+    explicit AOContextRef(AOContext& aoCtx);
 
     [[nodiscard]] AOHandlerCall putAOHandler(std::unique_ptr<AOHandler> handler);
     void callAOHandler(std::unique_ptr<AOHandler> handler, Executor::ExecMode mode = Executor::ExecMode::AddInQueue);
