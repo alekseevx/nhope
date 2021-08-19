@@ -149,4 +149,4 @@ RefPtr<T> makeRefPtr(Args&&... args)
     return RefPtr<T>(new RefCounter<T>(std::forward<Args>(args)...));
 }
 
-};   // namespace nhope::detail
+}   // namespace nhope::detail
