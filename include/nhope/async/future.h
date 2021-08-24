@@ -172,6 +172,29 @@ public:
         return NextFuture<T, Fn>(std::move(nextState)).unwrap();
     }
 
+    template<typename Fn>
+    UnwrapFuture<NextFuture<T, Fn>> then(Fn&& fn)
+    {
+        using FutureCallback = detail::FutureThenWithoutAOCtxCallback<T, Fn>;
+
+        if constexpr (std::is_void_v<T>) {
+            static_assert(std::is_invocable_v<Fn>, "Fn must be function without arguments");
+        } else {
+            static_assert(std::is_invocable_v<Fn, T>, "Fn must accept a single argument of same type as the Future");
+        }
+
+        if (this->isWaitFuture()) {
+            throw MakeFutureChainAfterWaitError();
+        }
+
+        auto state = this->detachState();
+
+        auto nextState = detail::makeRefPtr<NextFutureState<T, Fn>>();
+        state->setCallback(std::make_unique<FutureCallback>(std::forward<Fn>(fn), nextState));
+
+        return NextFuture<T, Fn>(std::move(nextState)).unwrap();
+    }
+
     /**
      * @brief Returns the next chaining Future, where fn is callback will be called
      * when this Future fails.
@@ -201,6 +224,27 @@ public:
 
         auto nextState = detail::makeRefPtr<State>();
         detachedState->setCallback(std::make_unique<FutureCallback>(aoCtx, std::forward<Fn>(fn), nextState));
+
+        return Future(std::move(nextState)).unwrap();
+    }
+
+    template<typename Fn>
+    Future<T> fail(Fn&& fn)
+    {
+        using FutureCallback = detail::FutureFailWithoutAOCtxCallback<T, Fn>;
+
+        static_assert(std::is_invocable_v<Fn, std::exception_ptr>, "Fn must take std::exception_ptr as argument");
+        static_assert(std::is_same_v<T, std::invoke_result_t<Fn, std::exception_ptr>>,
+                      "Fn must return a result of same type as the Future");
+
+        if (this->isWaitFuture()) {
+            throw MakeFutureChainAfterWaitError();
+        }
+
+        auto state = this->detachState();
+
+        auto nextState = detail::makeRefPtr<State>();
+        state->setCallback(std::make_unique<FutureCallback>(std::forward<Fn>(fn), nextState));
 
         return Future(std::move(nextState)).unwrap();
     }
