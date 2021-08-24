@@ -312,9 +312,6 @@ TEST(Future, dataRace)   // NOLINT
 
 TEST(Future, brokenPromise)   // NOLINT
 {
-    auto executor = ThreadExecutor();
-    auto aoCtx = AOContext(executor);
-
     Future<void> never;
     {
         Promise<void> expired;
