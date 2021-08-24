@@ -322,7 +322,7 @@ public:
     {
         if (!m_satisfiedFlag) {
             auto exPtr = std::make_exception_ptr(BrokenPromiseError());
-            setException(std::move(exPtr));
+            this->setException(std::move(exPtr));
         }
     }
 

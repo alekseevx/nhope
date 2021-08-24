@@ -281,7 +281,7 @@ public:
             m_callAOHandler(Executor::ExecMode::ImmediatelyIfPossible);
         } else {
             /* This branch we exclude a situation where the 
-                callback will be called from Future::then or Future::fail. */
+               callback will be called from Future::then or Future::fail. */
             m_callAOHandler(Executor::ExecMode::AddInQueue);
         }
     }

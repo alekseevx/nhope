@@ -9,10 +9,10 @@
 #include <asio/io_context.hpp>
 #include <asio/steady_timer.hpp>
 
-#include <nhope/async/ao-context.h>
-#include <nhope/async/future.h>
-#include <nhope/async/thread-executor.h>
-#include <nhope/async/timer.h>
+#include "nhope/async/ao-context.h"
+#include "nhope/async/future.h"
+#include "nhope/async/thread-executor.h"
+#include "nhope/async/timer.h"
 
 namespace nhope {
 namespace {
@@ -31,7 +31,7 @@ public:
     {
         m_callAOHandler = std::move(callAOHandler);
         m_impl.expires_at(expiresAt);
-        m_impl.async_wait([weekSelf = weak_from_this()](const auto& err) mutable {
+        m_impl.async_wait([weekSelf = weak_from_this()](const std::error_code err) {
             if (err == std::errc::operation_canceled) {
                 return;
             }
@@ -83,8 +83,8 @@ public:
     }
 
 private:
-    std::shared_ptr<Timer> m_timer;
-    UserHandler m_userHandler;
+    const std::shared_ptr<Timer> m_timer;
+    const UserHandler m_userHandler;
 };
 
 class FutureTimerAOHandler final : public AOHandler
@@ -115,7 +115,7 @@ public:
     }
 
 private:
-    std::shared_ptr<Timer> m_timer;
+    const std::shared_ptr<Timer> m_timer;
     Promise<void> m_promise;
 };
 
@@ -127,21 +127,29 @@ struct IntervalTimerData final
       , timer(std::move(timer))
       , interval(interval)
       , userHandler(std::move(userHandler))
+      , tickTime(SteadyClock::now())
     {}
+
+    TimePoint nextTickTime()
+    {
+        tickTime += interval;
+        return tickTime;
+    }
 
     AOContextRef aoCtx;
 
-    std::shared_ptr<Timer> timer;
-    std::chrono::nanoseconds interval;
-    std::function<bool(const std::error_code&)> userHandler;
+    const std::shared_ptr<Timer> timer;
+    const std::chrono::nanoseconds interval;
+    const std::function<bool(const std::error_code&)> userHandler;
+
+    TimePoint tickTime;
 };
 
 class IntervalTimerAOHandler final : public AOHandler
 {
 public:
-    IntervalTimerAOHandler(TimePoint tickTime, std::unique_ptr<IntervalTimerData> d)
-      : m_tickTime(tickTime)
-      , m_d(std::move(d))
+    explicit IntervalTimerAOHandler(std::unique_ptr<IntervalTimerData> d)
+      : m_d(std::move(d))
     {}
 
     void call() override
@@ -177,13 +185,12 @@ private:
         auto& timer = *m_d->timer;
         auto& aoCtx = m_d->aoCtx;
 
-        auto nextTickTimet = m_tickTime + m_d->interval;
-        auto aoHandler = std::make_unique<IntervalTimerAOHandler>(nextTickTimet, std::move(m_d));
+        const auto nextTickTimet = m_d->nextTickTime();
+        auto aoHandler = std::make_unique<IntervalTimerAOHandler>(std::move(m_d));
 
         timer.start(nextTickTimet, aoCtx.putAOHandler(std::move(aoHandler)));
     }
 
-    TimePoint m_tickTime;
     std::unique_ptr<IntervalTimerData> m_d;
 };
 
@@ -191,7 +198,8 @@ private:
 
 void setTimeout(AOContext& aoCtx, std::chrono::nanoseconds timeout, std::function<void(const std::error_code&)> handler)
 {
-    assert(handler != nullptr);   // NOLINT
+    assert(handler != nullptr);     // NOLINT
+    assert(timeout.count() >= 0);   // NOLINT
 
     auto& executor = aoCtx.executor();
     auto& ioCtx = executor.ioCtx();
@@ -205,6 +213,8 @@ void setTimeout(AOContext& aoCtx, std::chrono::nanoseconds timeout, std::functio
 
 Future<void> setTimeout(AOContext& aoCtx, std::chrono::nanoseconds timeout)
 {
+    assert(timeout.count() >= 0);   // NOLINT
+
     auto promise = Promise<void>();
     auto future = promise.future();
     auto& executor = aoCtx.executor();
@@ -222,15 +232,16 @@ Future<void> setTimeout(AOContext& aoCtx, std::chrono::nanoseconds timeout)
 void setInterval(AOContext& aoCtx, std::chrono::nanoseconds interval,
                  std::function<bool(const std::error_code&)> handler)
 {
-    assert(handler != nullptr);   // NOLINT
+    assert(handler != nullptr);     // NOLINT
+    assert(interval.count() > 0);   // NOLINT
 
     auto& executor = aoCtx.executor();
     auto& ioCtx = executor.ioCtx();
 
-    auto firstTickTime = SteadyClock::now() + interval;
     auto timer = std::make_shared<Timer>(ioCtx);
     auto intervalTimerData = std::make_unique<IntervalTimerData>(aoCtx, timer, interval, std::move(handler));
-    auto aoHandler = std::make_unique<IntervalTimerAOHandler>(firstTickTime, std::move(intervalTimerData));
+    auto firstTickTime = intervalTimerData->nextTickTime();
+    auto aoHandler = std::make_unique<IntervalTimerAOHandler>(std::move(intervalTimerData));
     auto callAOHandler = aoCtx.putAOHandler(std::move(aoHandler));
 
     timer->start(firstTickTime, std::move(callAOHandler));
