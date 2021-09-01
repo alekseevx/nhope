@@ -1,6 +1,6 @@
 function(EnableWarnings target)
     if (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
-        target_compile_options(${target} PRIVATE /WX)
+        # target_compile_options(${target} PRIVATE /WX)
     elseif (CMAKE_CXX_COMPILER_ID STREQUAL "GNU" OR CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
         # set(DISABLE_ASIO_WARNINGS -Wno-sign-conversion -Wno-conversion)
         # target_compile_options(${target} PRIVATE -Wall -Wextra -Werror -Wconversion -Wstringop-truncation -pedantic-errors ${DISABLE_ASIO_WARNINGS})
