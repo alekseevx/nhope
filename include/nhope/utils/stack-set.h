@@ -26,6 +26,11 @@ public:
     {
         return StackStorage<K, std::nullptr_t>::contains(key);
     }
+
+    static std::size_t count(const K& key) noexcept
+    {
+        return StackStorage<K, std::nullptr_t>::count(key);
+    }
 };
 
 }   // namespace nhope

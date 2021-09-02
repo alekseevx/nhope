@@ -11,7 +11,10 @@
 #include <utility>
 
 #include "nhope/async/ao-context.h"
+#include "nhope/async/ao-handler.h"
+#include "nhope/async/detail/ao-handler-id.h"
 #include "nhope/async/executor.h"
+#include "nhope/utils/scope-exit.h"
 #include "nhope/utils/stack-set.h"
 
 #include "ao-handler-storage.h"
@@ -23,23 +26,29 @@ namespace {
 
 using namespace detail;
 
-constexpr auto flagsWidth = std::numeric_limits<size_t>::digits;
-
 class AOContextState final
 {
 public:
-    enum Flags : std::size_t
+    enum Flags : std::uint64_t
     {
-        PreparingForClosing = static_cast<size_t>(1) << (flagsWidth - 1),
-        Closing = static_cast<size_t>(1) << (flagsWidth - 2),
-        Closed = static_cast<size_t>(1) << (flagsWidth - 3),
+        PreparingForClosing = 1 << 0,
+        Closing = 1 << 1,
+        Closed = 1 << 2,
     };
-    static constexpr auto flagsMask = Flags::PreparingForClosing;
-    static constexpr auto blockCloseCounterMask = ~flagsMask;
+    static constexpr auto flagsMask = std::uint64_t(0xFF);
+    static constexpr auto refCounterOffset = 8;
+    static constexpr auto refCounterMask = std::uint64_t(0xFF'FF'FF'FF) << refCounterOffset;
+    static constexpr auto blockCloseCounterOffset = 40;
+    static constexpr auto blockCloseCounterMask = std::uint64_t(0xFF'FF'FF) << blockCloseCounterOffset;
+
+    static constexpr auto oneRef = std::uint64_t(1) << refCounterOffset;
+    static constexpr auto oneBlockClose = std::uint64_t(1) << blockCloseCounterOffset;
+
+    AOContextState() = default;
 
     [[nodiscard]] bool blockClose() noexcept
     {
-        const auto oldState = m_state.fetch_add(1, std::memory_order_acquire);
+        const auto oldState = m_state.fetch_add(oneBlockClose, std::memory_order_relaxed);
         if ((oldState & Flags::PreparingForClosing) != 0) {
             this->unblockClose();
             return false;
@@ -48,33 +57,44 @@ public:
         return true;
     }
 
-    void unblockClose() noexcept
+    [[nodiscard]] bool blockCloseAndAddRef() noexcept
     {
-        const auto oldState = m_state.fetch_sub(1, std::memory_order_release);
+        const auto oldState = m_state.fetch_add(oneBlockClose | oneRef, std::memory_order_relaxed);
+        if ((oldState & Flags::PreparingForClosing) != 0) {
+            this->unblockCloseAndRemoveRef();
+            return false;
+        };
 
-        if ((oldState & Flags::PreparingForClosing) == 0) {
-            return;
-        }
-
-        const auto blockCloseCounter = oldState & blockCloseCounterMask;
-        if (blockCloseCounter == 1) {
-            m_state.fetch_or(Flags::Closing, std::memory_order_relaxed);
-        }
+        return true;
     }
 
-    bool startClose() noexcept
+    inline void addRef() noexcept
+    {
+        m_state.fetch_add(oneRef, std::memory_order_relaxed);
+    }
+
+    inline bool removeRef() noexcept
+    {
+        const auto oldState = m_state.fetch_sub(oneRef, std::memory_order_acq_rel);
+        return (oldState & refCounterMask) == oneRef;
+    }
+
+    inline void unblockClose() noexcept
+    {
+        m_state.fetch_sub(oneBlockClose, std::memory_order_acq_rel);
+    }
+
+    inline bool unblockCloseAndRemoveRef() noexcept
+    {
+        const auto oldState = m_state.fetch_sub(oneBlockClose | oneRef, std::memory_order_acq_rel);
+        return (oldState & refCounterMask) == oneRef;
+    }
+
+    // Returns true if we are the first to call startClose
+    inline bool startClose() noexcept
     {
         const auto oldState = m_state.fetch_or(Flags::PreparingForClosing, std::memory_order_relaxed);
-        if ((oldState & Flags::PreparingForClosing) != 0) {
-            /* Someone has already started the closing AOContext. */
-            return false;
-        }
-
-        const auto blockCloseCounter = oldState & blockCloseCounterMask;
-        if (blockCloseCounter == 0) {
-            m_state.fetch_or(Flags::Closing, std::memory_order_acquire);
-        }
-        return true;
+        return (oldState & Flags::PreparingForClosing) == 0;
     }
 
     [[nodiscard]] bool isOpen() const noexcept
@@ -82,16 +102,9 @@ public:
         return (m_state.load(std::memory_order_relaxed) & Flags::PreparingForClosing) == 0;
     }
 
-    void waitForClosing() const noexcept
-    {
-        while ((m_state.load(std::memory_order_acquire) & Flags::Closing) == 0) {
-            std::this_thread::yield();   // FIXME: Use atomic::wait from C++20
-        }
-    }
-
     void waitForClosed() const noexcept
     {
-        while ((m_state.load(std::memory_order_acquire) & Flags::Closed) == 0) {
+        while ((m_state.load(std::memory_order_acq_rel) & Flags::Closed) == 0) {
             std::this_thread::yield();   // FIXME: Use atomic::wait from C++20
         }
     }
@@ -101,55 +114,90 @@ public:
         return (m_state.load(std::memory_order_relaxed) & Flags::Closed) != 0;
     }
 
-    void closed() noexcept
+    void setClosingFlag() noexcept
     {
-        m_state.fetch_or(Flags::Closed, std::memory_order_release);
+        [[maybe_unused]] const auto oldState = m_state.fetch_or(Flags::Closing, std::memory_order_acq_rel);
+        assert((oldState & Flags::Closing) == 0);   // NOLINT
+    }
+
+    void setClosedFlag() noexcept
+    {
+        [[maybe_unused]] const auto oldState = m_state.fetch_or(Flags::Closed, std::memory_order_acq_rel);
+        assert((oldState & Flags::Closed) == 0);   // NOLINT
+    }
+
+    [[nodiscard]] std::size_t getBlockCloseCounter() const noexcept
+    {
+        const auto state = m_state.load(std::memory_order_relaxed);
+        const auto blockCloseCounter = (state & blockCloseCounterMask) >> blockCloseCounterOffset;
+        return static_cast<std::size_t>(blockCloseCounter);
     }
 
 private:
-    std::atomic<std::size_t> m_state = 0;
+    std::atomic<std::uint64_t> m_state = oneRef;
 };
 
-class BlockClose final
+class AutoRelease final
 {
 public:
-    explicit BlockClose(AOContextState& state) noexcept
-      : m_state(state)
-      , m_closeBlocked(state.blockClose())
+    AutoRelease(const AutoRelease& other) noexcept;
+
+    explicit AutoRelease(AOContextImpl* aoImpl) noexcept
+      : m_aoImpl(aoImpl)
     {}
 
-    ~BlockClose()
+    AutoRelease(AutoRelease&& other) noexcept
+      : m_aoImpl(other.m_aoImpl)
     {
-        if (m_closeBlocked) {
-            m_state.unblockClose();
-        }
+        other.m_aoImpl = nullptr;
     }
 
-    operator bool() const noexcept
+    ~AutoRelease();
+
+    [[nodiscard]] AOContextImpl* get() const noexcept
     {
-        return m_closeBlocked;
+        return m_aoImpl;
+    }
+
+    [[nodiscard]] AOContextImpl* take() noexcept
+    {
+        return std::exchange(m_aoImpl, nullptr);
     }
 
 private:
-    AOContextState& m_state;
-    const bool m_closeBlocked;
+    AOContextImpl* m_aoImpl = nullptr;
 };
 
 }   // namespace
 
 namespace detail {
 
-class AOContextImpl final : public std::enable_shared_from_this<AOContextImpl>
+class AOContextImpl final
 {
 public:
     explicit AOContextImpl(Executor& executor)
       : m_executorHolder(makeStrand(executor))
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+      , m_groupId(reinterpret_cast<AOContextGroupId>(this))
     {}
 
-    explicit AOContextImpl(std::shared_ptr<AOContextImpl> parent)
+    explicit AOContextImpl(AOContextImpl* parent)
       : m_executorHolder(makeStrand(parent->executor()))
-      , m_parent(std::move(parent))
+      , m_parent(parent)
+      , m_groupId(parent->m_groupId)
     {}
+
+    void addRef() noexcept
+    {
+        m_state.addRef();
+    }
+
+    void release() noexcept
+    {
+        if (m_state.removeRef()) {
+            delete this;
+        }
+    }
 
     [[nodiscard]] bool isOpen() const noexcept
     {
@@ -159,42 +207,76 @@ public:
     template<typename Work>
     void exec(Work&& work, Executor::ExecMode mode)
     {
-        if (const auto blockClose = BlockClose(m_state)) {
-            m_executorHolder->exec(
-              [work = std::forward<Work>(work), weakSelf = weak_from_this()] {
-                  if (auto self = weakSelf.lock()) {
-                      self->doWork(work);
-                  }
-              },
-              mode);
+        if (!m_state.blockCloseAndAddRef()) {
+            return;
         }
+
+        ScopeExit unblock([this] {
+            m_state.unblockClose();
+        });
+
+        /* Note that we are working in this thread.
+           Now you can work with the internal storage only from this thread.  */
+        WorkingInThisThreadSet::Item thisAOContexItem(m_groupId);
+        m_executorHolder->exec(
+          [work = std::move(work), autoRelease = AutoRelease(this)]() mutable {
+              /* Take the reference to the AOContextImpl from autoRelease,
+                 now have to remove the reference ourselves. */
+              auto* self = autoRelease.take();
+
+              /* m_executorHolder->exec could be started asynchronously,
+                 so we need to block closing of the AOContext again and
+                 indicate that we working in this thread. */
+              if (!self->m_state.blockClose()) {
+                  self->release();
+                  return;
+              }
+              WorkingInThisThreadSet::Item thisAOContexItem(self->m_groupId);
+
+              try {
+                  work(self);
+              } catch (...) {
+              }
+
+              self->unblockCloseAndRelease();
+          },
+          mode);
     }
 
-    std::shared_ptr<AOContextImpl> makeChild()
+    AOContextImpl* makeChild()
     {
-        const auto blockClose = BlockClose(m_state);
-        if (!blockClose) {
+        if (!m_state.blockClose()) {
             throw AOContextClosed();
         }
 
+        ScopeExit unblock([this] {
+            m_state.unblockClose();
+        });
+
         std::scoped_lock lock(m_childrenMutex);
-        return m_children.emplace_back(std::make_shared<AOContextImpl>(shared_from_this()));
+        auto child = AutoRelease(new AOContextImpl(this));
+        m_children.emplace_back(child.get());
+        return child.take();
     }
 
     [[nodiscard]] AOHandlerId putAOHandler(std::unique_ptr<AOHandler> handler)
     {
-        const auto blockClose = BlockClose(m_state);
-        if (!blockClose) {
+        if (!m_state.blockClose()) {
             throw AOContextClosed();
         }
+
+        ScopeExit unblock([this] {
+            m_state.unblockClose();
+        });
+
         return this->putAOHandlerImpl(std::move(handler));
     }
 
     void callAOHandler(AOHandlerId id, Executor::ExecMode mode)
     {
         this->exec(
-          [id, this] {
-              this->callAOHandlerImpl(id);
+          [id](auto* self) {
+              self->callAOHandlerImpl(id);
           },
           mode);
     }
@@ -203,15 +285,18 @@ public:
     {
         if (m_state.startClose()) {
             this->waitForClosing();
+            m_state.setClosingFlag();
 
             this->cancelAOHandlers();
             this->closeChildren();
 
-            m_state.closed();
-
             if (m_parent != nullptr) {
                 m_parent->childClosed(this);
+                m_parent = nullptr;
             }
+
+            m_executorHolder.reset();
+            m_state.setClosedFlag();
         } else {
             /* Someone has already started the closing AOContext,
                we'll just wait until the closing is over. */
@@ -221,7 +306,7 @@ public:
 
     [[nodiscard]] bool aoContextWorkInThisThread() const noexcept
     {
-        return WorkingInThisThreadSet::contains(this->key());
+        return WorkingInThisThreadSet::contains(m_groupId);
     }
 
     SequenceExecutor& executor()
@@ -230,33 +315,12 @@ public:
     }
 
 private:
-    using AOContextKey = std::uintptr_t;
-    using WorkingInThisThreadSet = StackSet<AOContextKey>;
+    ~AOContextImpl() = default;
 
-    AOContextKey key() const noexcept
-    {
-        /*
-         * Using a pointer to executor as key allows to optimize
-         * the work of related AOContext, since they all have the same
-         * executor
-         */
-        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
-        return reinterpret_cast<AOContextKey>(m_executorHolder.get());
-    }
-
-    template<typename Work>
-    void doWork(const Work& work)
-    {
-        if (const auto blockClose = BlockClose(m_state)) {
-            /* Note that we are working in this thread.
-               Now you can work with the internal storage only from this thread.  */
-            WorkingInThisThreadSet::Item thisAOContexItem(this->key());
-            try {
-                work();
-            } catch (...) {
-            }
-        }
-    }
+    /* Defines a group of AOContextGroup that work strictly sequentially
+       (through SequenceExecutor ot the root AOContext)  */
+    using AOContextGroupId = std::uintptr_t;
+    using WorkingInThisThreadSet = StackSet<AOContextGroupId>;
 
     std::unique_ptr<AOHandler> getAOHandler(AOHandlerId id)
     {
@@ -311,14 +375,13 @@ private:
         return (id & 1) != 0;
     }
 
-    void waitForClosing() const noexcept
+    void waitForClosing() noexcept
     {
-        if (this->aoContextWorkInThisThread()) {
-            // We can't wait, closing is done from AOHandler and we will get a deadlock.
-            return;
+        /* Wait until other threads remove their blockClose */
+        const auto myBlockCount = this->blockCloseCountMadeFromThisThread();
+        while (m_state.getBlockCloseCounter() > myBlockCount) {
+            ;
         }
-
-        this->m_state.waitForClosing();
     }
 
     void waitForClosed() const noexcept
@@ -346,7 +409,7 @@ private:
 
     void closeChildren()
     {
-        std::list<std::shared_ptr<AOContextImpl>> children;
+        std::list<AOContextImpl*> children;
         {
             std::scoped_lock lock(m_childrenMutex);
             children = std::move(m_children);
@@ -354,6 +417,7 @@ private:
 
         for (auto& child : children) {
             child->close();
+            child->release();
         }
     }
 
@@ -361,14 +425,28 @@ private:
     {
         std::scoped_lock lock(m_childrenMutex);
         for (auto it = m_children.begin(); it != m_children.end(); ++it) {
-            if (it->get() == child) {
+            if (*it == child) {
+                (*it)->release();
                 m_children.erase(it);
                 return;
             }
         }
     }
 
+    void unblockCloseAndRelease()
+    {
+        if (m_state.unblockCloseAndRemoveRef()) {
+            delete this;
+        }
+    }
+
+    [[nodiscard]] std::size_t blockCloseCountMadeFromThisThread() const noexcept
+    {
+        return WorkingInThisThreadSet::count(m_groupId);
+    }
+
     AOContextState m_state;
+    const AOContextGroupId m_groupId;
 
     /* External storage can be accessed from any thread,
        but mutex protection is required */
@@ -383,34 +461,89 @@ private:
 
     SequenceExecutorHolder m_executorHolder;
 
-    std::shared_ptr<AOContextImpl> m_parent;
+    AOContextImpl* m_parent = nullptr;
     std::mutex m_childrenMutex;
-    std::list<std::shared_ptr<AOContextImpl>> m_children;
+    std::list<AOContextImpl*> m_children;
 };
 
 }   // namespace detail
 
-AOHandlerCall::AOHandlerCall(AOHandlerId id, AOContextImplPtr aoImpl)
+namespace {
+
+AutoRelease::AutoRelease(const AutoRelease& other) noexcept
+  : m_aoImpl(other.m_aoImpl)
+{
+    if (m_aoImpl != nullptr) {
+        m_aoImpl->addRef();
+    }
+}
+
+AutoRelease::~AutoRelease()
+{
+    if (m_aoImpl != nullptr) {
+        m_aoImpl->release();
+    }
+}
+
+}   // namespace
+
+AOHandlerCall::AOHandlerCall(AOHandlerId id, AOContextImpl* aoImpl)
   : m_id(id)
-  , m_aoImpl(std::move(aoImpl))
-{}
+  , m_aoImpl(aoImpl)
+{
+    m_aoImpl->addRef();
+}
+
+AOHandlerCall::AOHandlerCall(AOHandlerCall&& other) noexcept
+  : m_id(other.m_id)
+  , m_aoImpl(other.m_aoImpl)
+{
+    other.m_aoImpl = nullptr;
+}
+
+AOHandlerCall::~AOHandlerCall()
+{
+    this->reset();
+}
+
+AOHandlerCall& AOHandlerCall::operator=(AOHandlerCall&& other) noexcept
+{
+    this->reset();
+
+    std::swap(m_aoImpl, other.m_aoImpl);
+    std::swap(m_id, other.m_id);
+
+    return *this;
+}
 
 void AOHandlerCall::operator()(Executor::ExecMode mode)
 {
     m_aoImpl->callAOHandler(m_id, mode);
 }
 
+void AOHandlerCall::reset()
+{
+    if (m_aoImpl != nullptr) {
+        m_aoImpl->release();
+        m_aoImpl = nullptr;
+    }
+    m_id = invalidAOHandlerId;
+}
+
 AOContext::AOContext(Executor& executor)
-  : m_aoImpl(std::make_shared<detail::AOContextImpl>(executor))
+  : m_aoImpl(new detail::AOContextImpl(executor))
 {}
 
 AOContext::AOContext(AOContext& parent)
   : m_aoImpl(parent.m_aoImpl->makeChild())
-{}
+{
+    m_aoImpl->addRef();
+}
 
 AOContext::~AOContext()
 {
-    this->close();
+    m_aoImpl->close();
+    m_aoImpl->release();
 }
 
 bool AOContext::isOpen() const noexcept
@@ -445,9 +578,32 @@ SequenceExecutor& AOContext::executor()
     return m_aoImpl->executor();
 }
 
-AOContextRef::AOContextRef(AOContext& aoCtx)
+AOContextRef::AOContextRef(AOContext& aoCtx) noexcept
   : m_aoImpl(aoCtx.m_aoImpl)
-{}
+{
+    m_aoImpl->addRef();
+}
+
+AOContextRef::AOContextRef(const AOContextRef& other) noexcept
+  : m_aoImpl(other.m_aoImpl)
+{
+    if (m_aoImpl != nullptr) {
+        m_aoImpl->addRef();
+    }
+}
+
+AOContextRef::AOContextRef(AOContextRef&& other) noexcept
+  : m_aoImpl(other.m_aoImpl)
+{
+    other.m_aoImpl = nullptr;
+}
+
+AOContextRef::~AOContextRef()
+{
+    if (m_aoImpl != nullptr) {
+        m_aoImpl->release();
+    }
+}
 
 AOHandlerCall AOContextRef::putAOHandler(std::unique_ptr<AOHandler> handler)
 {

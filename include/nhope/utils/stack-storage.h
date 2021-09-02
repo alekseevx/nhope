@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <utility>
 #include "nhope/utils/noncopyable.h"
 
@@ -75,6 +76,17 @@ public:
     static bool contains(const Key& key) noexcept
     {
         return StackStorage::get(key) != nullptr;
+    }
+
+    static std::size_t count(const Key& key) noexcept
+    {
+        std::size_t result = 0;
+        for (Record* cur = first; cur != nullptr; cur = cur->m_pred) {
+            if (key == cur->m_key) {
+                ++result;
+            }
+        }
+        return result;
     }
 
 private:
