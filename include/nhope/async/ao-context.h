@@ -137,8 +137,7 @@ public:
     [[nodiscard]] bool workInThisThread() const;
 
 private:
-    using AOContextImplPtr = std::shared_ptr<detail::AOContextImpl>;
-    AOContextImplPtr m_aoImpl;
+    detail::AOContextImpl* m_aoImpl;
 };
 
 /**
@@ -155,14 +154,17 @@ private:
 class AOContextRef final
 {
 public:
-    explicit AOContextRef(AOContext& aoCtx);
+    explicit AOContextRef(AOContext& aoCtx) noexcept;
+    ~AOContextRef();
+
+    AOContextRef(const AOContextRef& other) noexcept;
+    AOContextRef(AOContextRef&& other) noexcept;
 
     [[nodiscard]] AOHandlerCall putAOHandler(std::unique_ptr<AOHandler> handler);
     void callAOHandler(std::unique_ptr<AOHandler> handler, Executor::ExecMode mode = Executor::ExecMode::AddInQueue);
 
 private:
-    using AOContextImplPtr = std::shared_ptr<detail::AOContextImpl>;
-    AOContextImplPtr m_aoImpl;
+    detail::AOContextImpl* m_aoImpl;
 };
 
 }   // namespace nhope

@@ -96,6 +96,11 @@ class AOHandlerCall final
 
 public:
     AOHandlerCall() = default;
+    ~AOHandlerCall();
+
+    AOHandlerCall(AOHandlerCall&& other) noexcept;
+
+    AOHandlerCall& operator=(AOHandlerCall&& other) noexcept;
 
     /**
      * @brief Вызов AOHandler-а в контексте AOContext-а.
@@ -108,13 +113,14 @@ public:
     void operator()(Executor::ExecMode mode = Executor::ExecMode::AddInQueue);
 
 private:
-    using AOContextImplPtr = std::shared_ptr<detail::AOContextImpl>;
+    void reset();
+
     using AOHandlerId = detail::AOHandlerId;
 
-    AOHandlerCall(AOHandlerId id, AOContextImplPtr aoImpl);
+    AOHandlerCall(AOHandlerId id, detail::AOContextImpl* aoImpl);
 
     AOHandlerId m_id = detail::invalidAOHandlerId;
-    AOContextImplPtr m_aoImpl;
+    detail::AOContextImpl* m_aoImpl = nullptr;
 };
 
 }   // namespace nhope
