@@ -2,7 +2,6 @@
 
 #include <climits>
 #include <cstdint>
-#include <memory>
 
 #include "nhope/async/detail/ao-handler-id.h"
 #include "nhope/async/executor.h"
@@ -84,43 +83,6 @@ public:
      * @remark Гарантируется, что будет вызвано либо AOHandler::call, либо AOHandler::cancel.
      */
     virtual void cancel() = 0;
-};
-
-/**
- * @brief Реализует вызов AOHandler в контексте AOContext.
- */
-class AOHandlerCall final
-{
-    friend class AOContext;
-    friend class AOContextRef;
-
-public:
-    AOHandlerCall() = default;
-    ~AOHandlerCall();
-
-    AOHandlerCall(AOHandlerCall&& other) noexcept;
-
-    AOHandlerCall& operator=(AOHandlerCall&& other) noexcept;
-
-    /**
-     * @brief Вызов AOHandler-а в контексте AOContext-а.
-     *
-     * @note Вызов можно произвести только один раз.
-     *
-     * @see AOContext
-     * @see AOHandler
-     */
-    void operator()(Executor::ExecMode mode = Executor::ExecMode::AddInQueue);
-
-private:
-    void reset();
-
-    using AOHandlerId = detail::AOHandlerId;
-
-    AOHandlerCall(AOHandlerId id, detail::AOContextImpl* aoImpl);
-
-    AOHandlerId m_id = detail::invalidAOHandlerId;
-    detail::AOContextImpl* m_aoImpl = nullptr;
 };
 
 }   // namespace nhope
