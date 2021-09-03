@@ -2,7 +2,9 @@
 
 #include <mutex>
 #include <list>
+#include <thread>
 
+#include "nhope/async/ao-context-close-handler.h"
 #include "nhope/async/ao-context-error.h"
 #include "nhope/async/detail/ao-context-state.h"
 #include "nhope/async/detail/ao-handler-id.h"
@@ -89,8 +91,7 @@ public:
             m_state.unblockClose();
         });
 
-        std::scoped_lock lock(m_childrenMutex);
-        return m_children.emplace_back(makeRefPtr<AOContextImpl>(this));
+        return makeRefPtr<AOContextImpl>(this);
     }
 
     [[nodiscard]] AOHandlerId putAOHandler(std::unique_ptr<AOHandler> handler)
@@ -118,16 +119,15 @@ public:
     void close()
     {
         if (m_state.startClose()) {
+            if (m_parent != nullptr) {
+                m_parent->removeCloseHandler(&m_parentCloseHandler);
+            }
+
             this->waitForClosing();
             m_state.setClosingFlag();
 
             this->cancelAOHandlers();
-            this->closeChildren();
-
-            if (m_parent != nullptr) {
-                m_parent->childClosed(this);
-                m_parent = nullptr;
-            }
+            this->callCloseHandlers();
 
             m_executorHolder.reset();
             m_state.setClosedFlag();
@@ -148,6 +148,70 @@ public:
         return *m_executorHolder;
     }
 
+    void addCloseHandler(AOContextCloseHandler* closeHandler)
+    {
+        assert(this->isOpen());                    // NOLINT
+        assert(closeHandler != nullptr);           // NOLINT
+        assert(closeHandler->m_next == nullptr);   // NOLINT
+        assert(closeHandler->m_prev == nullptr);   // NOLINT
+
+        m_state.lockCloseHandlerList();
+
+        if (m_closeHandlerList != nullptr) {
+            assert(m_closeHandlerList->m_prev == nullptr);   // NOLINT
+            m_closeHandlerList->m_prev = closeHandler;
+        }
+
+        closeHandler->m_next = m_closeHandlerList;
+        m_closeHandlerList = closeHandler;
+
+        m_state.unlockCloseHandlerList();
+    }
+
+    void removeCloseHandler(AOContextCloseHandler* closeHandler)
+    {
+        m_state.lockCloseHandlerList();
+
+        if (closeHandler == m_closeHandlerList) {
+            // Removal from the head
+            m_closeHandlerList = m_closeHandlerList->m_next;
+            if (m_closeHandlerList != nullptr) {
+                m_closeHandlerList->m_prev = nullptr;
+            }
+
+            m_state.unlockCloseHandlerList();
+            return;
+        }
+
+        if (closeHandler->m_prev != nullptr) {
+            // Removal from the middle or tail
+            closeHandler->m_prev->m_next = closeHandler->m_next;
+            if (closeHandler->m_next != nullptr) {
+                closeHandler->m_next->m_prev = closeHandler->m_prev;
+            }
+
+            m_state.unlockCloseHandlerList();
+            return;
+        }
+
+        // closeHandler is not in the list, so must have been removed by a call to callCloseHandler
+        if (m_closerThreadId == std::this_thread::get_id()) {
+            /* closeHandler is destroyed from callCloseHandler */
+            if (closeHandler->m_destroyed != nullptr) {
+                *closeHandler->m_destroyed = true;
+            }
+
+            m_state.unlockCloseHandlerList();
+            return;
+        }
+
+        m_state.unlockCloseHandlerList();
+
+        while (!closeHandler->m_done) {
+            std::this_thread::yield();   // FIXME: Use atomic::wait from C++20
+        }
+    }
+
 private:
     explicit AOContextImpl(Executor& executor)
       : m_executorHolder(makeStrand(executor))
@@ -159,7 +223,10 @@ private:
       : m_executorHolder(makeStrand(parent->executor()))
       , m_parent(parent)
       , m_groupId(parent->m_groupId)
-    {}
+      , m_parentCloseHandler(this)
+    {
+        m_parent->addCloseHandler(&m_parentCloseHandler);
+    }
 
     ~AOContextImpl() = default;
 
@@ -270,34 +337,53 @@ private:
         externalAOHandlers.cancelAll();
     }
 
-    void closeChildren()
+    void callCloseHandlers()
     {
-        std::list<RefPtr<AOContextImpl>> children;
-        {
-            std::scoped_lock lock(m_childrenMutex);
-            children = std::move(m_children);
-        }
+        m_state.lockCloseHandlerList();
 
-        for (auto& child : children) {
-            child->close();
-        }
-    }
+        m_closerThreadId = std::this_thread::get_id();
+        while (m_closeHandlerList != nullptr) {
+            auto* curCloseHandler = m_closeHandlerList;
+            m_closeHandlerList = m_closeHandlerList->m_next;
 
-    void childClosed(AOContextImpl* child)
-    {
-        std::scoped_lock lock(m_childrenMutex);
-        for (auto it = m_children.begin(); it != m_children.end(); ++it) {
-            if (it->get() == child) {
-                m_children.erase(it);
-                return;
+            bool destroyed = false;
+            curCloseHandler->m_destroyed = &destroyed;
+
+            m_state.unlockCloseHandlerList();
+            curCloseHandler->aoContextClose();
+            m_state.lockCloseHandlerList();
+
+            if (!destroyed) {
+                curCloseHandler->m_done = true;
             }
         }
+
+        m_closerThreadId = std::thread::id();
+        m_state.unlockCloseHandlerList();
     }
 
     [[nodiscard]] std::size_t blockCloseCountMadeFromThisThread() const noexcept
     {
         return WorkingInThisThreadSet::count(m_groupId);
     }
+
+    class ParentCloseHandler final : public AOContextCloseHandler
+    {
+    public:
+        ParentCloseHandler() = default;
+        explicit ParentCloseHandler(AOContextImpl* self)
+          : m_self(self)
+        {}
+
+        void aoContextClose() noexcept override
+        {
+            assert(m_self != nullptr);   // NOLINT
+            m_self->close();
+        }
+
+    private:
+        AOContextImpl* m_self = nullptr;
+    };
 
     AOContextState m_state;
     const AOContextGroupId m_groupId;
@@ -316,8 +402,10 @@ private:
     SequenceExecutorHolder m_executorHolder;
 
     AOContextImpl* m_parent = nullptr;
-    std::mutex m_childrenMutex;
-    std::list<RefPtr<AOContextImpl>> m_children;
+    ParentCloseHandler m_parentCloseHandler;
+
+    std::thread::id m_closerThreadId;
+    AOContextCloseHandler* m_closeHandlerList = nullptr;
 };
 
 }   // namespace nhope::detail

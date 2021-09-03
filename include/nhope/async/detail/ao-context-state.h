@@ -15,6 +15,8 @@ public:
         PreparingForClosing = 1 << 0,
         Closing = 1 << 1,
         Closed = 1 << 2,
+
+        LockCloseHandlerList = 1 << 3,
     };
     static constexpr auto flagsMask = std::uint64_t(0xFF);
     static constexpr auto refCounterOffset = 8;
@@ -110,6 +112,27 @@ public:
         const auto state = m_state.load(std::memory_order_relaxed);
         const auto blockCloseCounter = (state & blockCloseCounterMask) >> blockCloseCounterOffset;
         return static_cast<std::size_t>(blockCloseCounter);
+    }
+
+    void lockCloseHandlerList() noexcept
+    {
+        while (true) {
+            const auto oldState = m_state.fetch_or(Flags::LockCloseHandlerList, std::memory_order_acquire);
+            if ((oldState & Flags::LockCloseHandlerList) == 0) {
+                break;
+            }
+
+            while ((m_state.load(std::memory_order_relaxed) & Flags::LockCloseHandlerList) != 0) {
+                ;
+            }
+        }
+    }
+
+    void unlockCloseHandlerList() noexcept
+    {
+        [[maybe_unused]] const auto oldState =
+          m_state.fetch_and(~Flags::LockCloseHandlerList, std::memory_order_release);
+        assert((oldState & Flags::LockCloseHandlerList) != 0);   // NOLINT
     }
 
 private:
