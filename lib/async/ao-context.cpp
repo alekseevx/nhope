@@ -16,7 +16,7 @@ void AOHandlerCall::operator()(Executor::ExecMode mode)
 }
 
 AOContext::AOContext(Executor& executor)
-  : m_aoImpl(makeRefPtr<AOContextImpl>(executor))
+  : m_aoImpl(AOContextImpl::makeRoot(executor))
 {}
 
 AOContext::AOContext(AOContext& parent)

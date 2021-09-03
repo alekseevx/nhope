@@ -27,12 +27,16 @@ struct RefCounterT<AOContextImpl>
 class AOContextImpl final
 {
     friend class RefPtr<AOContextImpl>;
+    friend RefPtr<AOContextImpl> makeRefPtr<AOContextImpl, AOContextImpl*>(AOContextImpl*&&);
+    friend RefPtr<AOContextImpl> makeRefPtr<AOContextImpl, Executor&>(Executor&);
     friend RefPtr<AOContextImpl> refPtrFromRawPtr<AOContextImpl>(AOContextImpl*, NotAddRefTag);
 
-    template<typename T, typename... Args>
-    friend RefPtr<T> makeRefPtr(Args&&... args);   // NOLINT
-
 public:
+    static RefPtr<AOContextImpl> makeRoot(Executor& executor)
+    {
+        return makeRefPtr<AOContextImpl>(executor);
+    }
+
     [[nodiscard]] bool isOpen() const noexcept
     {
         return m_state.isOpen();
