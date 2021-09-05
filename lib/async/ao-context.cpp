@@ -50,7 +50,17 @@ void AOContext::callAOHandler(std::unique_ptr<AOHandler> handler, Executor::Exec
     m_aoImpl->callAOHandler(id, mode);
 }
 
-[[nodiscard]] bool AOContext::workInThisThread() const
+void AOContext::addCloseHandler(AOContextCloseHandler& closeHandler)
+{
+    m_aoImpl->addCloseHandler(&closeHandler);
+}
+
+void AOContext::removeCloseHandler(AOContextCloseHandler& closeHandler) noexcept
+{
+    m_aoImpl->removeCloseHandler(&closeHandler);
+}
+
+[[nodiscard]] bool AOContext::workInThisThread() const noexcept
 {
     return m_aoImpl->aoContextWorkInThisThread();
 }
@@ -74,6 +84,21 @@ void AOContextRef::callAOHandler(std::unique_ptr<AOHandler> handler, Executor::E
 {
     const auto id = m_aoImpl->putAOHandler(std::move(handler));
     m_aoImpl->callAOHandler(id, mode);
+}
+
+void AOContextRef::addCloseHandler(AOContextCloseHandler& closeHandler)
+{
+    m_aoImpl->addCloseHandler(&closeHandler);
+}
+
+void AOContextRef::removeCloseHandler(AOContextCloseHandler& closeHandler) noexcept
+{
+    m_aoImpl->removeCloseHandler(&closeHandler);
+}
+
+[[nodiscard]] bool AOContextRef::workInThisThread() const noexcept
+{
+    return m_aoImpl->aoContextWorkInThisThread();
 }
 
 }   // namespace nhope

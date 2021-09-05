@@ -153,6 +153,15 @@ public:
      */
     void callAOHandler(std::unique_ptr<AOHandler> handler, Executor::ExecMode mode = Executor::ExecMode::AddInQueue);
 
+    template<typename Work>
+    void exec(Work&& work, Executor::ExecMode mode = Executor::ExecMode::AddInQueue)
+    {
+        m_aoImpl->exec(std::forward<Work>(work), mode);
+    }
+
+    void addCloseHandler(AOContextCloseHandler& closeHandler);
+    void removeCloseHandler(AOContextCloseHandler& closeHandler) noexcept;
+
     /**
      * @brief Проверяет работает ли AOContext в потоке, из которого произведен
      *        вызов workInThisThread.
@@ -162,7 +171,7 @@ public:
      * @return true AOContext работает в этом потоке.
      * @return false AOContext в данный момент не работает в этом потоке.
      */
-    [[nodiscard]] bool workInThisThread() const;
+    [[nodiscard]] bool workInThisThread() const noexcept;
 
 private:
     detail::RefPtr<detail::AOContextImpl> m_aoImpl;
@@ -186,6 +195,17 @@ public:
 
     [[nodiscard]] AOHandlerCall putAOHandler(std::unique_ptr<AOHandler> handler);
     void callAOHandler(std::unique_ptr<AOHandler> handler, Executor::ExecMode mode = Executor::ExecMode::AddInQueue);
+
+    template<typename Work>
+    void exec(Work&& work, Executor::ExecMode mode = Executor::ExecMode::AddInQueue)
+    {
+        m_aoImpl->exec(std::forward<Work>(work), mode);
+    }
+
+    void addCloseHandler(AOContextCloseHandler& closeHandler);
+    void removeCloseHandler(AOContextCloseHandler& closeHandler) noexcept;
+
+    [[nodiscard]] bool workInThisThread() const noexcept;
 
 private:
     detail::RefPtr<detail::AOContextImpl> m_aoImpl;

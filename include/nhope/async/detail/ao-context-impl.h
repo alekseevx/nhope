@@ -69,7 +69,7 @@ public:
               WorkingInThisThreadSet::Item thisAOContexItem(self->m_groupId);
 
               try {
-                  work(self.get());
+                  work();
               } catch (...) {
               }
 
@@ -110,8 +110,8 @@ public:
     void callAOHandler(AOHandlerId id, Executor::ExecMode mode)
     {
         this->exec(
-          [id](auto* self) {
-              self->callAOHandlerImpl(id);
+          [this, id] {
+              this->callAOHandlerImpl(id);
           },
           mode);
     }
@@ -155,6 +155,10 @@ public:
         assert(closeHandler->m_next == nullptr);   // NOLINT
         assert(closeHandler->m_prev == nullptr);   // NOLINT
 
+        if (!m_state.blockClose()) {
+            throw AOContextClosed();
+        }
+
         m_state.lockCloseHandlerList();
 
         if (m_closeHandlerList != nullptr) {
@@ -166,9 +170,10 @@ public:
         m_closeHandlerList = closeHandler;
 
         m_state.unlockCloseHandlerList();
+        m_state.unblockClose();
     }
 
-    void removeCloseHandler(AOContextCloseHandler* closeHandler)
+    void removeCloseHandler(AOContextCloseHandler* closeHandler) noexcept
     {
         m_state.lockCloseHandlerList();
 
