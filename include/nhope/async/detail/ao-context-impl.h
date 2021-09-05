@@ -150,7 +150,6 @@ public:
 
     void addCloseHandler(AOContextCloseHandler* closeHandler)
     {
-        assert(this->isOpen());                    // NOLINT
         assert(closeHandler != nullptr);           // NOLINT
         assert(closeHandler->m_next == nullptr);   // NOLINT
         assert(closeHandler->m_prev == nullptr);   // NOLINT
@@ -184,6 +183,7 @@ public:
                 m_closeHandlerList->m_prev = nullptr;
             }
 
+            closeHandler->m_next = nullptr;
             m_state.unlockCloseHandlerList();
             return;
         }
@@ -195,6 +195,8 @@ public:
                 closeHandler->m_next->m_prev = closeHandler->m_prev;
             }
 
+            closeHandler->m_next = nullptr;
+            closeHandler->m_prev = nullptr;
             m_state.unlockCloseHandlerList();
             return;
         }
@@ -349,7 +351,11 @@ private:
         while (m_closeHandlerList != nullptr) {
             auto* curCloseHandler = m_closeHandlerList;
             m_closeHandlerList = m_closeHandlerList->m_next;
+            if (m_closeHandlerList != nullptr) {
+                m_closeHandlerList->m_prev = nullptr;
+            }
 
+            curCloseHandler->m_next = nullptr;
             bool destroyed = false;
             curCloseHandler->m_destroyed = &destroyed;
 
