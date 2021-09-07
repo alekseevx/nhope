@@ -74,6 +74,12 @@ private:
                 [this](const std::vector<uint8_t>& data) {
                     char s = static_cast<char>(data.at(0));
                     if (s == terminator) {
+#ifdef WIN32
+                        // FIXME: Терминатор должен быть строкой
+                        if (!m_buffer.empty() && m_buffer.back() == '\r') {
+                            m_buffer.pop_back();
+                        }
+#endif
                         m_promise.setValue(std::move(m_buffer));
                         m_anchor.reset();
                         return;
