@@ -83,7 +83,7 @@ public:
 
     void waitForClosed() const noexcept
     {
-        while ((m_state.load(std::memory_order_acq_rel) & Flags::Closed) == 0) {
+        while ((m_state.load(std::memory_order_acquire) & Flags::Closed) == 0) {
             std::this_thread::yield();   // FIXME: Use atomic::wait from C++20
         }
     }
