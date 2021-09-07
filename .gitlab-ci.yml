@@ -2,8 +2,11 @@ stages:
   - build
   - test
 
-build-job:
+build:linux:
   stage: build
+  tags:
+    - docker
+    - build
   image: ubuntu:20.04-build
   script:
     - mkdir build && cd build
@@ -14,8 +17,11 @@ build-job:
       - build/
       - build/tests
 
-test-job:
+test:linux:
   stage: test
+  tags:
+    - docker
+    - test
   image: ubuntu:20.04-build
   script:
     - cd build
@@ -30,6 +36,29 @@ test-job:
       - build/coverage
     reports:
       cobertura: coverage.xml
+
+build:windows:
+  stage: build
+  tags:
+    - windows
+    - build
+  script:
+    - mkdir build 
+    - cd build
+    - cmake -DCMAKE_BUILD_TYPE=Release .. 
+    - cmake --build .
+  artifacts:
+    paths:
+      - build/Debug/tests.exe
+
+test:windows:
+  stage: test
+  tags:
+    - windows
+    - test
+  script:
+    - cd build/Debug
+    - ./tests.exe
 
 # benchmark-job:
 #   stage: test
