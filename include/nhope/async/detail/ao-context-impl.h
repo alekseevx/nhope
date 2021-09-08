@@ -364,6 +364,7 @@ private:
             m_state.lockCloseHandlerList();
 
             if (!destroyed) {
+                curCloseHandler->m_destroyed = nullptr;
                 curCloseHandler->m_done = true;
             }
         }

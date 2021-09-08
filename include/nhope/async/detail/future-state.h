@@ -368,17 +368,19 @@ public:
 
         m_aoCtxRef.exec(
           [this, state = refPtrFromRawPtr(state)] {
-              m_ready = true;
+              assert(m_nextFutureState != nullptr);   // NOLINT
+
+              auto nextFutureState = std::move(m_nextFutureState);
 
               if (state->hasException()) {
-                  m_nextFutureState->setException(state->exception());
+                  nextFutureState->setException(state->exception());
                   return;
               }
 
               if constexpr (std::is_void_v<T>) {
-                  m_nextFutureState->calcResult(std::forward<Fn>(m_fn));
+                  nextFutureState->calcResult(std::forward<Fn>(m_fn));
               } else {
-                  m_nextFutureState->calcResult(std::forward<Fn>(m_fn), state->value());
+                  nextFutureState->calcResult(std::forward<Fn>(m_fn), state->value());
               }
           },
           // TODO: Comment
@@ -387,16 +389,16 @@ public:
 
     void aoContextClose() noexcept override
     {
-        if (!m_ready) {
+        if (m_nextFutureState != nullptr) {
             auto exPtr = std::make_exception_ptr(AsyncOperationWasCancelled());
             m_nextFutureState->setException(std::move(exPtr));
+            m_nextFutureState = nullptr;
         }
     }
 
 private:
     Fn m_fn;
     RefPtr<NextFutureState> m_nextFutureState;
-    bool m_ready = false;
     AOContextRef m_aoCtxRef;
 };
 
@@ -426,17 +428,19 @@ public:
 
         m_aoCtxRef.exec(
           [this, state = refPtrFromRawPtr(state)] {
-              m_ready = true;
+              assert(m_nextFutureState != nullptr);   // NOLINT
+
+              auto nextFutureState = std::move(m_nextFutureState);
 
               if (state->hasException()) {
-                  m_nextFutureState->calcResult(std::forward<Fn>(m_fn), state->exception());
+                  nextFutureState->calcResult(std::forward<Fn>(m_fn), state->exception());
                   return;
               }
 
               if constexpr (std::is_void_v<T>) {
-                  m_nextFutureState->setValue();
+                  nextFutureState->setValue();
               } else {
-                  m_nextFutureState->setValue(state->value());
+                  nextFutureState->setValue(state->value());
               }
           },
           // TODO: Comment
@@ -445,16 +449,16 @@ public:
 
     void aoContextClose() noexcept override
     {
-        if (!m_ready) {
+        if (m_nextFutureState != nullptr) {
             auto exPtr = std::make_exception_ptr(AsyncOperationWasCancelled());
             m_nextFutureState->setException(std::move(exPtr));
+            m_nextFutureState = nullptr;
         }
     }
 
 private:
     Fn m_fn;
     RefPtr<FutureState<T>> m_nextFutureState;
-    bool m_ready = false;
     AOContextRef m_aoCtxRef;
 };
 
