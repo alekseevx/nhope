@@ -193,8 +193,7 @@ class AOContextRef final
 public:
     explicit AOContextRef(AOContext& aoCtx) noexcept;
 
-    [[nodiscard]] AOHandlerCall putAOHandler(std::unique_ptr<AOHandler> handler);
-    void callAOHandler(std::unique_ptr<AOHandler> handler, Executor::ExecMode mode = Executor::ExecMode::AddInQueue);
+    [[nodiscard]] bool isOpen() const noexcept;
 
     template<typename Work>
     void exec(Work&& work, Executor::ExecMode mode = Executor::ExecMode::AddInQueue)

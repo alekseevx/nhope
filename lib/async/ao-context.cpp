@@ -74,16 +74,9 @@ AOContextRef::AOContextRef(AOContext& aoCtx) noexcept
   : m_aoImpl(aoCtx.m_aoImpl)
 {}
 
-AOHandlerCall AOContextRef::putAOHandler(std::unique_ptr<AOHandler> handler)
+bool AOContextRef::isOpen() const noexcept
 {
-    const auto id = m_aoImpl->putAOHandler(std::move(handler));
-    return AOHandlerCall(id, m_aoImpl);
-}
-
-void AOContextRef::callAOHandler(std::unique_ptr<AOHandler> handler, Executor::ExecMode mode)
-{
-    const auto id = m_aoImpl->putAOHandler(std::move(handler));
-    m_aoImpl->callAOHandler(id, mode);
+    return m_aoImpl->isOpen();
 }
 
 void AOContextRef::addCloseHandler(AOContextCloseHandler& closeHandler)

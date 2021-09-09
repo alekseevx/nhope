@@ -6,7 +6,7 @@
 
 #include "nhope/async/ao-context-error.h"
 #include "nhope/async/ao-context.h"
-#include "nhope/async/detail/safe-callback-aohandler.h"
+#include "nhope/async/executor.h"
 
 namespace nhope {
 
@@ -35,17 +35,13 @@ std::function<void(Args...)> makeSafeCallback(AOContext& aoCtx, std::function<vo
     auto callbackPtr = std::make_shared<std::function<void(Args...)>>(std::move(callback));
 
     return [aoContextClosedActions, aoCtx = AOContextRef(aoCtx), callbackPtr](Args... args) mutable {
-        auto aoHandler = detail::makeSafeCallbackAOHandler([callbackPtr, args...] {
+        if (aoContextClosedActions == ThrowAOContextClosed && !aoCtx.isOpen()) {
+            throw AOContextClosed();
+        };
+
+        aoCtx.exec([callbackPtr, args...] {
             (*callbackPtr)(args...);
         });
-
-        try {
-            aoCtx.callAOHandler(std::move(aoHandler));
-        } catch (const AOContextClosed&) {
-            if (aoContextClosedActions == ThrowAOContextClosed) {
-                throw;
-            }
-        }
     };
 }
 
