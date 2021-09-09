@@ -99,19 +99,19 @@ public:
      */
     T get()
     {
-        auto state = this->detachState();
+        auto detachedState = this->detachState();
 
-        if (!state->hasResult()) {
-            auto& futureReadyEvent = this->makeWaitFuture(*state);
+        if (!detachedState->hasResult()) {
+            auto& futureReadyEvent = this->makeWaitFuture(*detachedState);
             futureReadyEvent.wait();
         }
 
-        if (state->hasException()) {
-            std::rethrow_exception(state->exception());
+        if (detachedState->hasException()) {
+            std::rethrow_exception(detachedState->exception());
         }
 
         if constexpr (!std::is_void_v<T>) {
-            return std::move(state->value());
+            return std::move(detachedState->value());
         }
     }
 
@@ -124,8 +124,7 @@ public:
      */
     void wait()
     {
-        auto& state = this->state();
-        auto& futureReadyEvent = this->makeWaitFuture(state);
+        auto& futureReadyEvent = this->makeWaitFuture(state());
         futureReadyEvent.wait();
     }
 
@@ -138,8 +137,7 @@ public:
      */
     [[nodiscard]] bool waitFor(std::chrono::nanoseconds time)
     {
-        auto& state = this->state();
-        auto& futureReadyEvent = this->makeWaitFuture(state);
+        auto& futureReadyEvent = this->makeWaitFuture(state());
         return futureReadyEvent.waitFor(time);
     }
 
@@ -171,11 +169,11 @@ public:
             throw MakeFutureChainAfterWaitError();
         }
 
-        auto state = this->detachState();
+        auto detachedState = this->detachState();
 
         auto nextState = detail::makeRefPtr<NextFutureState<T, Fn>>();
-        auto aoHandler = std::make_unique<AOHandler>(std::forward<Fn>(fn), state, nextState);
-        state->setCallback(std::make_unique<FutureCallback>(aoCtx, std::move(aoHandler)));
+        auto aoHandler = std::make_unique<AOHandler>(std::forward<Fn>(fn), detachedState, nextState);
+        detachedState->setCallback(std::make_unique<FutureCallback>(aoCtx, std::move(aoHandler)));
 
         return NextFuture<T, Fn>(std::move(nextState)).unwrap();
     }
@@ -206,11 +204,11 @@ public:
             throw MakeFutureChainAfterWaitError();
         }
 
-        auto state = this->detachState();
+        auto detachedState = this->detachState();
 
         auto nextState = detail::makeRefPtr<State>();
-        auto aoHandler = std::make_unique<AOHandler>(std::forward<Fn>(fn), state, nextState);
-        state->setCallback(std::make_unique<FutureCallback>(aoCtx, std::move(aoHandler)));
+        auto aoHandler = std::make_unique<AOHandler>(std::forward<Fn>(fn), detachedState, nextState);
+        detachedState->setCallback(std::make_unique<FutureCallback>(aoCtx, std::move(aoHandler)));
 
         return Future(std::move(nextState)).unwrap();
     }
@@ -235,10 +233,10 @@ public:
             using UnwrapFutureState = typename UnwrapFuture<T>::State;
             using FutureCallback = detail::UnwrapperFutureCallback<T, UnwrappedT>;
 
-            auto state = this->detachState();
+            auto detachedState = this->detachState();
 
             auto unwrapState = detail::makeRefPtr<UnwrapFutureState>();
-            state->setCallback(std::make_unique<FutureCallback>(unwrapState));
+            detachedState->setCallback(std::make_unique<FutureCallback>(unwrapState));
 
             return UnwrapFuture<T>(std::move(unwrapState));
         }

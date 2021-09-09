@@ -214,15 +214,14 @@ public:
 
 private:
     explicit AOContextImpl(Executor& executor)
-      : m_executorHolder(makeStrand(executor))
-      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
-      , m_groupId(reinterpret_cast<AOContextGroupId>(this))
+      : m_groupId(reinterpret_cast<AOContextGroupId>(this))   // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
+      , m_executorHolder(makeStrand(executor))
     {}
 
     explicit AOContextImpl(AOContextImpl* parent)
-      : m_executorHolder(makeStrand(parent->executor()))
+      : m_groupId(parent->m_groupId)
+      , m_executorHolder(makeStrand(parent->executor()))
       , m_parent(parent)
-      , m_groupId(parent->m_groupId)
       , m_parentCloseHandler(this)
     {
         m_parent->addCloseHandler(&m_parentCloseHandler);
