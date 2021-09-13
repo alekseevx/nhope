@@ -42,5 +42,9 @@ if (WIN32)
     target_compile_definitions(${BASTARD_PACKAGE_NAME} PUBLIC -D_WIN32_WINNT=0x0601)
 endif()
 
+if (NOT WIN32)
+    target_link_libraries(nhope -latomic)
+endif()
+
 EnableWarnings(${BASTARD_PACKAGE_NAME})
 

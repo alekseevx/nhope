@@ -63,6 +63,18 @@ test:windows:
   dependencies:
     - build:windows
 
+build:arm32v5:21.07.15:
+  stage: build
+  image: ubuntu-arm32v5:21.07.15
+  script:
+    - mkdir build && cd build
+    - cmake .. -DCMAKE_TOOLCHAIN_FILE=$TOOLCHAIN_FILE -DCMAKE_BUILD_TYPE=Release
+    - cmake --build .
+  artifacts:
+    paths:
+      - build/
+      - build/tests
+
 # benchmark-job:
 #   stage: test
 #   image: ubuntu:20.04-build
