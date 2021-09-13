@@ -63,7 +63,7 @@ public:
         return m_queue.size();
     }
 
-    [[nodiscard]] std::size_t empty() const noexcept
+    [[nodiscard]] bool empty() const noexcept
     {
         return m_queue.empty();
     }
