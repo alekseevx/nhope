@@ -268,29 +268,6 @@ private:
 };
 
 template<typename T>
-class CallAOHandlerFutureCallback final : public FutureCallback<T>
-{
-public:
-    CallAOHandlerFutureCallback(AOContext& aoCtx, std::unique_ptr<AOHandler> aoHandler)
-      : m_callAOHandler(aoCtx.putAOHandler(std::move(aoHandler)))
-    {}
-
-    void futureReady(FutureState<T>* /*unused*/, FutureFlag trigger) override
-    {
-        if (trigger == FutureFlag::HasResult) {
-            m_callAOHandler(Executor::ExecMode::ImmediatelyIfPossible);
-        } else {
-            /* This branch we exclude a situation where the 
-               callback will be called from Future::then or Future::fail. */
-            m_callAOHandler(Executor::ExecMode::AddInQueue);
-        }
-    }
-
-private:
-    AOHandlerCall m_callAOHandler;
-};
-
-template<typename T>
 class SetEventFutureCallback final : public FutureCallback<T>
 {
 public:

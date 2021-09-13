@@ -3,43 +3,10 @@
 #include <memory>
 
 #include "nhope/async/ao-context-error.h"
-#include "nhope/async/ao-handler.h"
 #include "nhope/async/detail/ao-context-impl.h"
-#include "nhope/async/detail/ao-handler-id.h"
 #include "nhope/async/executor.h"
 
 namespace nhope {
-
-/**
- * @brief Реализует вызов AOHandler в контексте AOContext.
- */
-class AOHandlerCall final
-{
-    friend class AOContext;
-    friend class AOContextRef;
-
-public:
-    AOHandlerCall() = default;
-    ~AOHandlerCall() = default;
-
-    /**
-     * @brief Вызов AOHandler-а в контексте AOContext-а.
-     *
-     * @note Вызов можно произвести только один раз.
-     *
-     * @see AOContext
-     * @see AOHandler
-     */
-    void operator()(Executor::ExecMode mode = Executor::ExecMode::AddInQueue);
-
-private:
-    using AOHandlerId = detail::AOHandlerId;
-
-    AOHandlerCall(AOHandlerId id, detail::RefPtr<detail::AOContextImpl> aoImpl);
-
-    AOHandlerId m_id = detail::invalidAOHandlerId;
-    detail::RefPtr<detail::AOContextImpl> m_aoImpl;
-};
 
 /**
  * @brief Контекст для выполнения асинхронных операций на заданном Executor
@@ -129,29 +96,6 @@ public:
      * @note Метод потокобезопасный
      */
     SequenceExecutor& executor();
-
-    /**
-     * @brief Помещает AOHandler в AOContext и возвращает объект для его вызова.
-     *
-     * @note метод потокобезопасный
-     *
-     * @throw AOContextClosed если AOContext был закрыт на момент вызова функции.
-     *
-     * @see AOHandler
-     * @see AOHandlerCall
-     */
-    [[nodiscard]] AOHandlerCall putAOHandler(std::unique_ptr<AOHandler> handler);
-
-    /**
-     * @brief Помещает AOHandler в AOContext и тут же его вызывает.
-     *
-     * @note метод потокобезопасный
-     *
-     * @throw AOContextClosed если AOContext был закрыт на момент вызова функции.
-     *
-     * @see AOHandler
-     */
-    void callAOHandler(std::unique_ptr<AOHandler> handler, Executor::ExecMode mode = Executor::ExecMode::AddInQueue);
 
     template<typename Work>
     void exec(Work&& work, Executor::ExecMode mode = Executor::ExecMode::AddInQueue)

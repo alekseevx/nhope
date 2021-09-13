@@ -1,19 +1,8 @@
 #include "nhope/async/ao-context.h"
-#include "nhope/async/ao-handler.h"
 
 namespace nhope {
 
 using namespace detail;
-
-AOHandlerCall::AOHandlerCall(AOHandlerId id, RefPtr<detail::AOContextImpl> aoImpl)
-  : m_id(id)
-  , m_aoImpl(std::move(aoImpl))
-{}
-
-void AOHandlerCall::operator()(Executor::ExecMode mode)
-{
-    m_aoImpl->callAOHandler(m_id, mode);
-}
 
 AOContext::AOContext(Executor& executor)
   : m_aoImpl(AOContextImpl::makeRoot(executor))
@@ -36,18 +25,6 @@ bool AOContext::isOpen() const noexcept
 void AOContext::close()
 {
     m_aoImpl->close();
-}
-
-AOHandlerCall AOContext::putAOHandler(std::unique_ptr<AOHandler> handler)
-{
-    const auto id = m_aoImpl->putAOHandler(std::move(handler));
-    return AOHandlerCall(id, m_aoImpl);
-}
-
-void AOContext::callAOHandler(std::unique_ptr<AOHandler> handler, Executor::ExecMode mode)
-{
-    const auto id = m_aoImpl->putAOHandler(std::move(handler));
-    m_aoImpl->callAOHandler(id, mode);
 }
 
 void AOContext::addCloseHandler(AOContextCloseHandler& closeHandler)
