@@ -17,7 +17,7 @@ public:
     template<typename V>
     void push(V&& value, int priority = 0)
     {
-        Storage val{priority, value};
+        Storage val{priority, std::forward<V>(value)};
         const auto it =
           std::lower_bound(m_queue.begin(), m_queue.end(), val, [&](const Storage& lhs, const Storage& rhs) {
               return lhs.first < rhs.first;
