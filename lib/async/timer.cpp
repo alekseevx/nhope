@@ -1,3 +1,4 @@
+#include <atomic>
 #include <cassert>
 #include <chrono>
 #include <exception>
@@ -9,9 +10,11 @@
 #include <asio/io_context.hpp>
 #include <asio/steady_timer.hpp>
 
+#include "nhope/async/ao-context-close-handler.h"
+#include "nhope/async/ao-context-error.h"
 #include "nhope/async/ao-context.h"
+#include "nhope/async/executor.h"
 #include "nhope/async/future.h"
-#include "nhope/async/thread-executor.h"
 #include "nhope/async/timer.h"
 
 namespace nhope {
@@ -20,178 +23,175 @@ namespace {
 using SteadyClock = std::chrono::steady_clock;
 using TimePoint = std::chrono::steady_clock::time_point;
 
-class Timer final : public std::enable_shared_from_this<Timer>
+class SingleTimer final
+  : public std::enable_shared_from_this<SingleTimer>
+  , public AOContextCloseHandler
 {
 public:
-    explicit Timer(asio::io_context& ioCtx)
-      : m_impl(ioCtx)
-    {}
-
-    void start(TimePoint expiresAt, AOHandlerCall callAOHandler)
+    SingleTimer(AOContext& aoCtx, std::function<void(const std::error_code&)> handler)
+      : m_aoCtxRef(aoCtx)
+      , m_impl(aoCtx.executor().ioCtx())
+      , m_handler(std::move(handler))
     {
-        m_callAOHandler = std::move(callAOHandler);
-        m_impl.expires_at(expiresAt);
-        m_impl.async_wait([weekSelf = weak_from_this()](const std::error_code err) {
+        m_aoCtxRef.addCloseHandler(*this);
+    }
+
+    ~SingleTimer()
+    {
+        m_aoCtxRef.removeCloseHandler(*this);
+    }
+
+    void start(std::chrono::nanoseconds timeout)
+    {
+        m_impl.expires_at(SteadyClock::now() + timeout);
+        m_impl.async_wait([self = shared_from_this()](auto err) {
             if (err == std::errc::operation_canceled) {
                 return;
             }
 
-            const auto self = weekSelf.lock();
-            if (self == nullptr) {
-                return;
-            }
-
-            self->m_errorCode = err;
-            self->m_callAOHandler(Executor::ExecMode::ImmediatelyIfPossible);
+            self->m_aoCtxRef.exec(
+              [self, err] {
+                  self->m_handler(err);
+              },
+              Executor::ExecMode::ImmediatelyIfPossible);
         });
     }
 
-    void cancel()
+    void aoContextClose() noexcept override
     {
         m_impl.cancel();
     }
 
-    [[nodiscard]] const std::error_code& errorCode() const
-    {
-        return m_errorCode;
-    }
-
 private:
-    AOHandlerCall m_callAOHandler;
+    AOContextRef m_aoCtxRef;
     asio::steady_timer m_impl;
-    std::error_code m_errorCode;
+    std::function<void(const std::error_code&)> m_handler;
 };
 
-class SingleTimerAOHandler final : public AOHandler
+class PromiseTimer final
+  : public std::enable_shared_from_this<PromiseTimer>
+  , public AOContextCloseHandler
 {
 public:
-    using UserHandler = std::function<void(const std::error_code&)>;
-
-    SingleTimerAOHandler(std::shared_ptr<Timer> timer, UserHandler userHandler)
-      : m_timer(std::move(timer))
-      , m_userHandler(std::move(userHandler))
-    {}
-
-    void call() override
+    explicit PromiseTimer(AOContext& aoCtx)
+      : m_aoCtxRef(aoCtx)
+      , m_impl(aoCtx.executor().ioCtx())
     {
-        m_userHandler(m_timer->errorCode());
+        m_aoCtxRef.addCloseHandler(*this);
     }
 
-    void cancel() override
+    ~PromiseTimer()
     {
-        m_timer->cancel();
+        m_aoCtxRef.removeCloseHandler(*this);
     }
 
-private:
-    const std::shared_ptr<Timer> m_timer;
-    const UserHandler m_userHandler;
-};
-
-class FutureTimerAOHandler final : public AOHandler
-{
-public:
-    FutureTimerAOHandler(std::shared_ptr<Timer> timer, Promise<void> promise)
-      : m_timer(std::move(timer))
-      , m_promise(std::move(promise))
-    {}
-
-    void call() override
+    Future<void> start(std::chrono::nanoseconds timeout)
     {
-        const auto& err = m_timer->errorCode();
-        if (err) {
-            auto exPtr = std::make_exception_ptr(std::system_error(err));
-            m_promise.setException(std::move(exPtr));
-            return;
-        }
-
-        m_promise.setValue();
-    }
-
-    void cancel() override
-    {
-        auto exPtr = std::make_exception_ptr(AsyncOperationWasCancelled());
-        m_promise.setException(std::move(exPtr));
-        m_timer->cancel();
-    }
-
-private:
-    const std::shared_ptr<Timer> m_timer;
-    Promise<void> m_promise;
-};
-
-struct IntervalTimerData final
-{
-    IntervalTimerData(AOContext& aoCtx, std::shared_ptr<Timer> timer, std::chrono::nanoseconds interval,
-                      std::function<bool(const std::error_code&)> userHandler)
-      : aoCtx(aoCtx)
-      , timer(std::move(timer))
-      , interval(interval)
-      , userHandler(std::move(userHandler))
-      , tickTime(SteadyClock::now())
-    {}
-
-    TimePoint nextTickTime()
-    {
-        tickTime += interval;
-        return tickTime;
-    }
-
-    AOContextRef aoCtx;
-
-    const std::shared_ptr<Timer> timer;
-    const std::chrono::nanoseconds interval;
-    const std::function<bool(const std::error_code&)> userHandler;
-
-    TimePoint tickTime;
-};
-
-class IntervalTimerAOHandler final : public AOHandler
-{
-public:
-    explicit IntervalTimerAOHandler(std::unique_ptr<IntervalTimerData> d)
-      : m_d(std::move(d))
-    {}
-
-    void call() override
-    {
-        assert(m_d != nullptr);   // NOLINT
-
-        try {
-            const auto& err = m_d->timer->errorCode();
-
-            if (!m_d->userHandler(err)) {
-                // The timer needs to be stopped
+        m_impl.expires_at(SteadyClock::now() + timeout);
+        m_impl.async_wait([self = shared_from_this()](auto err) mutable {
+            bool expectedFlag = false;
+            if (!self->m_promiseResolved.compare_exchange_strong(expectedFlag, true, std::memory_order_relaxed,
+                                                                 std::memory_order_relaxed)) {
                 return;
             }
 
             if (err) {
-                // The timer was broken
+                self->m_promise.setException(std::make_exception_ptr(std::system_error(err)));
                 return;
             }
 
-            this->startNextTick();
-        } catch (...) {
-        }
+            self->m_promise.setValue();
+        });
+
+        return m_promise.future();
     }
 
-    void cancel() override
+    void aoContextClose() noexcept override
     {
-        m_d->timer->cancel();
+        bool expectedFlag = false;
+        if (!m_promiseResolved.compare_exchange_strong(expectedFlag, true, std::memory_order_relaxed,
+                                                       std::memory_order_relaxed)) {
+            return;
+        }
+
+        m_impl.cancel();
+        m_promise.setException(std::make_exception_ptr(AsyncOperationWasCancelled()));
+    }
+
+private:
+    AOContextRef m_aoCtxRef;
+    asio::steady_timer m_impl;
+    Promise<void> m_promise;
+    std::atomic<bool> m_promiseResolved = false;
+};
+
+class IntervalTimer final
+  : public std::enable_shared_from_this<IntervalTimer>
+  , public AOContextCloseHandler
+{
+public:
+    IntervalTimer(AOContext& aoCtx, std::chrono::nanoseconds interval,
+                  std::function<bool(const std::error_code&)> handler)
+      : m_aoCtxRef(aoCtx)
+      , m_impl(aoCtx.executor().ioCtx())
+      , m_interval(interval)
+      , m_handler(std::move(handler))
+    {
+        m_aoCtxRef.addCloseHandler(*this);
+    }
+
+    ~IntervalTimer()
+    {
+        m_aoCtxRef.removeCloseHandler(*this);
+    }
+
+    void start()
+    {
+        m_tickTime = SteadyClock::now();
+        this->startNextTick();
+    }
+
+    void aoContextClose() noexcept override
+    {
+        m_impl.cancel();
     }
 
 private:
     void startNextTick()
     {
-        auto& timer = *m_d->timer;
-        auto& aoCtx = m_d->aoCtx;
+        m_tickTime += m_interval;
+        m_impl.expires_at(m_tickTime);
+        m_impl.async_wait([self = shared_from_this()](auto err) {
+            if (err == std::errc::operation_canceled) {
+                return;
+            }
 
-        const auto nextTickTimet = m_d->nextTickTime();
-        auto aoHandler = std::make_unique<IntervalTimerAOHandler>(std::move(m_d));
+            self->m_aoCtxRef.exec(
+              [self, err] {
+                  try {
+                      if (!self->m_handler(err)) {
+                          // The timer needs to be stopped
+                          return;
+                      }
 
-        timer.start(nextTickTimet, aoCtx.putAOHandler(std::move(aoHandler)));
+                      if (err) {
+                          // The timer was broken
+                          return;
+                      }
+
+                      self->startNextTick();
+                  } catch (...) {
+                  }
+              },
+              Executor::ExecMode::ImmediatelyIfPossible);
+        });
     }
 
-    std::unique_ptr<IntervalTimerData> m_d;
+    AOContextRef m_aoCtxRef;
+    asio::steady_timer m_impl;
+    const std::chrono::nanoseconds m_interval;
+    const std::function<bool(const std::error_code& err)> m_handler;
+    TimePoint m_tickTime;
 };
 
 }   // namespace
@@ -201,32 +201,16 @@ void setTimeout(AOContext& aoCtx, std::chrono::nanoseconds timeout, std::functio
     assert(handler != nullptr);     // NOLINT
     assert(timeout.count() >= 0);   // NOLINT
 
-    auto& executor = aoCtx.executor();
-    auto& ioCtx = executor.ioCtx();
-
-    auto timer = std::make_shared<Timer>(ioCtx);
-    auto aoHandler = std::make_unique<SingleTimerAOHandler>(timer, std::move(handler));
-    auto callAOHandler = aoCtx.putAOHandler(std::move(aoHandler));
-
-    timer->start(SteadyClock::now() + timeout, std::move(callAOHandler));
+    auto timer = std::make_shared<SingleTimer>(aoCtx, std::move(handler));
+    timer->start(timeout);
 }
 
 Future<void> setTimeout(AOContext& aoCtx, std::chrono::nanoseconds timeout)
 {
     assert(timeout.count() >= 0);   // NOLINT
 
-    auto promise = Promise<void>();
-    auto future = promise.future();
-    auto& executor = aoCtx.executor();
-    auto& ioCtx = executor.ioCtx();
-
-    auto timer = std::make_shared<Timer>(ioCtx);
-    auto aoHandler = std::make_unique<FutureTimerAOHandler>(timer, std::move(promise));
-    auto callAOHandler = aoCtx.putAOHandler(std::move(aoHandler));
-
-    timer->start(SteadyClock::now() + timeout, std::move(callAOHandler));
-
-    return future;
+    auto timer = std::make_shared<PromiseTimer>(aoCtx);
+    return timer->start(timeout);
 }
 
 void setInterval(AOContext& aoCtx, std::chrono::nanoseconds interval,
@@ -235,16 +219,8 @@ void setInterval(AOContext& aoCtx, std::chrono::nanoseconds interval,
     assert(handler != nullptr);     // NOLINT
     assert(interval.count() > 0);   // NOLINT
 
-    auto& executor = aoCtx.executor();
-    auto& ioCtx = executor.ioCtx();
-
-    auto timer = std::make_shared<Timer>(ioCtx);
-    auto intervalTimerData = std::make_unique<IntervalTimerData>(aoCtx, timer, interval, std::move(handler));
-    auto firstTickTime = intervalTimerData->nextTickTime();
-    auto aoHandler = std::make_unique<IntervalTimerAOHandler>(std::move(intervalTimerData));
-    auto callAOHandler = aoCtx.putAOHandler(std::move(aoHandler));
-
-    timer->start(firstTickTime, std::move(callAOHandler));
+    auto timer = std::make_shared<IntervalTimer>(aoCtx, interval, std::move(handler));
+    timer->start();
 }
 
 }   // namespace nhope

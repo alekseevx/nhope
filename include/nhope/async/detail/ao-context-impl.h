@@ -7,8 +7,6 @@
 #include "nhope/async/ao-context-close-handler.h"
 #include "nhope/async/ao-context-error.h"
 #include "nhope/async/detail/ao-context-state.h"
-#include "nhope/async/detail/ao-handler-id.h"
-#include "nhope/async/detail/ao-handler-storage.h"
 #include "nhope/async/detail/make-strand.h"
 #include "nhope/async/executor.h"
 
@@ -26,7 +24,7 @@ struct RefCounterT<AOContextImpl>
     using Type = AOContextImpl;
 };
 
-class AOContextImpl final
+class AOContextImpl final : public AOContextCloseHandler
 {
     friend class RefPtr<AOContextImpl>;
     friend RefPtr<AOContextImpl> makeRefPtr<AOContextImpl, AOContextImpl*>(AOContextImpl*&&);
@@ -66,10 +64,10 @@ public:
               if (!self->m_state.blockClose()) {
                   return;
               }
-              WorkingInThisThreadSet::Item thisAOContexItem(self->m_groupId);
+              WorkingInThisThreadSet::Item thisGroup(self->m_groupId);
 
               try {
-                  work(self.get());
+                  work();
               } catch (...) {
               }
 
@@ -94,40 +92,19 @@ public:
         return makeRefPtr<AOContextImpl>(this);
     }
 
-    [[nodiscard]] AOHandlerId putAOHandler(std::unique_ptr<AOHandler> handler)
-    {
-        if (!m_state.blockClose()) {
-            throw AOContextClosed();
-        }
-
-        ScopeExit unblock([this] {
-            m_state.unblockClose();
-        });
-
-        return this->putAOHandlerImpl(std::move(handler));
-    }
-
-    void callAOHandler(AOHandlerId id, Executor::ExecMode mode)
-    {
-        this->exec(
-          [id](auto* self) {
-              self->callAOHandlerImpl(id);
-          },
-          mode);
-    }
-
     void close()
     {
         if (m_state.startClose()) {
-            if (m_parent != nullptr) {
-                m_parent->removeCloseHandler(&m_parentCloseHandler);
-            }
+            ClosingInThisThreadSet::Item thisAOContexItem(this);
 
             this->waitForClosing();
             m_state.setClosingFlag();
 
-            this->cancelAOHandlers();
             this->callCloseHandlers();
+
+            if (m_parent != nullptr) {
+                m_parent->removeCloseHandler(this);
+            }
 
             m_executorHolder.reset();
             m_state.setClosedFlag();
@@ -150,10 +127,13 @@ public:
 
     void addCloseHandler(AOContextCloseHandler* closeHandler)
     {
-        assert(this->isOpen());                    // NOLINT
         assert(closeHandler != nullptr);           // NOLINT
         assert(closeHandler->m_next == nullptr);   // NOLINT
         assert(closeHandler->m_prev == nullptr);   // NOLINT
+
+        if (!m_state.blockClose()) {
+            throw AOContextClosed();
+        }
 
         m_state.lockCloseHandlerList();
 
@@ -166,9 +146,10 @@ public:
         m_closeHandlerList = closeHandler;
 
         m_state.unlockCloseHandlerList();
+        m_state.unblockClose();
     }
 
-    void removeCloseHandler(AOContextCloseHandler* closeHandler)
+    void removeCloseHandler(AOContextCloseHandler* closeHandler) noexcept
     {
         m_state.lockCloseHandlerList();
 
@@ -179,6 +160,7 @@ public:
                 m_closeHandlerList->m_prev = nullptr;
             }
 
+            closeHandler->m_next = nullptr;
             m_state.unlockCloseHandlerList();
             return;
         }
@@ -190,12 +172,14 @@ public:
                 closeHandler->m_next->m_prev = closeHandler->m_prev;
             }
 
+            closeHandler->m_next = nullptr;
+            closeHandler->m_prev = nullptr;
             m_state.unlockCloseHandlerList();
             return;
         }
 
         // closeHandler is not in the list, so must have been removed by a call to callCloseHandler
-        if (m_closerThreadId == std::this_thread::get_id()) {
+        if (ClosingInThisThreadSet::contains(this)) {
             /* closeHandler is destroyed from callCloseHandler */
             if (closeHandler->m_destroyed != nullptr) {
                 *closeHandler->m_destroyed = true;
@@ -213,6 +197,13 @@ public:
     }
 
 private:
+    /* Defines a group of AOContextGroup that work strictly sequentially
+       (through SequenceExecutor ot the root AOContext)  */
+    using AOContextGroupId = std::uintptr_t;
+    using WorkingInThisThreadSet = StackSet<AOContextGroupId>;
+
+    using ClosingInThisThreadSet = StackSet<AOContextImpl*>;
+
     explicit AOContextImpl(Executor& executor)
       : m_groupId(reinterpret_cast<AOContextGroupId>(this))   // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
       , m_executorHolder(makeStrand(executor))
@@ -222,9 +213,8 @@ private:
       : m_groupId(parent->m_groupId)
       , m_executorHolder(makeStrand(parent->executor()))
       , m_parent(parent)
-      , m_parentCloseHandler(this)
     {
-        m_parent->addCloseHandler(&m_parentCloseHandler);
+        parent->addCloseHandler(this);
     }
 
     ~AOContextImpl() = default;
@@ -246,64 +236,6 @@ private:
         }
     }
 
-    /* Defines a group of AOContextGroup that work strictly sequentially
-       (through SequenceExecutor ot the root AOContext)  */
-    using AOContextGroupId = std::uintptr_t;
-    using WorkingInThisThreadSet = StackSet<AOContextGroupId>;
-
-    std::unique_ptr<AOHandler> getAOHandler(AOHandlerId id)
-    {
-        assert(this->aoContextWorkInThisThread());   // NOLINT
-
-        if (isExternalId(id)) {
-            std::scoped_lock lock(m_externalAOHandlersMutex);
-            return this->m_externalAOHandlers.get(id);
-        }
-        return this->m_internalAOHandlers.get(id);
-    }
-
-    AOHandlerId putAOHandlerImpl(std::unique_ptr<AOHandler> handler)
-    {
-        AOHandlerId id{};
-        if (this->aoContextWorkInThisThread()) {
-            id = this->nextInternalId();
-            this->m_internalAOHandlers.put(id, std::move(handler));
-        } else {
-            std::unique_lock lock(this->m_externalAOHandlersMutex);
-            id = this->nextExternalId(lock);
-            this->m_externalAOHandlers.put(id, std::move(handler));
-        }
-
-        return id;
-    }
-
-    void callAOHandlerImpl(AOHandlerId id)
-    {
-        assert(this->aoContextWorkInThisThread());   // NOLINT
-
-        if (auto handler = this->getAOHandler(id)) {
-            handler->call();
-        }
-    }
-
-    AOHandlerId nextInternalId() noexcept
-    {
-        assert(this->aoContextWorkInThisThread());   // NOLINT
-        return 2 * this->m_internalAOHandlerCounter++;
-    }
-
-    AOHandlerId nextExternalId([[maybe_unused]] std::unique_lock<std::mutex>& lock) noexcept
-    {
-        assert(!this->aoContextWorkInThisThread());   // NOLINT
-        assert(lock.owns_lock());                     // NOLINT
-        return 2 * this->m_externalAOHandlerCounter++ + 1;
-    }
-
-    static bool isExternalId(AOHandlerId id) noexcept
-    {
-        return (id & 1) != 0;
-    }
-
     void waitForClosing() noexcept
     {
         /* Wait until other threads remove their blockClose */
@@ -316,35 +248,25 @@ private:
     void waitForClosed() const noexcept
     {
         if (this->aoContextWorkInThisThread()) {
-            // We can't wait, closing is done from AOHandler and we will get a deadlock.
+            // We can't wait, closing is done from exec and we will get a deadlock.
             return;
         }
 
         this->m_state.waitForClosed();
     }
 
-    void cancelAOHandlers() noexcept
-    {
-        AOHandlerStorage internalAOHandlers = std::move(m_internalAOHandlers);
-        AOHandlerStorage externalAOHandlers;
-        {
-            std::scoped_lock lock(m_externalAOHandlersMutex);
-            externalAOHandlers = std::move(m_externalAOHandlers);
-        }
-
-        internalAOHandlers.cancelAll();
-        externalAOHandlers.cancelAll();
-    }
-
     void callCloseHandlers()
     {
         m_state.lockCloseHandlerList();
 
-        m_closerThreadId = std::this_thread::get_id();
         while (m_closeHandlerList != nullptr) {
             auto* curCloseHandler = m_closeHandlerList;
             m_closeHandlerList = m_closeHandlerList->m_next;
+            if (m_closeHandlerList != nullptr) {
+                m_closeHandlerList->m_prev = nullptr;
+            }
 
+            curCloseHandler->m_next = nullptr;
             bool destroyed = false;
             curCloseHandler->m_destroyed = &destroyed;
 
@@ -353,11 +275,11 @@ private:
             m_state.lockCloseHandlerList();
 
             if (!destroyed) {
+                curCloseHandler->m_destroyed = nullptr;
                 curCloseHandler->m_done = true;
             }
         }
 
-        m_closerThreadId = std::thread::id();
         m_state.unlockCloseHandlerList();
     }
 
@@ -366,45 +288,20 @@ private:
         return WorkingInThisThreadSet::count(m_groupId);
     }
 
-    class ParentCloseHandler final : public AOContextCloseHandler
+    void aoContextClose() noexcept override
     {
-    public:
-        ParentCloseHandler() = default;
-        explicit ParentCloseHandler(AOContextImpl* self)
-          : m_self(self)
-        {}
-
-        void aoContextClose() noexcept override
-        {
-            assert(m_self != nullptr);   // NOLINT
-            m_self->close();
-        }
-
-    private:
-        AOContextImpl* m_self = nullptr;
-    };
+        /* Parent was closed */
+        assert(m_parent != nullptr);   // NOLINT
+        this->close();
+    }
 
     AOContextState m_state;
     const AOContextGroupId m_groupId;
 
-    /* External storage can be accessed from any thread,
-       but mutex protection is required */
-    std::mutex m_externalAOHandlersMutex;
-    AOHandlerId m_externalAOHandlerCounter = 0;
-    AOHandlerStorage m_externalAOHandlers;
-
-    /* The internal storage can only be accessed from the thread in which AOContex is running,
-       but mutex protection is not required */
-    AOHandlerId m_internalAOHandlerCounter = 0;
-    AOHandlerStorage m_internalAOHandlers;
-
     SequenceExecutorHolder m_executorHolder;
 
-    AOContextImpl* m_parent = nullptr;
-    ParentCloseHandler m_parentCloseHandler;
-
-    std::thread::id m_closerThreadId;
     AOContextCloseHandler* m_closeHandlerList = nullptr;
+    AOContextImpl* m_parent = nullptr;
 };
 
 }   // namespace nhope::detail

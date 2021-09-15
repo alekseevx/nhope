@@ -1,14 +1,17 @@
 #include <atomic>
 #include <chrono>
 #include <functional>
+#include <list>
 #include <memory>
 #include <stdexcept>
 #include <string>
 #include <thread>
 #include <utility>
 
+#include "nhope/async/ao-context-close-handler.h"
 #include "nhope/async/ao-context-error.h"
 #include "nhope/async/ao-context.h"
+#include "nhope/async/event.h"
 #include "nhope/async/thread-executor.h"
 #include "nhope/async/thread-pool-executor.h"
 
@@ -22,93 +25,54 @@ namespace {
 using namespace nhope;
 using namespace std::literals;
 
-class TestAOHandler final : public AOHandler
+class TestAOContextCloseHandler final : public AOContextCloseHandler
 {
 public:
-    explicit TestAOHandler(std::function<void()> call, std::function<void()> cancel = nullptr)
-      : m_call(std::move(call))
-      , m_cancel(std::move(cancel))
+    TestAOContextCloseHandler() = default;
+
+    explicit TestAOContextCloseHandler(std::function<void()> handler)
+      : m_handler(std::move(handler))
     {}
 
-    void call() override
+    ~TestAOContextCloseHandler() = default;
+
+    void aoContextClose() noexcept override
     {
-        if (m_call) {
-            m_call();
+        if (m_handler) {
+            m_handler();
         }
     }
 
-    void cancel() override
+    void setHandler(std::function<void()> handler)
     {
-        if (m_cancel) {
-            m_cancel();
-        }
+        m_handler = std::move(handler);
     }
 
 private:
-    std::function<void()> m_call;
-    std::function<void()> m_cancel;
+    std::function<void()> m_handler;
 };
 
-}   // namespace
-
-TEST(AOContext, AsyncOperation)   // NOLINT
+template<typename Fn>
+std::list<std::thread> startParallel(int threadCount, Fn&& fn)
 {
-    ThreadExecutor executor;
-    AOContext aoContext(executor);
-
-    std::atomic<bool> asyncOperationHandlerCalled = false;
-    auto aoHandler = std::make_unique<TestAOHandler>([&] {
-        EXPECT_EQ(std::this_thread::get_id(), executor.id());
-        asyncOperationHandlerCalled = true;
-    });
-
-    std::thread([callAOHandler = aoContext.putAOHandler(std::move(aoHandler))]() mutable {
-        // A thread performing an asynchronous operation
-        callAOHandler();
-    }).detach();
-
-    EXPECT_TRUE(waitForValue(1s, asyncOperationHandlerCalled, true));
+    std::list<std::thread> threads;
+    for (int i = 0; i < threadCount; ++i) {
+        threads.emplace_back(std::forward<Fn>(fn));
+    }
+    return threads;
 }
 
-TEST(AOContext, CancelAsyncOperation)   // NOLINT
+void waitForFinished(std::list<std::thread>& threads)
 {
-    constexpr int iterCount = 500;
-
-    for (int i = 0; i < iterCount; ++i) {
-        std::atomic<bool> asyncOperationHandlerCalled = false;
-        std::atomic<bool> cancelAsyncOperationCalled = false;
-
-        auto executor = std::make_unique<ThreadExecutor>();
-        auto aoContext = std::make_unique<AOContext>(*executor);
-
-        auto aoHandler = std::make_unique<TestAOHandler>(
-          [&asyncOperationHandlerCalled, &executor] {
-              EXPECT_EQ(std::this_thread::get_id(), executor->id());
-              asyncOperationHandlerCalled = true;
-          },
-          [&cancelAsyncOperationCalled] {
-              cancelAsyncOperationCalled = true;
-          });
-
-        std::thread([callAOHandler = aoContext->putAOHandler(std::move(aoHandler))]() mutable {
-            // A thread performing an asynchronous operation
-            callAOHandler();
-        }).detach();
-
-        std::this_thread::sleep_for(5us);
-
-        aoContext.reset();   // Destroy the aoContex and cancel the asyncOperation
-        executor.reset();
-
-        EXPECT_TRUE(waitForPred(1s, [&] {
-            return asyncOperationHandlerCalled || cancelAsyncOperationCalled;
-        }));
-
-        EXPECT_FALSE(asyncOperationHandlerCalled && cancelAsyncOperationCalled);
+    while (!threads.empty()) {
+        threads.front().join();
+        threads.pop_front();
     }
 }
 
-TEST(AOContext, SequentialHandlerCall)   // NOLINT
+}   // namespace
+
+TEST(AOContext, SequentialExecution)   // NOLINT
 {
     constexpr auto iterCount = 100;
 
@@ -121,7 +85,7 @@ TEST(AOContext, SequentialHandlerCall)   // NOLINT
     std::atomic<int> finishedHandlerCount = 0;
 
     for (int operationNum = 0; operationNum < iterCount; ++operationNum) {
-        auto aoHandler = std::make_unique<TestAOHandler>([&, operationNum] {
+        aoContext.exec([&, operationNum] {
             EXPECT_EQ(++activeHandlerCount, 1);
             std::this_thread::sleep_for(1ms);
             --activeHandlerCount;
@@ -129,14 +93,12 @@ TEST(AOContext, SequentialHandlerCall)   // NOLINT
             EXPECT_EQ(finishedHandlerCount, operationNum);
             ++finishedHandlerCount;
         });
-
-        aoContext.callAOHandler(std::move(aoHandler));
     }
 
     EXPECT_TRUE(waitForValue(100 * 1ms * iterCount, finishedHandlerCount, iterCount));
 }
 
-TEST(AOContext, ExceptionInAOHandler)   // NOLINT
+TEST(AOContext, ExceptionInExec)   // NOLINT
 {
     constexpr auto iterCount = 100;
 
@@ -145,30 +107,13 @@ TEST(AOContext, ExceptionInAOHandler)   // NOLINT
 
     std::atomic<int> asyncOperationHandlerCalled = 0;
     for (int i = 0; i < iterCount; ++i) {
-        auto aoHandler = std::make_unique<TestAOHandler>([&] {
+        aoContext.exec([&] {
             asyncOperationHandlerCalled++;
             throw std::runtime_error("TestException");
         });
-
-        aoContext.callAOHandler(std::move(aoHandler));
     }
 
     EXPECT_TRUE(waitForValue(1s, asyncOperationHandlerCalled, iterCount));
-}
-
-TEST(AOContext, ExceptionInCancelAsyncOperation)   // NOLINT
-{
-    ThreadExecutor executor;
-    auto aoContext = std::make_unique<AOContext>(executor);
-
-    auto aoHandler = std::make_unique<TestAOHandler>(nullptr, [] {
-        throw std::runtime_error("TestException");
-    });
-
-    EXPECT_NO_THROW({   // NOLINT
-        [[maybe_unused]] auto call = aoContext->putAOHandler(std::move(aoHandler));
-        aoContext.reset();
-    });
 }
 
 TEST(AOContext, ExplicitClose)   // NOLINT
@@ -177,17 +122,22 @@ TEST(AOContext, ExplicitClose)   // NOLINT
     AOContext aoContext(executor);
     aoContext.close();
 
-    // NOLINTNEXTLINE
-    EXPECT_THROW(
-      {
-          aoContext.callAOHandler(std::make_unique<TestAOHandler>([] {
-              GTEST_FAIL();
-          }));
-      },
-      AOContextClosed);
+    auto callFlag = std::make_shared<std::atomic<bool>>(false);
+
+    aoContext.exec([callFlag] {
+        *callFlag = true;
+    });
+
+    // Wait until lambda was is destroyed
+    EXPECT_TRUE(waitForPred(100s, [&callFlag] {
+        return callFlag.use_count() == 1;
+    }));
+
+    // Check than lambda was not called
+    EXPECT_TRUE(*callFlag == false);
 }
 
-TEST(AOContext, ExplicitCloseFromAOHandler)   // NOLINT
+TEST(AOContext, ExplicitCloseFromExec)   // NOLINT
 {
     constexpr auto iterCount = 100;
 
@@ -196,25 +146,60 @@ TEST(AOContext, ExplicitCloseFromAOHandler)   // NOLINT
     for (int i = 0; i < iterCount; ++i) {
         AOContext aoContext(executor);
 
-        aoContext.callAOHandler(std::make_unique<TestAOHandler>([&aoContext] {
+        aoContext.exec([&aoContext] {
             aoContext.close();
-        }));
+        });
 
         std::this_thread::yield();
 
-        std::atomic<bool> wasCancelled = false;
-        try {
-            aoContext.callAOHandler(std::make_unique<TestAOHandler>(
-              [] {
-                  GTEST_FAIL();
-              },
-              [&wasCancelled] {
-                  wasCancelled = true;
-              }));
-        } catch (const AOContextClosed&) {
-            std::this_thread::sleep_for(10ms);
-            EXPECT_FALSE(wasCancelled);
-        }
+        auto callFlag = std::make_shared<std::atomic<bool>>(false);
+        aoContext.exec([callFlag] {
+            callFlag->store(true);
+        });
+
+        // Wait until lambda was is destroyed
+        EXPECT_TRUE(waitForPred(100s, [&callFlag] {
+            return callFlag.use_count() == 1;
+        }));
+
+        // Check than lambda was not called
+        EXPECT_TRUE(*callFlag == false);
+    }
+}
+
+TEST(AOContext, MakeChildAfterClose)   // NOLINT
+{
+    AOContext parent(ThreadPoolExecutor::defaultExecutor());
+    parent.close();
+
+    EXPECT_THROW(AOContext child(parent), AOContextClosed);   // NOLINT
+}
+
+TEST(AOContext, ParallelClose)   // NOLINT
+{
+    static constexpr auto threadCount = 10;
+    static constexpr auto iterCount = 100;
+
+    ThreadExecutor executor;
+
+    for (auto i = 0; i < iterCount; ++i) {
+        AOContext aoCtx(executor);
+
+        Event closeEvent;
+        auto threads = startParallel(threadCount, [&] {
+            closeEvent.wait();
+            aoCtx.close();
+        });
+
+        aoCtx.exec([&] {
+            closeEvent.wait();
+            aoCtx.close();
+        });
+
+        std::this_thread::sleep_for(10ms);
+        closeEvent.set();
+
+        waitForFinished(threads);
     }
 }
 
@@ -233,17 +218,17 @@ TEST(AOContext, CloseParentFromChild)   // NOLINT
 {
     AOContext parent(ThreadPoolExecutor::defaultExecutor());
 
-    std::atomic<bool> parentClosed = false;
+    Event parentClosed;
     AOContext child(parent);
-    child.callAOHandler(std::make_unique<TestAOHandler>([&] {
+    child.exec([&] {
         parent.close();
         EXPECT_FALSE(parent.isOpen());
         EXPECT_FALSE(child.isOpen());
 
-        parentClosed = true;
-    }));
+        parentClosed.set();
+    });
 
-    waitForValue(10s, parentClosed, true);
+    EXPECT_TRUE(parentClosed.waitFor(10s));
 }
 
 TEST(AOContext, WorkWithParentAndChildren)   // NOLINT
@@ -254,32 +239,28 @@ TEST(AOContext, WorkWithParentAndChildren)   // NOLINT
     std::atomic<int> activeWorkCount = 0;
 
     // NOLINTNEXTLINE(readability-function-cognitive-complexity)
-    const auto workFn = [&activeWorkCount](AOContext& aoCtx) {
-        for (;;) {
-            try {
-                aoCtx.callAOHandler(std::make_unique<TestAOHandler>([&] {
-                    EXPECT_EQ(activeWorkCount.fetch_add(1), 0);
-
-                    std::this_thread::yield();
-
-                    EXPECT_EQ(activeWorkCount.fetch_sub(1), 1);
-                }));
+    const auto workFn = [&activeWorkCount](AOContextRef aoCtx) {
+        while (aoCtx.isOpen()) {
+            aoCtx.exec([&] {
+                EXPECT_EQ(activeWorkCount.fetch_add(1), 0);
 
                 std::this_thread::yield();
-            } catch (const AOContextClosed&) {
-                return;
-            }
+
+                EXPECT_EQ(activeWorkCount.fetch_sub(1), 1);
+            });
+
+            std::this_thread::yield();
         }
     };
 
     AOContext parent(executor);
-    std::thread(workFn, std::ref(parent)).detach();
+    std::thread(workFn, AOContextRef(parent)).detach();
 
     AOContext firstChild(parent);
-    std::thread(workFn, std::ref(firstChild)).detach();
+    std::thread(workFn, AOContextRef(firstChild)).detach();
 
     AOContext secondChild(parent);
-    std::thread(workFn, std::ref(secondChild)).detach();
+    std::thread(workFn, AOContextRef(secondChild)).detach();
 
     std::this_thread::sleep_for(5s);
 
@@ -289,4 +270,130 @@ TEST(AOContext, WorkWithParentAndChildren)   // NOLINT
     EXPECT_FALSE(waitForPred(100ms, [&activeWorkCount] {
         return activeWorkCount != 0;
     }));
+}
+
+TEST(AOContext, AddCloseHandler)   // NOLINT
+{
+    ThreadExecutor executor;
+    AOContext aoCtx(executor);
+
+    bool closHandlerCalled = false;
+    TestAOContextCloseHandler closeHandler([&] {
+        closHandlerCalled = true;
+    });
+    aoCtx.addCloseHandler(closeHandler);
+    aoCtx.close();
+
+    EXPECT_TRUE(closHandlerCalled);
+}
+
+TEST(AOContext, RemoveCloseHandler)   // NOLINT
+{
+    ThreadExecutor executor;
+    AOContext aoCtx(executor);
+
+    bool closHandlerCalled = false;
+    TestAOContextCloseHandler closeHandler([&closHandlerCalled] {
+        closHandlerCalled = true;
+    });
+    aoCtx.addCloseHandler(closeHandler);
+    aoCtx.removeCloseHandler(closeHandler);
+    aoCtx.close();
+
+    EXPECT_FALSE(closHandlerCalled);
+}
+
+TEST(AOContext, RemoveCloseHandlerFromCloseHandler)   // NOLINT
+{
+    ThreadExecutor executor;
+    AOContext aoCtx(executor);
+
+    bool closHandlerCalled = false;
+    TestAOContextCloseHandler closeHandler;
+    closeHandler.setHandler([&] {
+        aoCtx.removeCloseHandler(closeHandler);
+        closHandlerCalled = true;
+    });
+    aoCtx.addCloseHandler(closeHandler);
+    aoCtx.close();
+
+    EXPECT_TRUE(closHandlerCalled);
+}
+
+TEST(AOContext, RemoveCloseHandlerWhenCloseHandlerIsCalled)   // NOLINT
+{
+    static constexpr auto iterCount = 1000;
+
+    ThreadExecutor executor;
+
+    for (auto i = 0; i < iterCount; ++i) {
+        AOContext aoCtx(executor);
+
+        Event closeHandlerIsCalled;
+        Event closeHandlerIsRemoved;
+
+        TestAOContextCloseHandler closeHandler([&] {
+            closeHandlerIsCalled.set();
+            std::this_thread::yield();
+        });
+        aoCtx.addCloseHandler(closeHandler);
+
+        std::thread([&] {
+            closeHandlerIsCalled.wait();
+            aoCtx.removeCloseHandler(closeHandler);
+            closeHandlerIsRemoved.set();
+        }).detach();
+
+        std::this_thread::yield();
+
+        aoCtx.close();
+        EXPECT_TRUE(closeHandlerIsRemoved.waitFor(10s));
+    }
+}
+
+TEST(AOContext, ParallelAddRemoveCloseHandler)   // NOLINT
+{
+    static constexpr auto threadCount = 10;
+    static constexpr auto time = 5s;
+
+    ThreadExecutor executor;
+    AOContext aoCtx(executor);
+    std::atomic<bool> closeFlag = false;
+
+    auto threads = startParallel(threadCount, [&] {
+        for (;;) {
+            try {
+                TestAOContextCloseHandler closeHandler;
+                aoCtx.addCloseHandler(closeHandler);
+                std::this_thread::yield();
+                aoCtx.removeCloseHandler(closeHandler);
+            } catch (const AOContextClosed&) {
+                break;
+            }
+        }
+    });
+
+    std::this_thread::sleep_for(time);
+    aoCtx.close();
+
+    waitForFinished(threads);
+}
+
+TEST(AOContext, AOContextRef)   // NOLINT
+{
+    ThreadExecutor executor;
+    AOContext aoCtx(executor);
+    AOContextRef aoCtxRef(aoCtx);
+
+    EXPECT_TRUE(aoCtxRef.isOpen());
+
+    Event wasExecuted;
+
+    EXPECT_FALSE(aoCtxRef.workInThisThread());
+    aoCtxRef.exec([&] {
+        EXPECT_TRUE(aoCtxRef.workInThisThread());
+        wasExecuted.set();
+    });
+
+    EXPECT_TRUE(wasExecuted.waitFor(10s));
 }

@@ -130,7 +130,7 @@ TEST(IoTest, Exception)   // NOLINT
 
     // EXPECT_THROW(openSerialPort(e, settings), SerialPortError);   // NOLINT
     settings.portName = "~/.profile";
-    EXPECT_THROW(openSerialPort(e, settings), SerialPortError);
+    EXPECT_THROW(openSerialPort(e, settings), SerialPortError);   // NOLINT
     // d->executor();
 }
 

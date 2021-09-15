@@ -218,7 +218,7 @@ Future<size_t> writeExactly(IoDevice& device, gsl::span<const std::uint8_t> data
 Future<std::string> readLine(IoDevice& device)
 {
     auto reader = std::make_shared<IoReader>(device);
-    return reader->readLine().then(reader->ctx(), [reader](auto data) {
+    return reader->readLine().then(reader->ctx(), [](auto data) {
         return std::string(data.begin(), data.end());
     });
 }

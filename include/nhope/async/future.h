@@ -1,9 +1,6 @@
 #pragma once
 
-#include <chrono>
 #include <exception>
-#include <functional>
-#include <list>
 #include <memory>
 #include <thread>
 #include <type_traits>
@@ -13,7 +10,6 @@
 #include "nhope/async/detail/future-state.h"
 #include "nhope/async/event.h"
 #include "nhope/async/future-error.h"
-#include "nhope/async/thread-executor.h"
 #include "nhope/utils/detail/ref-ptr.h"
 
 namespace nhope {
@@ -156,8 +152,7 @@ public:
     template<typename Fn>
     UnwrapFuture<NextFuture<T, Fn>> then(AOContext& aoCtx, Fn&& fn)
     {
-        using AOHandler = detail::FutureThenAOHandler<T, Fn>;
-        using FutureCallback = detail::CallAOHandlerFutureCallback<T>;
+        using FutureCallback = detail::FutureThenCallback<T, Fn>;
 
         if constexpr (std::is_void_v<T>) {
             static_assert(std::is_invocable_v<Fn>, "Fn must be function without arguments");
@@ -172,8 +167,7 @@ public:
         auto detachedState = this->detachState();
 
         auto nextState = detail::makeRefPtr<NextFutureState<T, Fn>>();
-        auto aoHandler = std::make_unique<AOHandler>(std::forward<Fn>(fn), detachedState, nextState);
-        detachedState->setCallback(std::make_unique<FutureCallback>(aoCtx, std::move(aoHandler)));
+        detachedState->setCallback(std::make_unique<FutureCallback>(aoCtx, std::forward<Fn>(fn), nextState));
 
         return NextFuture<T, Fn>(std::move(nextState)).unwrap();
     }
@@ -193,8 +187,7 @@ public:
     template<typename Fn>
     Future<T> fail(AOContext& aoCtx, Fn&& fn)
     {
-        using AOHandler = detail::FutureFailAOHandler<T, Fn>;
-        using FutureCallback = detail::CallAOHandlerFutureCallback<T>;
+        using FutureCallback = detail::FutureFailCallback<T, Fn>;
 
         static_assert(std::is_invocable_v<Fn, std::exception_ptr>, "Fn must take std::exception_ptr as argument");
         static_assert(std::is_same_v<T, std::invoke_result_t<Fn, std::exception_ptr>>,
@@ -207,8 +200,7 @@ public:
         auto detachedState = this->detachState();
 
         auto nextState = detail::makeRefPtr<State>();
-        auto aoHandler = std::make_unique<AOHandler>(std::forward<Fn>(fn), detachedState, nextState);
-        detachedState->setCallback(std::make_unique<FutureCallback>(aoCtx, std::move(aoHandler)));
+        detachedState->setCallback(std::make_unique<FutureCallback>(aoCtx, std::forward<Fn>(fn), nextState));
 
         return Future(std::move(nextState)).unwrap();
     }
