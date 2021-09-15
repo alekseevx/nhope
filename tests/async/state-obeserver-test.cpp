@@ -78,7 +78,7 @@ TEST(StateObserver, SimpleObserver)   // NOLINT
 
     {
         nhope::Chan<ObservableState<int>> stateChan;
-        stateChan.attachToProduser(observerTest.observer());
+        stateChan.attachToProducer(observerTest.observer());
 
         const int val = stateChan.get()->value();
         EXPECT_GE(val, StateObserverTest::startValue);
@@ -91,7 +91,7 @@ TEST(StateObserver, SimpleObserver)   // NOLINT
 
     {
         nhope::Chan<ObservableState<int>> stateChan;
-        stateChan.attachToProduser(observerTest.observer());
+        stateChan.attachToProducer(observerTest.observer());
 
         const int val = stateChan.get()->value();
         EXPECT_LT(val, StateObserverTest::startValue);
@@ -154,7 +154,7 @@ TEST(StateObserver, Exception)   // NOLINT
 
     Chan<ObservableState<int>> stateChan;
 
-    stateChan.attachToProduser(observer);
+    stateChan.attachToProducer(observer);
     observer.setState(magic);
 
     {
@@ -200,7 +200,7 @@ TEST(StateObserver, AsyncExceptionInSetter)   // NOLINT
 
     Chan<ObservableState<int>> stateChan;
 
-    stateChan.attachToProduser(observer);
+    stateChan.attachToProducer(observer);
     observer.setState(magic + 1);
 
     {

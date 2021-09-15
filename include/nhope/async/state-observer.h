@@ -14,7 +14,7 @@
 #include "nhope/async/strand-executor.h"
 #include "nhope/async/timer.h"
 #include "nhope/seq/consumer-list.h"
-#include "nhope/seq/produser.h"
+#include "nhope/seq/producer.h"
 #include "nhope/utils/type.h"
 
 namespace nhope {
@@ -133,7 +133,7 @@ public:
  * @tparam T тип состояния, должен быть определен оператор сравнения
  */
 template<typename T>
-class StateObserver final : public nhope::Produser<ObservableState<T>>
+class StateObserver final : public nhope::Producer<ObservableState<T>>
 {
 public:
     using StateSetter = std::function<Future<void>(const T&)>;

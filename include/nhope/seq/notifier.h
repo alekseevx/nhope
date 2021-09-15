@@ -8,7 +8,7 @@
 #include <nhope/async/executor.h>
 #include <nhope/async/safe-callback.h>
 #include <nhope/seq/consumer.h>
-#include <nhope/seq/produser.h>
+#include <nhope/seq/producer.h>
 
 namespace nhope {
 
@@ -31,10 +31,10 @@ public:
         m_aoCtx.close();
     }
 
-    void attachToProduser(Produser<T>& produser)
+    void attachToProducer(Producer<T>& producer)
     {
         auto newInput = this->makeInput();
-        produser.attachConsumer(std::move(newInput));
+        producer.attachConsumer(std::move(newInput));
     }
 
     std::unique_ptr<Consumer<T>> makeInput()

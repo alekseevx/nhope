@@ -11,7 +11,7 @@
 
 #include "nhope/async/future.h"
 #include "nhope/async/reverse-lock.h"
-#include "nhope/seq/produser.h"
+#include "nhope/seq/producer.h"
 #include "nhope/utils/type.h"
 
 namespace nhope {
@@ -77,9 +77,9 @@ public:
         return m_d->getCurrentValue();
     }
 
-    void attachToProduser(Produser<T>& produser)
+    void attachToProducer(Producer<T>& producer)
     {
-        produser.attachConsumer(this->makeInput());
+        producer.attachConsumer(this->makeInput());
     }
 
     std::unique_ptr<Consumer<T>> makeInput()

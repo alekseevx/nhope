@@ -4,19 +4,19 @@
 #include <utility>
 
 #include "nhope/async/future.h"
-#include "produser.h"
+#include "producer.h"
 
 #include "detail/take-one-consumer.h"
 
 namespace nhope {
 
 template<typename T>
-Future<T> takeOne(Produser<T>& produser)
+Future<T> takeOne(Producer<T>& producer)
 {
     auto consumer = std::make_unique<detail::TakeOneConsumer<T>>();
     auto future = consumer->future();
 
-    produser.attachConsumer(std::move(consumer));
+    producer.attachConsumer(std::move(consumer));
 
     return future;
 }

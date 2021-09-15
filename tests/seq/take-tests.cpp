@@ -1,6 +1,6 @@
 #include <nhope/async/ao-context.h>
 #include <nhope/async/future.h>
-#include <nhope/seq/func-produser.h>
+#include <nhope/seq/func-producer.h>
 #include <nhope/seq/take.h>
 #include "nhope/seq/detail/take-one-consumer.h"
 
@@ -8,36 +8,36 @@
 
 using namespace nhope;
 
-TEST(TakeOneFromProduser, Take)   // NOLINT
+TEST(TakeOneFromProducer, Take)   // NOLINT
 {
     constexpr int startValue = 0;
 
-    FuncProduser<int> numProduser([m = startValue](int& value) mutable {
+    FuncProducer<int> numProducer([m = startValue](int& value) mutable {
         value = m++;
         return true;
     });
 
-    Future<int> future = takeOne(numProduser);
+    Future<int> future = takeOne(numProducer);
     EXPECT_FALSE(future.isReady());
 
-    numProduser.start();
+    numProducer.start();
 
     EXPECT_EQ(future.get(), 0);
 }
 
-TEST(TakeOneFromProduser, DestroyProduser)   // NOLINT
+TEST(TakeOneFromProducer, DestroyProducer)   // NOLINT
 {
     constexpr int startValue = 0;
 
     Future<int> future;
 
     {
-        FuncProduser<int> numProduser([m = startValue](int& value) mutable {
+        FuncProducer<int> numProducer([m = startValue](int& value) mutable {
             value = m++;
             return true;
         });
 
-        future = takeOne(numProduser);
+        future = takeOne(numProducer);
     }
 
     EXPECT_THROW(future.get(), AsyncOperationWasCancelled);   // NOLINT
@@ -49,5 +49,4 @@ TEST(TakeOneConsumer, Take2)   // NOLINT
     int x{};
     EXPECT_EQ(consumer.consume(x), Consumer<int>::Status::Closed);
     EXPECT_EQ(consumer.consume(x), Consumer<int>::Status::Closed);
-
 }

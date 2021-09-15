@@ -5,7 +5,7 @@
 
 #include <nhope/async/ao-context.h>
 #include <nhope/async/delayed-property.h>
-#include <nhope/seq/func-produser.h>
+#include <nhope/seq/func-producer.h>
 
 namespace {
 
@@ -102,7 +102,7 @@ TEST(DelayedProperty, producer)   // NOLINT
 {
     DelayedProperty prop(testValue);
 
-    FuncProduser<int> numProduser([m = 0](int& value) mutable -> bool {
+    FuncProducer<int> numProducer([m = 0](int& value) mutable -> bool {
         if (m == maxProduseCount + 1) {
             return false;
         }
@@ -111,10 +111,10 @@ TEST(DelayedProperty, producer)   // NOLINT
         return true;
     });
 
-    prop.attachToProduser(numProduser);
+    prop.attachToProducer(numProducer);
 
-    numProduser.start();
-    numProduser.wait();
+    numProducer.start();
+    numProducer.wait();
     prop.applyNewValue(nullHandler);
     EXPECT_EQ(prop.getCurrentValue(), maxProduseCount);
 }
@@ -123,7 +123,7 @@ TEST(DelayedProperty, destroyBeforeProducerEnd)   // NOLINT
 {
     std::atomic_bool close{false};
 
-    FuncProduser<int> numProduser([m = 0, &close](int& value) mutable -> bool {
+    FuncProducer<int> numProducer([m = 0, &close](int& value) mutable -> bool {
         if (close.load()) {
             return false;
         }
@@ -131,13 +131,13 @@ TEST(DelayedProperty, destroyBeforeProducerEnd)   // NOLINT
         value = m++;
         return true;
     });
-    numProduser.start();
+    numProducer.start();
 
     {
         DelayedProperty prop(testValue);
-        prop.attachToProduser(numProduser);
-        prop.attachToProduser(numProduser);
-        prop.attachToProduser(numProduser);
+        prop.attachToProducer(numProducer);
+        prop.attachToProducer(numProducer);
+        prop.attachToProducer(numProducer);
         std::this_thread::sleep_for(2ms);
 
         int value = 0;
@@ -149,5 +149,5 @@ TEST(DelayedProperty, destroyBeforeProducerEnd)   // NOLINT
     std::this_thread::sleep_for(20ms);
     close.store(true);
 
-    numProduser.wait();
+    numProducer.wait();
 }

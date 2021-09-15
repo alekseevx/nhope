@@ -10,7 +10,7 @@
 
 #include "../async/ts-queue.h"
 
-#include "produser.h"
+#include "producer.h"
 
 namespace nhope {
 
@@ -45,10 +45,10 @@ public:
         return m_d->queue.read();
     }
 
-    void attachToProduser(Produser<T>& produser)
+    void attachToProducer(Producer<T>& producer)
     {
         auto newInput = this->makeInput();
-        produser.attachConsumer(std::move(newInput));
+        producer.attachConsumer(std::move(newInput));
     }
 
     std::unique_ptr<Consumer<T>> makeInput()

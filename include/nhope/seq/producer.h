@@ -7,10 +7,10 @@
 namespace nhope {
 
 template<typename T>
-class Produser : public Noncopyable
+class Producer : public Noncopyable
 {
 public:
-    virtual ~Produser() = default;
+    virtual ~Producer() = default;
 
     virtual void attachConsumer(std::unique_ptr<Consumer<T>> consumer) = 0;
 };

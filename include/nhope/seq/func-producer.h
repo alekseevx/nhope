@@ -9,12 +9,12 @@
 #include <atomic>
 
 #include "consumer-list.h"
-#include "produser.h"
+#include "producer.h"
 
 namespace nhope {
 
 template<typename T>
-class FuncProduser final : public Produser<T>
+class FuncProducer final : public Producer<T>
 {
 public:
     using Function = std::function<bool(T&)>;
@@ -26,14 +26,14 @@ public:
         Finished
     };
 
-    explicit FuncProduser(Function&& func)
+    explicit FuncProducer(Function&& func)
       : m_func(std::move(func))
       , m_state(State::ReadyToStart)
     {
         assert(m_func);
     }
 
-    ~FuncProduser() override
+    ~FuncProducer() override
     {
         this->stop();
         this->wait();
@@ -65,7 +65,7 @@ public:
         }
     }
 
-    // Produser
+    // Producer
     void attachConsumer(std::unique_ptr<Consumer<T>> consumer) override
     {
         m_consumerList.addConsumer(std::move(consumer));
