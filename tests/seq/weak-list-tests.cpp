@@ -1,5 +1,6 @@
 #include "nhope/async/future.h"
 #include <atomic>
+#include <iterator>
 #include <memory>
 #include <thread>
 #include <vector>
@@ -69,7 +70,7 @@ TEST(WeakList, iterate)   //NOLINT
     EXPECT_TRUE(weak.empty());
     std::vector<std::shared_ptr<int>> temp;
 
-    for (size_t i = 0; i < size; i++) {
+    for (int i = 0; i < size; i++) {
         auto& p = temp.emplace_back(std::make_shared<int>(i));
         weak.emplace_back(p);
     }
@@ -104,7 +105,7 @@ TEST(WeakList, find)   //NOLINT
     std::vector<std::shared_ptr<int>> temp;
     temp.reserve(size);
 
-    for (size_t i = 0; i < size; i++) {
+    for (int i = 0; i < size; i++) {
         auto t = std::make_shared<int>(i);
         temp.emplace_back(t);
         weak.emplace_back(t);
@@ -135,16 +136,13 @@ TEST(WeakList, sharedList)   //NOLINT
     std::vector<std::shared_ptr<int>> temp;
     temp.reserve(size);
 
-    for (size_t i = 0; i < size; i++) {
+    for (int i = 0; i < size; i++) {
         auto t = std::make_shared<int>(i);
         temp.emplace_back(t);
         weak.emplace_back(t);
     }
 
-    int counter = 0;
-    for (auto x : weak) {
-        counter++;
-    }
+    const auto counter = std::distance(weak.begin(), weak.end());
     EXPECT_EQ(counter, size);
     weak.clearExpired();
     ASSERT_EQ(size, weak.size());

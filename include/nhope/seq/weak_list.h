@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <iterator>
 #include <list>
 #include <memory>
@@ -26,8 +27,15 @@ class WeakList : public Noncopyable
     using List = std::list<Impl>;
     using ListIterator = typename List::iterator;
 
+public:
     struct WeakIterator
     {
+        using iterator_category = std::bidirectional_iterator_tag;
+        using value_type = T;
+        using difference_type = std::ptrdiff_t;
+        using pointer = T*;
+        using reference = T&;
+
         WeakIterator(List& l, ListIterator pos)
           : m_list(l)
           , m_pos(pos)
@@ -72,7 +80,6 @@ class WeakList : public Noncopyable
         std::shared_ptr<T> m_current;
     };
 
-public:
     using iterator = WeakIterator;
 
     ~WeakList()
