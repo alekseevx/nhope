@@ -1,5 +1,6 @@
 #include "nhope/async/future.h"
 #include <atomic>
+#include <cstddef>
 #include <iterator>
 #include <memory>
 #include <thread>
@@ -178,7 +179,7 @@ TEST(TSWeakList, sharedList)   //NOLINT
     std::vector<std::shared_ptr<int>> temp;
     temp.reserve(size);
 
-    for (size_t i = 0; i < size; i++) {
+    for (int i = 0; i < size; i++) {
         auto t = std::make_shared<int>(i);
         temp.emplace_back(t);
         weak.emplace_back(t);
@@ -211,13 +212,13 @@ TEST(TSWeakList, ThreadRace)   //NOLINT
     std::vector<std::shared_ptr<int>> temp;
     temp.reserve(size);
 
-    for (size_t i = 0; i < size; i++) {
+    for (int i = 0; i < size; i++) {
         auto t = std::make_shared<int>(i);
         temp.emplace_back(t);
     }
 
     auto t1 = std::thread([&] {
-        for (size_t i = 0; i < size / 2; i++) {
+        for (int i = 0; i < size / 2; i++) {
             weak.emplace_back(temp[i]);
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
@@ -270,14 +271,14 @@ TEST(TSWeakList, ForEach)   //NOLINT
     std::vector<std::shared_ptr<int>> temp;
     temp.reserve(size);
 
-    for (size_t i = 0; i < size; i++) {
+    for (int i = 0; i < size; i++) {
         auto t = std::make_shared<int>(i);
         temp.emplace_back(t);
     }
 
     auto t1 = std::thread([&] {
-        for (size_t i = 0; i < size; i++) {
-            weak.emplace_back(temp[i]);
+        for (int i = 0; i < size; i++) {
+            weak.emplace_back(temp[static_cast<std::size_t>(i)]);
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
         }
     });
@@ -325,7 +326,7 @@ TEST(TSWeakList, find)   //NOLINT
     std::vector<std::shared_ptr<TsSafeData>> temp;
     temp.reserve(size);
 
-    for (size_t i = 0; i < size; i++) {
+    for (int i = 0; i < size; i++) {
         auto t = std::make_shared<TsSafeData>(0);
         temp.emplace_back(t);
         weak.emplace_back(t);
