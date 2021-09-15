@@ -45,7 +45,8 @@ public:
 
         m_file.open(settings.fileName, flags);
         if (!m_file.is_open()) {
-            throw IoError(fmt::format(R"(file "{0}" was not opened {1})", settings.fileName, strerror(errno)));
+            std::error_code errc(errno, std::system_category());
+            throw IoError(errc, fmt::format(R"(file "{0}" was not opened)", settings.fileName));
         }
     }
 
@@ -54,7 +55,8 @@ public:
         return nhope::asyncInvoke(m_ctx, [this, bytesCount] {
             checkFile();
             std::vector<std::uint8_t> res(bytesCount);
-            m_file.read((char*)res.data(), static_cast<long>(bytesCount));
+            // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+            m_file.read(reinterpret_cast<char*>(res.data()), static_cast<long>(bytesCount));
             res.resize(static_cast<std::size_t>(m_file.gcount()));
             return res;
         });
@@ -69,7 +71,8 @@ public:
             }
             checkFile();
             auto before = m_file.tellp();
-            if (m_file.write((char*)send.data(), static_cast<long>(send.size()))) {
+            // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+            if (m_file.write(reinterpret_cast<const char*>(send.data()), static_cast<long>(send.size()))) {
                 m_file.flush();
                 return static_cast<std::size_t>(m_file.tellp() - before);
             }
@@ -89,7 +92,8 @@ private:
             throw IoEof();
         }
         if (m_file.fail()) {
-            throw IoError(fmt::format("file error: {}", strerror(errno)));
+            std::error_code errc(errno, std::system_category());
+            throw IoError(errc, "file error");
         }
     }
 

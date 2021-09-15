@@ -46,7 +46,7 @@ TEST(WeakList, simpleList)   //NOLINT
     WeakList<int> weak;
     EXPECT_TRUE(weak.empty());
 
-    for (size_t i = 0; i < size; i++) {
+    for (int i = 0; i < size; i++) {
         weak.emplace_back(std::make_shared<int>(i));
     }
 
@@ -89,7 +89,6 @@ TEST(WeakList, iterate)   //NOLINT
         ++counter;
     }
     EXPECT_EQ(counter, temp.size());
-
 
     ASSERT_EQ(size, weak.size());
 }
