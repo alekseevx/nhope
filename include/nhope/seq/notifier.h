@@ -21,12 +21,15 @@ public:
     Notifier(const Notifier&) = delete;
     Notifier& operator=(const Notifier&) = delete;
 
-    Notifier(SequenceExecutor& executor, Handler handler)
+    Notifier(AOContext& parentAOCtx, Handler handler)
       : m_handler(std::move(handler))
-      , m_aoCtx(executor)
+      , m_aoCtx(parentAOCtx)
     {}
 
-    ~Notifier() = default;
+    ~Notifier()
+    {
+        m_aoCtx.close();
+    }
 
     void attachToProduser(Produser<T>& produser)
     {

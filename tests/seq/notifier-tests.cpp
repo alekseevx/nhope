@@ -9,6 +9,7 @@
 #include <nhope/seq/notifier.h>
 #include <nhope/seq/func-produser.h>
 
+#include "nhope/async/ao-context.h"
 #include "test-helpers/wait.h"
 
 using namespace nhope;
@@ -25,7 +26,8 @@ TEST(NotifierTests, CallHandler)   // NOLINT
 
     std::atomic<int> counter = 0;
     ThreadExecutor executor;
-    Notifier<int> notifier(executor, [&counter](const int& v) {
+    AOContext aoCtx(executor);
+    Notifier<int> notifier(aoCtx, [&counter](const int& v) {
         EXPECT_EQ(counter++, v);
     });
     notifier.attachToProduser(numProduser);
@@ -45,8 +47,9 @@ TEST(NotifierTests, CreateDestroy)   // NOLINT
     numProduser.start();
 
     ThreadExecutor executor;
+    AOContext aoCtx(executor);
     for (int i = 0; i < iterCount; ++i) {
-        Notifier<int> notifier(executor, [](const int& /*unused*/) {});
+        Notifier<int> notifier(aoCtx, [](const int& /*unused*/) {});
         notifier.attachToProduser(numProduser);
 
         const auto sleepTime = (i % 5) * 1ms;
@@ -64,9 +67,10 @@ TEST(NotifierTests, DestroyFromHandler)   // NOLINT
 
     std::atomic<bool> destroyed = false;
     ThreadExecutor executor;
+    AOContext aoCtx(executor);
 
     std::unique_ptr<Notifier<int>> notifier;
-    notifier = std::make_unique<Notifier<int>>(executor, [&](const int& /*unused*/) {
+    notifier = std::make_unique<Notifier<int>>(aoCtx, [&](const int& /*unused*/) {
         EXPECT_FALSE(destroyed);
 
         notifier.reset();
