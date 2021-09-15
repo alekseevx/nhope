@@ -143,7 +143,7 @@ public:
         return m_ptr != nullptr;
     }
 
-    [[nodiscard]] int refCount() const noexcept
+    [[nodiscard]] std::size_t refCount() const noexcept
     {
         return m_ptr ? m_ptr->refCount() : 0;
     }

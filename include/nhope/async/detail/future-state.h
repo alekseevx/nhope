@@ -213,7 +213,7 @@ public:
 
     [[nodiscard]] bool hasResult() const noexcept
     {
-        const int flags = m_flags.load(std::memory_order_acquire);
+        const auto flags = m_flags.load(std::memory_order_acquire);
         return (flags & FutureFlag::HasResult) != 0;
     }
 
@@ -227,7 +227,7 @@ public:
 
     [[nodiscard]] bool hasCallback() const noexcept
     {
-        const int flags = m_flags.load(std::memory_order_acquire);
+        const auto flags = m_flags.load(std::memory_order_acquire);
         return (flags & FutureFlag::HasCallback) != 0;
     }
 
