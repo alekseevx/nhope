@@ -11,6 +11,7 @@
 #include "nhope/async/ao-context-close-handler.h"
 #include "nhope/async/ao-context-error.h"
 #include "nhope/async/ao-context.h"
+#include "nhope/async/async-invoke.h"
 #include "nhope/async/event.h"
 #include "nhope/async/thread-executor.h"
 #include "nhope/async/thread-pool-executor.h"
@@ -18,6 +19,7 @@
 #include <fmt/format.h>
 #include <gtest/gtest.h>
 
+#include "nhope/async/timer.h"
 #include "test-helpers/wait.h"
 
 namespace {
@@ -396,4 +398,18 @@ TEST(AOContext, AOContextRef)   // NOLINT
     });
 
     EXPECT_TRUE(wasExecuted.waitFor(10s));
+}
+
+TEST(AOContext, ConcurentCloseChildAndParent)   // NOLINT
+{
+    constexpr auto itercount{1000};
+    ThreadExecutor executor;
+    for (size_t i = 0; i < itercount; i++) {
+        AOContext aoCtx(executor);
+        auto childAoCtx = std::make_unique<AOContext>(aoCtx);
+        childAoCtx->exec([&] {
+            childAoCtx.reset();
+        });
+        aoCtx.close();
+    }
 }
