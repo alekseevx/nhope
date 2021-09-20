@@ -29,6 +29,7 @@ class AOContextImpl final : public AOContextCloseHandler
     friend class RefPtr<AOContextImpl>;
     friend RefPtr<AOContextImpl> makeRefPtr<AOContextImpl, AOContextImpl*>(AOContextImpl*&&);
     friend RefPtr<AOContextImpl> makeRefPtr<AOContextImpl, Executor&>(Executor&);
+    friend RefPtr<AOContextImpl> refPtrFromRawPtr<AOContextImpl>(AOContextImpl*);
     friend RefPtr<AOContextImpl> refPtrFromRawPtr<AOContextImpl>(AOContextImpl*, NotAddRefTag);
 
 public:
@@ -292,6 +293,26 @@ private:
     {
         /* Parent was closed */
         assert(m_parent != nullptr);   // NOLINT
+
+        // Fix for deadlock reproducible by "AOContext.ConcurentCloseChildAndParent"
+        //
+        // How to get the deadlock:
+        // Thread1:
+        // parent.close -> child.aoContextClose -> child.close -> wait for child.close finished
+        //
+        // Thread2:
+        // child.close -> parent.removeCloseHandler(this) -> wait for child.aoContextClose finished
+        //
+        // parent.removeCloseHandler waits for end of child.aoContextClose to exclude the deletion
+        // of child while it used in child.aoContextClose.
+        //
+        // To avoid deadlock, we allow not to wait for the compeltion of child.aoContextClose
+        // (this->m_done = true)
+        // The anchor will protected as from permature destruction
+        const auto& anchor = refPtrFromRawPtr<AOContextImpl>(this);
+        *this->m_destroyed = true;
+        this->m_done = true;
+
         this->close();
     }
 

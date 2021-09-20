@@ -410,6 +410,9 @@ TEST(AOContext, ConcurentCloseChildAndParent)   // NOLINT
         childAoCtx->exec([&] {
             childAoCtx.reset();
         });
+
+        std::this_thread::yield();
+
         aoCtx.close();
     }
 }
