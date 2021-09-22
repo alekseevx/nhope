@@ -129,32 +129,51 @@ TEST(Future, noState)   // NOLINT
 
 TEST(Future, promiseResolving)   // NOLINT
 {
-    std::list<Promise<std::string>> l;
-    auto future1 = l.emplace_back().future();
-    auto future2 = l.emplace_back().future();
+    {
+        std::list<Promise<std::string>> ls;
+        auto f1 = ls.emplace_back().future();
+        auto f2 = ls.emplace_back().future();
 
-    resolvePromises(l, "10");
-    EXPECT_EQ(future1.get(), std::to_string(testValue));
-    EXPECT_EQ(future2.get(), std::to_string(testValue));
-    EXPECT_TRUE(l.empty());
+        resolvePromises(ls, "10");
+        EXPECT_EQ(f1.get(), std::to_string(testValue));
+        EXPECT_EQ(f2.get(), std::to_string(testValue));
+        EXPECT_TRUE(ls.empty());
+    }
 
-    std::list<Promise<int>> lints;
-    auto future3 = lints.emplace_back().future();
-    auto future4 = lints.emplace_back().future();
+    {
+        std::list<Promise<int>> ls;
+        auto f1 = ls.emplace_back().future();
+        auto f2 = ls.emplace_back().future();
 
-    resolvePromises(lints, testValue);
-    EXPECT_EQ(future3.get(), testValue);
-    EXPECT_EQ(future4.get(), testValue);
-    EXPECT_TRUE(lints.empty());
+        resolvePromises(ls, testValue);
+        EXPECT_EQ(f1.get(), testValue);
+        EXPECT_EQ(f2.get(), testValue);
+        EXPECT_TRUE(ls.empty());
+    }
 
-    std::list<Promise<void>> lvoids;
-    auto future5 = lvoids.emplace_back().future();
-    auto future6 = lvoids.emplace_back().future();
-    resolvePromises(lvoids);
+    {
+        std::list<Promise<void>> ls;
+        auto f1 = ls.emplace_back().future();
+        auto f2 = ls.emplace_back().future();
+        resolvePromises(ls);
 
-    EXPECT_TRUE(future5.isReady());
-    EXPECT_TRUE(future6.isReady());
-    EXPECT_TRUE(lvoids.empty());
+        EXPECT_TRUE(f1.isReady());
+        EXPECT_TRUE(f2.isReady());
+        EXPECT_TRUE(ls.empty());
+    }
+
+    {
+        std::list<Promise<int>> ls;
+        auto f1 = ls.emplace_back().future();
+        auto f2 = ls.emplace_back().future();
+        rejectPromises(ls, std::make_exception_ptr(std::runtime_error("!!!!")));
+
+        EXPECT_TRUE(f1.isReady());
+        EXPECT_TRUE(f2.isReady());
+        EXPECT_THROW(f1.get(), std::runtime_error);
+        EXPECT_THROW(f2.get(), std::runtime_error);
+        EXPECT_TRUE(ls.empty());
+    }
 }
 
 TEST(Future, simpleChain)   // NOLINT

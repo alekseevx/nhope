@@ -394,6 +394,15 @@ void resolvePromises(Cont<Promise<T>, Alloc>& promises, Args&&... args)
     promises.clear();
 }
 
+template<template<typename, typename> typename Cont, typename T, typename Alloc>
+void rejectPromises(Cont<Promise<T>, Alloc>& promises, const std::exception_ptr& e)
+{
+    for (auto& p : promises) {
+        p.setException(e);
+    }
+    promises.clear();
+}
+
 template<typename T, typename Fn, typename... Args>
 Future<T> toThread(Fn&& fn, Args&&... args)
 {
