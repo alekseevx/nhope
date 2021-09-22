@@ -439,5 +439,67 @@ private:
     AOContextRef m_aoCtxRef;
 };
 
+template<typename T, typename Fn>
+class FutureThenWithoutAOCtxCallback final : public FutureCallback<T>
+{
+public:
+    using NextFutureState = typename NextFutureState<T, Fn>::Type;
+
+    template<typename F>
+    FutureThenWithoutAOCtxCallback(F&& f, RefPtr<NextFutureState> nextFutureState)
+      : m_nextFutureState(std::move(nextFutureState))
+      , m_fn(std::forward<F>(f))
+    {}
+
+    void futureReady(FutureState<T>* state, FutureFlag /*unused*/) override
+    {
+        if (state->hasException()) {
+            m_nextFutureState->setException(state->exception());
+            return;
+        }
+
+        if constexpr (std::is_void_v<T>) {
+            m_nextFutureState->calcResult(std::move(m_fn));
+        } else {
+            m_nextFutureState->calcResult(m_fn, state->value());
+        }
+    }
+
+private:
+    RefPtr<NextFutureState> m_nextFutureState;
+    Fn m_fn;
+};
+
+template<typename T, typename Fn>
+class FutureFailWithoutAOCtxCallback final : public FutureCallback<T>
+{
+public:
+    using NextFutureState = FutureState<T>;
+
+    template<typename F>
+    FutureFailWithoutAOCtxCallback(F&& f, RefPtr<FutureState<T>> nextFutureState)
+      : m_nextFutureState(std::move(nextFutureState))
+      , m_fn(std::forward<Fn>(f))
+    {}
+
+    void futureReady(FutureState<T>* state, FutureFlag /*unused*/) override
+    {
+        if (state->hasException()) {
+            m_nextFutureState->calcResult(std::move(m_fn), state->exception());
+            return;
+        }
+
+        if constexpr (std::is_void_v<T>) {
+            m_nextFutureState->setValue();
+        } else {
+            m_nextFutureState->setValue(state->value());
+        }
+    }
+
+private:
+    RefPtr<NextFutureState> m_nextFutureState;
+    Fn m_fn;
+};
+
 }   // namespace detail
 }   // namespace nhope
