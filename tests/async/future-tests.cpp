@@ -68,8 +68,11 @@ TEST(Future, satisfiedFlag)   // NOLINT
 {
     {
         Promise<void> p;
+        EXPECT_FALSE(p.satisfied());
 
-        EXPECT_NO_THROW(p.setValue());                              // NOLINT
+        EXPECT_NO_THROW(p.setValue());   // NOLINT
+
+        EXPECT_TRUE(p.satisfied());
         EXPECT_THROW(p.setValue(), PromiseAlreadySatisfiedError);   // NOLINT
 
         auto exPtr = std::make_exception_ptr(std::exception());
@@ -78,11 +81,13 @@ TEST(Future, satisfiedFlag)   // NOLINT
 
     {
         Promise<void> p;
+        EXPECT_FALSE(p.satisfied());
 
         auto exPtr = std::make_exception_ptr(std::exception());
 
         EXPECT_NO_THROW(p.setException(exPtr));   // NOLINT
 
+        EXPECT_TRUE(p.satisfied());
         EXPECT_THROW(p.setValue(), PromiseAlreadySatisfiedError);            // NOLINT
         EXPECT_THROW(p.setException(exPtr), PromiseAlreadySatisfiedError);   // NOLINT
     }

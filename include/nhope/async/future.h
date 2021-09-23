@@ -408,6 +408,11 @@ public:
         return Future<T>(m_state);
     }
 
+    [[nodiscard]] bool satisfied() const noexcept
+    {
+        return m_satisfiedFlag;
+    }
+
 private:
     using State = detail::FutureState<T>;
 
