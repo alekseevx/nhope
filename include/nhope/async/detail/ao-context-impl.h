@@ -309,7 +309,7 @@ private:
         // To avoid deadlock, we allow not to wait for the compeltion of child.aoContextClose
         // (this->m_done = true)
         // The anchor will protected as from permature destruction
-        const auto& anchor = refPtrFromRawPtr<AOContextImpl>(this);
+        const auto anchor = refPtrFromRawPtr<AOContextImpl>(this);
         *this->m_destroyed = true;
         this->m_done = true;
 

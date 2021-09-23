@@ -20,7 +20,7 @@ TEST(CallSafeCallback, Call)   // NOLINT
     AOContext aoContext(executor);
 
     std::atomic<int> callbackCalled = 0;
-    const auto safeCallback = makeSafeCallback(aoContext, [&](int arg1, const std::string& arg2) {
+    const auto safeCallback = makeSafeCallback(AOContextRef(aoContext), [&](int arg1, const std::string& arg2) {
         EXPECT_EQ(executor.id(), std::this_thread::get_id());
         EXPECT_EQ(arg1, callbackCalled);
         EXPECT_EQ(arg2, fmt::format("{}", callbackCalled));

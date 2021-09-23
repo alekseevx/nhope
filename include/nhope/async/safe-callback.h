@@ -28,13 +28,13 @@ enum AOContextClosedActions
  * @retval Безопасный callback
  */
 template<typename... Args>
-std::function<void(Args...)> makeSafeCallback(AOContext& aoCtx, std::function<void(Args...)> callback,
+std::function<void(Args...)> makeSafeCallback(AOContextRef aoCtx, std::function<void(Args...)> callback,
                                               AOContextClosedActions aoContextClosedActions = ThrowAOContextClosed)
 {
     // https://gitlab.olimp.lan/alekseev/nhope/-/issues/8
     auto callbackPtr = std::make_shared<std::function<void(Args...)>>(std::move(callback));
 
-    return [aoContextClosedActions, aoCtx = AOContextRef(aoCtx), callbackPtr](Args... args) mutable {
+    return [aoContextClosedActions, aoCtx = std::move(aoCtx), callbackPtr](Args... args) mutable {
         if (aoContextClosedActions == ThrowAOContextClosed && !aoCtx.isOpen()) {
             throw AOContextClosed();
         };
@@ -49,7 +49,15 @@ template<typename Callback>
 auto makeSafeCallback(AOContext& aoCtx, Callback&& callback,
                       AOContextClosedActions aoContextClosedActions = ThrowAOContextClosed)
 {
-    return makeSafeCallback(aoCtx, std::function(std::forward<Callback>(callback)), aoContextClosedActions);
+    return makeSafeCallback(AOContextRef(aoCtx), std::function(std::forward<Callback>(callback)),
+                            aoContextClosedActions);
+}
+
+template<typename Callback>
+auto makeSafeCallback(AOContextRef aoCtx, Callback&& callback,
+                      AOContextClosedActions aoContextClosedActions = ThrowAOContextClosed)
+{
+    return makeSafeCallback(std::move(aoCtx), std::function(std::forward<Callback>(callback)), aoContextClosedActions);
 }
 
 }   // namespace nhope
