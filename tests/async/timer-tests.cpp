@@ -3,12 +3,13 @@
 #include <memory>
 #include <thread>
 
-#include <nhope/async/ao-context.h>
-#include <nhope/async/future.h>
-#include <nhope/async/thread-executor.h>
-#include <nhope/async/timer.h>
-
 #include <gtest/gtest.h>
+
+#include "nhope/async/ao-context.h"
+#include "nhope/async/future.h"
+#include "nhope/async/thread-executor.h"
+#include "nhope/async/timer.h"
+#include "nhope/async/ao-context-error.h"
 
 #include "test-helpers/wait.h"
 
@@ -121,4 +122,63 @@ TEST(SetInterval, DestroyAOContex)   // NOLINT
     std::this_thread::sleep_for(500ms);
 
     EXPECT_FALSE(timerTriggered);
+}
+
+TEST(SetTimeout, FutureTimeout)   // NOLINT
+{
+    auto executor = ThreadExecutor();
+    auto aoCtx = AOContext(executor);
+    constexpr auto longTimeout{200ms};
+    constexpr auto shortTimeout{100ms};
+
+    {
+        //set timeout faster
+        Promise<void> p;
+        auto f = setTimeout(aoCtx, p.future(), shortTimeout);
+        std::this_thread::sleep_for(longTimeout);
+        EXPECT_TRUE(p.cancelled());
+        p.setValue();
+        EXPECT_THROW(f.get(), AsyncOperationWasCancelled);   // NOLINT
+    }
+
+    {
+        //set timeout slower
+        Promise<void> p;
+        auto f = setTimeout(aoCtx, p.future(), longTimeout);
+        std::this_thread::sleep_for(shortTimeout);
+        EXPECT_FALSE(p.cancelled());
+        p.setValue();
+        EXPECT_NO_THROW(f.get());   // NOLINT
+    }
+
+    {
+        //set timeout faster
+        Promise<int> p;
+        auto f = setTimeout(aoCtx, p.future(), shortTimeout);
+        std::this_thread::sleep_for(longTimeout);
+        EXPECT_TRUE(p.cancelled());
+        p.setValue(1);
+        EXPECT_THROW(f.get(), AsyncOperationWasCancelled);   // NOLINT
+    }
+
+    {
+        //set timeout slower
+        Promise<int> p;
+        auto f = setTimeout(aoCtx, p.future(), longTimeout);
+        std::this_thread::sleep_for(shortTimeout);
+        EXPECT_FALSE(p.cancelled());
+        p.setValue(1);
+        EXPECT_EQ(f.get(), 1);   // NOLINT
+    }
+
+    {
+        // close aoCtx
+        Promise<int> p;
+        auto f = setTimeout(aoCtx, p.future(), longTimeout);
+        aoCtx.close();
+
+        EXPECT_TRUE(p.cancelled());
+        p.setValue(1);
+        EXPECT_THROW(f.get(), AsyncOperationWasCancelled);   // NOLINT
+    }
 }

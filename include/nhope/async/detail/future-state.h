@@ -4,14 +4,17 @@
 #include <cassert>
 #include <cstddef>
 #include <exception>
+#include <functional>
 #include <memory>
 #include <type_traits>
 #include <utility>
 
+#include "nhope/async/ao-context-error.h"
 #include "nhope/async/ao-context.h"
 #include "nhope/async/event.h"
 #include "nhope/utils/detail/compiler.h"
 #include "nhope/utils/detail/ref-ptr.h"
+#include "nhope/async/detail/ts-shared-flag.h"
 
 namespace nhope {
 
@@ -111,6 +114,11 @@ public:
         return m_value;
     }
 
+    [[nodiscard]] bool hasValue() const noexcept
+    {
+        return m_curVariant == ContentVariants::Value;
+    }
+
     template<typename... Args>
     void setException(Args&&... args)
     {
@@ -157,6 +165,14 @@ class FutureState final : public BaseRefCounter
 public:
     using Type = T;
 
+    FutureState()
+      : m_cancelled{}
+    {}
+
+    explicit FutureState(const SharedFlag& cancelFlag)
+      : m_cancelled(cancelFlag)
+    {}
+
     template<typename... Args>
     void setValue(Args&&... args)
     {
@@ -186,6 +202,12 @@ public:
     {
         assert(this->hasResult());
         return m_resultStorage.hasException();
+    }
+
+    [[nodiscard]] bool hasValue() const noexcept
+    {
+        assert(this->hasResult());
+        return m_resultStorage.hasValue();
     }
 
     std::exception_ptr& exception() noexcept
@@ -231,6 +253,26 @@ public:
         return (flags & FutureFlag::HasCallback) != 0;
     }
 
+    [[nodiscard]] bool wasCancelled() const noexcept
+    {
+        return m_cancelled.isSet();
+    }
+
+    void cancel()
+    {
+        m_cancelled.set();
+    }
+
+    [[nodiscard]] SharedFlag shareCancelToken() const noexcept
+    {
+        return m_cancelled;
+    }
+
+    void setCancelToken(const SharedFlag& f)
+    {
+        m_cancelled = f;
+    }
+
 private:
     void setFlag(FutureFlag flag)
     {
@@ -262,6 +304,7 @@ private:
     }
 
     std::atomic<std::size_t> m_flags = 0;
+    SharedFlag m_cancelled;
 
     FutureResultStorage<T> m_resultStorage;
     std::unique_ptr<FutureCallback<T>> m_callback;
@@ -304,6 +347,7 @@ public:
             using NextFutureCallaback = UnwrapperFutureCallback<NextT, UnwrappedT>;
 
             auto nextState = state->value().detachState();
+            nextState->setCancelToken(m_unwrapState->shareCancelToken());
             auto nextCallback = std::make_unique<NextFutureCallaback>(std::move(m_unwrapState));
             nextState->setCallback(std::move(nextCallback));
         } else if constexpr (!std::is_void_v<UnwrappedT>) {
@@ -318,150 +362,45 @@ private:
 };
 
 template<typename T, typename Fn>
-class FutureThenCallback
-  : public FutureCallback<T>
-  , public AOContextCloseHandler
+class FutureThenCallback final : public FutureCallback<T>
 {
 public:
     using NextFutureState = typename NextFutureState<T, Fn>::Type;
 
     template<typename F>
-    FutureThenCallback(AOContext& ctx, F&& fn, RefPtr<NextFutureState> nextFutureState)
-      : m_fn(std::forward<F>(fn))
-      , m_nextFutureState(std::move(nextFutureState))
-      , m_aoCtxRef(ctx)
-    {
-        m_aoCtxRef.addCloseHandler(*this);
-    }
-
-    ~FutureThenCallback()
-    {
-        m_aoCtxRef.removeCloseHandler(*this);
-    }
-
-    void futureReady(FutureState<T>* state, FutureFlag trigger) override
-    {
-        using ExecMode = Executor::ExecMode;
-
-        m_aoCtxRef.exec(
-          [this, state = refPtrFromRawPtr(state)] {
-              assert(m_nextFutureState != nullptr);   // NOLINT
-
-              auto nextFutureState = std::move(m_nextFutureState);
-
-              if (state->hasException()) {
-                  nextFutureState->setException(state->exception());
-                  return;
-              }
-
-              if constexpr (std::is_void_v<T>) {
-                  nextFutureState->calcResult(std::forward<Fn>(m_fn));
-              } else {
-                  nextFutureState->calcResult(std::forward<Fn>(m_fn), state->value());
-              }
-          },
-          // TODO: Comment
-          trigger == FutureFlag::HasResult ? ExecMode::ImmediatelyIfPossible : ExecMode::AddInQueue);
-    }
-
-    void aoContextClose() noexcept override
-    {
-        if (m_nextFutureState != nullptr) {
-            auto exPtr = std::make_exception_ptr(AsyncOperationWasCancelled());
-            m_nextFutureState->setException(std::move(exPtr));
-            m_nextFutureState = nullptr;
-        }
-    }
-
-private:
-    Fn m_fn;
-    RefPtr<NextFutureState> m_nextFutureState;
-    AOContextRef m_aoCtxRef;
-};
-
-template<typename T, typename Fn>
-class FutureFailCallback
-  : public FutureCallback<T>
-  , public AOContextCloseHandler
-{
-public:
-    template<typename F>
-    FutureFailCallback(AOContext& ctx, F&& fn, RefPtr<FutureState<T>> nextFutureState)
-      : m_fn(std::forward<F>(fn))
-      , m_nextFutureState(std::move(nextFutureState))
-      , m_aoCtxRef(ctx)
-    {
-        m_aoCtxRef.addCloseHandler(*this);
-    }
-
-    ~FutureFailCallback()
-    {
-        m_aoCtxRef.removeCloseHandler(*this);
-    }
-
-    void futureReady(FutureState<T>* state, FutureFlag trigger) override
-    {
-        using ExecMode = Executor::ExecMode;
-
-        m_aoCtxRef.exec(
-          [this, state = refPtrFromRawPtr(state)] {
-              assert(m_nextFutureState != nullptr);   // NOLINT
-
-              auto nextFutureState = std::move(m_nextFutureState);
-
-              if (state->hasException()) {
-                  nextFutureState->calcResult(std::forward<Fn>(m_fn), state->exception());
-                  return;
-              }
-
-              if constexpr (std::is_void_v<T>) {
-                  nextFutureState->setValue();
-              } else {
-                  nextFutureState->setValue(state->value());
-              }
-          },
-          // TODO: Comment
-          trigger == FutureFlag::HasResult ? ExecMode::ImmediatelyIfPossible : ExecMode::AddInQueue);
-    }
-
-    void aoContextClose() noexcept override
-    {
-        if (m_nextFutureState != nullptr) {
-            auto exPtr = std::make_exception_ptr(AsyncOperationWasCancelled());
-            m_nextFutureState->setException(std::move(exPtr));
-            m_nextFutureState = nullptr;
-        }
-    }
-
-private:
-    Fn m_fn;
-    RefPtr<FutureState<T>> m_nextFutureState;
-    AOContextRef m_aoCtxRef;
-};
-
-template<typename T, typename Fn>
-class FutureThenWithoutAOCtxCallback final : public FutureCallback<T>
-{
-public:
-    using NextFutureState = typename NextFutureState<T, Fn>::Type;
-
-    template<typename F>
-    FutureThenWithoutAOCtxCallback(F&& f, RefPtr<NextFutureState> nextFutureState)
+    FutureThenCallback(F&& f, RefPtr<NextFutureState> nextFutureState)
       : m_nextFutureState(std::move(nextFutureState))
       , m_fn(std::forward<F>(f))
     {}
 
     void futureReady(FutureState<T>* state, FutureFlag /*unused*/) override
     {
+        assert(m_nextFutureState != nullptr);
+        auto nextFutureState = std::move(m_nextFutureState);
+
         if (state->hasException()) {
-            m_nextFutureState->setException(state->exception());
+            nextFutureState->setException(state->exception());
+            return;
+        }
+
+        if (nextFutureState->wasCancelled()) {
+            nextFutureState->setException(std::make_exception_ptr(AsyncOperationWasCancelled()));
             return;
         }
 
         if constexpr (std::is_void_v<T>) {
-            m_nextFutureState->calcResult(std::move(m_fn));
+            nextFutureState->calcResult(std::move(m_fn));
         } else {
-            m_nextFutureState->calcResult(m_fn, state->value());
+            nextFutureState->calcResult(m_fn, state->value());
+        }
+    }
+
+    void futureCancelled()
+    {
+        if (m_nextFutureState != nullptr) {
+            auto exPtr = std::make_exception_ptr(AsyncOperationWasCancelled());
+            m_nextFutureState->setException(std::move(exPtr));
+            m_nextFutureState = nullptr;
         }
     }
 
@@ -471,28 +410,40 @@ private:
 };
 
 template<typename T, typename Fn>
-class FutureFailWithoutAOCtxCallback final : public FutureCallback<T>
+class FutureFailCallback final : public FutureCallback<T>
 {
 public:
     using NextFutureState = FutureState<T>;
 
     template<typename F>
-    FutureFailWithoutAOCtxCallback(F&& f, RefPtr<FutureState<T>> nextFutureState)
+    FutureFailCallback(F&& f, RefPtr<FutureState<T>> nextFutureState)
       : m_nextFutureState(std::move(nextFutureState))
       , m_fn(std::forward<Fn>(f))
     {}
 
     void futureReady(FutureState<T>* state, FutureFlag /*unused*/) override
     {
-        if (state->hasException()) {
-            m_nextFutureState->calcResult(std::move(m_fn), state->exception());
+        assert(m_nextFutureState != nullptr);
+        auto nextFutureState = std::move(m_nextFutureState);
+
+        if (state->hasValue()) {
+            if constexpr (std::is_void_v<T>) {
+                nextFutureState->setValue();
+            } else {
+                nextFutureState->setValue(state->value());
+            }
             return;
         }
 
-        if constexpr (std::is_void_v<T>) {
-            m_nextFutureState->setValue();
-        } else {
-            m_nextFutureState->setValue(state->value());
+        nextFutureState->calcResult(std::move(m_fn), state->exception());
+    }
+
+    void futureCancelled()
+    {
+        if (m_nextFutureState != nullptr) {
+            auto exPtr = std::make_exception_ptr(AsyncOperationWasCancelled());
+            m_nextFutureState->setException(std::move(exPtr));
+            m_nextFutureState = nullptr;
         }
     }
 
@@ -500,6 +451,51 @@ private:
     RefPtr<NextFutureState> m_nextFutureState;
     Fn m_fn;
 };
+
+template<typename T, typename FB>
+class FutureCallbackWithAOContext
+  : public FutureCallback<T>
+  , public AOContextCloseHandler
+{
+public:
+    template<typename... FBArgs>
+    FutureCallbackWithAOContext(AOContext& ctx, FBArgs&&... fbArgs)
+      : m_futureCallback(std::forward<FBArgs>(fbArgs)...)
+      , m_aoCtxRef(ctx)
+    {
+        m_aoCtxRef.addCloseHandler(*this);
+    }
+
+    ~FutureCallbackWithAOContext()
+    {
+        m_aoCtxRef.removeCloseHandler(*this);
+    }
+
+    void futureReady(FutureState<T>* state, FutureFlag trigger) override
+    {
+        using ExecMode = Executor::ExecMode;
+        m_aoCtxRef.exec(
+          [this, state = refPtrFromRawPtr(state), trigger] {
+              m_futureCallback.futureReady(state.get(), trigger);
+          },
+          trigger == FutureFlag::HasResult ? ExecMode::ImmediatelyIfPossible : ExecMode::AddInQueue);
+    }
+
+    void aoContextClose() noexcept override
+    {
+        m_futureCallback.futureCancelled();
+    }
+
+private:
+    FB m_futureCallback;
+    AOContextRef m_aoCtxRef;
+};
+
+template<typename T, typename Fn>
+using FutureThenWithAOCtxCallback = FutureCallbackWithAOContext<T, FutureThenCallback<T, Fn>>;
+
+template<typename T, typename Fn>
+using FutureFailWithAOCtxCallback = FutureCallbackWithAOContext<T, FutureFailCallback<T, Fn>>;
 
 }   // namespace detail
 }   // namespace nhope

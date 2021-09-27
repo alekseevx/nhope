@@ -1,12 +1,16 @@
 #include <exception>
+#include <stdexcept>
 #include <string>
 #include <thread>
+#include <utility>
 
 #include <gtest/gtest.h>
 
-#include <nhope/async/ao-context.h>
-#include <nhope/async/future.h>
-#include <nhope/async/thread-executor.h>
+#include "nhope/async/ao-context-error.h"
+#include "nhope/async/detail/future-state.h"
+#include "nhope/async/ao-context.h"
+#include "nhope/async/future.h"
+#include "nhope/async/thread-executor.h"
 
 namespace {
 
@@ -467,4 +471,150 @@ TEST(Future, makeFutureChainAfterWait)   // NOLINT
     EXPECT_THROW(f.fail(aoCtx, [](auto) {}), MakeFutureChainAfterWaitError);   // NOLINT
     EXPECT_THROW(f.fail([](auto) {}), MakeFutureChainAfterWaitError);          // NOLINT
     EXPECT_THROW(f.unwrap(), MakeFutureChainAfterWaitError);                   // NOLINT
+}
+
+TEST(Future, cancel)   // NOLINT
+{
+    Promise<void> p;
+    auto future = p.future();
+
+    std::thread thread([p = std::move(p)]() mutable {
+        while (!p.cancelled()) {
+            ;
+        }
+        p.setException(std::make_exception_ptr(AsyncOperationWasCancelled()));
+    });
+
+    EXPECT_FALSE(future.waitFor(100ms));
+
+    future.cancel();
+
+    EXPECT_THROW(future.get(), AsyncOperationWasCancelled);   //NOLINT
+    thread.join();
+}
+
+TEST(Future, cancelThen)   // NOLINT
+{
+    Promise<void> p;
+
+    auto future = p.future();
+
+    std::thread thread([p = std::move(p)]() mutable {
+        while (!p.cancelled()) {
+            ;
+        }
+        p.setValue();
+    });
+
+    nhope::ThreadExecutor th;
+    nhope::AOContext ao(th);
+
+    auto future2 = future.then(ao, [] {
+        FAIL() << "must be cancelled";
+    });
+
+    EXPECT_FALSE(future2.waitFor(100ms));
+    future2.cancel();
+
+    EXPECT_THROW(future2.get(), AsyncOperationWasCancelled);   //NOLINT
+
+    thread.join();
+}
+
+TEST(Future, cancelFail)   // NOLINT
+{
+    Promise<void> p;
+
+    auto future = p.future();
+
+    std::thread thread([p = std::move(p)]() mutable {
+        while (!p.cancelled()) {
+            ;
+        }
+        p.setException(std::make_exception_ptr(AsyncOperationWasCancelled()));
+    });
+
+    nhope::ThreadExecutor th;
+    nhope::AOContext ao(th);
+
+    auto future2 = future.fail(ao, [](auto ex) {
+        EXPECT_THROW(std::rethrow_exception(ex), AsyncOperationWasCancelled);   // NOLINT
+    });
+
+    EXPECT_FALSE(future2.waitFor(100ms));
+    future2.cancel();
+
+    EXPECT_NO_THROW(future2.get());   //NOLINT
+
+    thread.join();
+}
+
+TEST(Future, cancelThenWithoutAOContext)   // NOLINT
+{
+    Promise<void> p;
+
+    auto future = p.future();
+
+    std::thread thread([p = std::move(p)]() mutable {
+        while (!p.cancelled()) {
+            ;
+        }
+        p.setException(std::make_exception_ptr(AsyncOperationWasCancelled()));
+    });
+
+    auto future2 = future.then([] {
+        FAIL() << "must be cancelled";
+    });
+
+    EXPECT_FALSE(future2.waitFor(100ms));
+    future2.cancel();
+
+    EXPECT_THROW(future2.get(), AsyncOperationWasCancelled);   //NOLINT
+
+    thread.join();
+}
+
+TEST(Future, cancelUnwrap)   // NOLINT
+{
+    auto f = toThread<Future<Future<void>>>([] {
+                 return toThread<Future<void>>([] {
+                     Promise<void> p;
+                     auto innerFuture = p.future();
+                     std::thread([p = std::move(p)]() mutable {
+                         while (!p.cancelled()) {
+                             ;
+                         }
+                         p.setException(std::make_exception_ptr(AsyncOperationWasCancelled()));
+                     }).detach();
+
+                     return innerFuture;
+                 });
+             }).unwrap();
+
+    f.cancel();
+
+    EXPECT_THROW(f.get(), AsyncOperationWasCancelled);   //NOLINT
+}
+
+TEST(Future, cancelChain)   // NOLINT
+{
+    nhope::ThreadExecutor executor;
+    nhope::AOContext ao(executor);
+
+    auto f = makeReadyFuture()
+               .then(ao,
+                     [] {
+                         std::this_thread::sleep_for(200ms);
+                     })
+               .then(ao,
+                     [] {
+                         FAIL() << "chain was cancelled";
+                     })
+               .fail(ao, [](auto e) {
+                   EXPECT_THROW(std::rethrow_exception(e), AsyncOperationWasCancelled);   // NOLINT
+                   throw std::runtime_error("test");
+               });
+    f.cancel();
+
+    EXPECT_THROW(f.get(), std::runtime_error);   //NOLINT
 }
