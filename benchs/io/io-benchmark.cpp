@@ -1,10 +1,11 @@
+#include <cstdint>
+
+#include "nhope/async/ao-context.h"
 #include "nhope/io/file.h"
 #include "nhope/async/thread-executor.h"
 #include "nhope/io/io-device.h"
 
-#include <array>
 #include <benchmark/benchmark.h>
-#include <cstdint>
 
 namespace {
 
@@ -15,30 +16,26 @@ constexpr auto bufSize{4096};
 void fileReader(benchmark::State& state)
 {
     nhope::ThreadExecutor e;
-    nhope::FileSettings s;
-    s.fileName = "/dev/urandom";
-    s.mode = nhope::FileMode::ReadOnly;
+    nhope::AOContext aoCtx(e);
 
-    auto dev = openFile(e, s);
+    auto file = openFile(aoCtx, "/dev/urandom", nhope::OpenFileMode::ReadOnly);
 
     for ([[maybe_unused]] auto _ : state) {
-        nhope::readExactly(*dev, bufSize).get();
+        nhope::readExactly(*file, bufSize).get();
     }
 }
 
 void fileWriter(benchmark::State& state)
 {
     nhope::ThreadExecutor e;
-    nhope::FileSettings s;
+    nhope::AOContext aoCtx(e);
+
     std::vector<uint8_t> buffer(bufSize);
 
-    s.fileName = "/tmp/stub";
-    s.mode = nhope::FileMode::WriteOnly;
-
-    auto dev = openFile(e, s);
+    auto file = openFile(aoCtx, "/dev/null", nhope::OpenFileMode::WriteOnly);
 
     for ([[maybe_unused]] auto _ : state) {
-        nhope::writeExactly(*dev, buffer).get();
+        nhope::writeExactly(*file, buffer).get();
     }
 }
 

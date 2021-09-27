@@ -8,6 +8,8 @@
 
 namespace nhope {
 
+class AOContextRef;
+
 /**
  * @brief Контекст для выполнения асинхронных операций на заданном Executor
  * 
@@ -61,6 +63,7 @@ public:
      * @see AOContext::executor
      */
     explicit AOContext(AOContext& parent);
+    explicit AOContext(AOContextRef& parent);
 
     /**
      * @brief Деструктор AOContext
@@ -134,10 +137,14 @@ private:
  */
 class AOContextRef final
 {
+    friend class AOContext;
+
 public:
-    explicit AOContextRef(AOContext& aoCtx) noexcept;
+    AOContextRef(AOContext& aoCtx) noexcept;
 
     [[nodiscard]] bool isOpen() const noexcept;
+
+    SequenceExecutor& executor();
 
     template<typename Work>
     void exec(Work&& work, Executor::ExecMode mode = Executor::ExecMode::AddInQueue)
