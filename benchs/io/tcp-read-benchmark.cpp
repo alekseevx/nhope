@@ -22,7 +22,6 @@
 #include "nhope/async/future.h"
 #include "nhope/async/io-context-executor.h"
 #include "nhope/io/io-device.h"
-#include "nhope/io/network.h"
 #include "nhope/io/tcp.h"
 
 namespace {
@@ -60,9 +59,9 @@ void startSend()
 class Session final : public std::enable_shared_from_this<Session>
 {
 public:
-    Session(nhope::Executor& executor, std::unique_ptr<nhope::IoDevice> client)
-      : m_aoCtx(executor)
-      , m_client(std::move(client))
+    explicit Session(std::unique_ptr<nhope::IODevice> client)
+      : m_client(std::move(client))
+      , m_receiveBuf(receiveBufSize)
     {}
 
     nhope::Future<std::uint64_t> start()
@@ -75,8 +74,8 @@ public:
 
     void startRead()
     {
-        m_client->read(receiveBufSize).then(m_aoCtx, [this](auto buf) {
-            this->m_receivedBytes += buf.size();
+        m_client->read(m_receiveBuf, [this](const auto& /*err*/, auto size) {
+            this->m_receivedBytes += size;
 
             if (this->m_receivedBytes >= sizeOfTransmittedDataPerIteration) {
                 this->m_finishPromise.setValue(m_receivedBytes);
@@ -86,16 +85,28 @@ public:
 
             this->startRead();
         });
+
+        // nhope::read(*m_client, receiveBufSize).then([this](auto data) {
+        //     this->m_receivedBytes += data.size();
+
+        //     if (this->m_receivedBytes >= sizeOfTransmittedDataPerIteration) {
+        //         this->m_finishPromise.setValue(m_receivedBytes);
+        //         m_selfAnchor.reset();
+        //         return;
+        //     }
+
+        //     this->startRead();
+        // });
     }
 
 private:
     std::shared_ptr<Session> m_selfAnchor;
 
-    std::unique_ptr<nhope::IoDevice> m_client;
+    std::unique_ptr<nhope::IODevice> m_client;
+    std::vector<std::uint8_t> m_receiveBuf;
     std::uint64_t m_receivedBytes = 0;
 
     nhope::Promise<std::uint64_t> m_finishPromise;
-    nhope::AOContext m_aoCtx;
 };
 
 void doNextIteration(benchmark::State& state, std::uint64_t& receivedBytes)
@@ -106,13 +117,13 @@ void doNextIteration(benchmark::State& state, std::uint64_t& receivedBytes)
     nhope::IOContextSequenceExecutor executor(ioCtx);
     nhope::AOContext aoCtx(executor);
 
-    auto srv = nhope::listen(executor, {nhope::Endpoint{port, "127.0.0.1"}});
+    auto srv = nhope::listen(aoCtx, {"127.0.0.1", port});
     startSend();
 
     srv->accept()
       .then(aoCtx,
             [&](auto client) {
-                auto session = std::make_shared<Session>(executor, std::move(client));
+                auto session = std::make_shared<Session>(std::move(client));
                 state.ResumeTiming();
 
                 return session->start();

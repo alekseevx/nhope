@@ -12,6 +12,10 @@ AOContext::AOContext(AOContext& parent)
   : m_aoImpl(parent.m_aoImpl->makeChild())
 {}
 
+AOContext::AOContext(AOContextRef& parent)
+  : m_aoImpl(parent.m_aoImpl->makeChild())
+{}
+
 AOContext::~AOContext()
 {
     m_aoImpl->close();
@@ -54,6 +58,11 @@ AOContextRef::AOContextRef(AOContext& aoCtx) noexcept
 bool AOContextRef::isOpen() const noexcept
 {
     return m_aoImpl->isOpen();
+}
+
+SequenceExecutor& AOContextRef::executor()
+{
+    return m_aoImpl->executor();
 }
 
 void AOContextRef::addCloseHandler(AOContextCloseHandler& closeHandler)

@@ -1,25 +1,15 @@
 #pragma once
 
-#include <cstddef>
 #include <memory>
 #include <optional>
-#include <string>
-#include <system_error>
+#include <string_view>
 
+#include "nhope/async/ao-context.h"
 #include "nhope/io/io-device.h"
-
-#include "nhope/async/executor.h"
-#include "nhope/async/future.h"
 
 namespace nhope {
 
-class SerialPortError final : public IoError
-{
-public:
-    explicit SerialPortError(std::error_code err);
-};
-
-struct SerialPortSettings
+struct SerialPortParams
 {
     enum class BaudRate
     {
@@ -62,14 +52,19 @@ struct SerialPortSettings
         SoftwareControl
     };
 
-    std::string portName;
     std::optional<BaudRate> baudrate;
     std::optional<DataBits> databits;
     std::optional<Parity> parity;
-    std::optional<StopBits> stop;
+    std::optional<StopBits> stopbits;
     std::optional<FlowControl> flow;
 };
 
-std::unique_ptr<IoDevice> openSerialPort(nhope::Executor& executor, const SerialPortSettings& settings);
+class SerialPort : public IODevice
+{
+public:
+};
+using SerialPortPtr = std::unique_ptr<SerialPort>;
+
+SerialPortPtr openSerialPort(nhope::AOContext& aoCtx, std::string_view device, const SerialPortParams& params);
 
 }   // namespace nhope

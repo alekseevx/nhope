@@ -1,232 +1,227 @@
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <exception>
 #include <memory>
-#include <stdexcept>
 #include <string>
 #include <system_error>
+#include <utility>
 #include <vector>
 
-#include "nhope/io/io-device.h"
+#include <gsl/span>
+#include <gsl/span_ext>
+
+#include "nhope/async/ao-context-error.h"
 #include "nhope/async/ao-context.h"
+#include "nhope/io/io-device.h"
 
 namespace nhope {
 
-using namespace std::literals;
-IoError::IoError(std::error_code errCode, std::string_view errMessage)
-  : std::system_error(errCode, errMessage.data())
-{}
-
-IoError::IoError(std::string_view errMessage)
-  : std::system_error(std::make_error_code(std::errc::io_error), errMessage.data())
-{}
-
-IoEof::IoEof()
-  : IoError(std::make_error_code(std::errc::io_error), "Eof"sv)
-{}
-
 namespace {
 
-class IoReader : public std::enable_shared_from_this<IoReader>
+template<typename Handler>
+class ReadOp final : public std::enable_shared_from_this<ReadOp<Handler>>
 {
 public:
-    explicit IoReader(IoDevice& dev, size_t bytesCount = 1)
+    ReadOp(IODevice& dev, Handler&& handler)
       : m_dev(dev)
-      , m_bytesCount(bytesCount)
-      , m_ctx(dev.executor())
-    {
-        m_buffer.reserve(bytesCount);   // can throw...
-    }
-
-    nhope::AOContext& ctx() const
-    {
-        return m_ctx;
-    }
-
-    Future<std::vector<std::uint8_t>> read()
-    {
-        m_anchor = shared_from_this();
-        startRead();
-        return m_promise.future();
-    }
-
-    Future<std::vector<std::uint8_t>> readLine()
-    {
-        m_anchor = shared_from_this();
-        startReadOneByOne();
-        return m_promise.future();
-    }
-
-    Future<std::vector<std::uint8_t>> readAll()
-    {
-        m_anchor = shared_from_this();
-        startReadChunks();
-        return m_promise.future();
-    }
-
-private:
-    void startReadOneByOne()
-    {
-        static constexpr unsigned char terminator = '\n';
-
-        m_dev.read(1)
-          .then(m_ctx,
-                [this](const std::vector<uint8_t>& data) {
-                    char s = static_cast<char>(data.at(0));
-                    if (s == terminator) {
-#ifdef WIN32
-                        // FIXME: Терминатор должен быть строкой
-                        if (!m_buffer.empty() && m_buffer.back() == '\r') {
-                            m_buffer.pop_back();
-                        }
-#endif
-                        m_promise.setValue(std::move(m_buffer));
-                        m_anchor.reset();
-                        return;
-                    }
-                    m_buffer.push_back(data.at(0));
-                    startReadOneByOne();
-                })
-          .fail(m_ctx, [this](auto e) {
-              m_promise.setException(e);
-              m_anchor.reset();
-          });
-    }
-
-    void startReadChunks()
-    {
-        constexpr size_t chunkSize = 1024;
-
-        m_dev.read(chunkSize)
-          .then(m_ctx,
-                [this](const std::vector<uint8_t>& data) {
-                    m_buffer.insert(m_buffer.end(), data.begin(), data.end());
-                    startReadChunks();
-                })
-          .fail(m_ctx, [this](const std::exception_ptr& e) {
-              try {
-                  std::rethrow_exception(e);
-              } catch (const IoEof&) {
-                  m_promise.setValue(std::move(m_buffer));
-              } catch (...) {
-                  m_promise.setException(e);
-              }
-              m_anchor.reset();
-          });
-    }
-
-    void startRead()
-    {
-        m_dev.read(m_bytesCount - m_buffer.size())
-          .then(m_ctx,
-                [this](const std::vector<uint8_t>& data) {
-                    m_buffer.insert(m_buffer.end(), data.begin(), data.end());
-                    if (m_buffer.size() >= m_bytesCount) {
-                        m_buffer.resize(m_bytesCount);
-                        m_promise.setValue(std::move(m_buffer));
-                        m_anchor.reset();
-                        return;
-                    }
-                    startRead();
-                })
-          .fail(m_ctx, [this](auto e) {
-              m_promise.setException(e);
-              m_anchor.reset();
-          });
-    }
-
-    IoDevice& m_dev;
-    const size_t m_bytesCount;
-    std::vector<std::uint8_t> m_buffer;
-    std::shared_ptr<IoReader> m_anchor;
-
-    nhope::Promise<std::vector<std::uint8_t>> m_promise;
-
-    mutable nhope::AOContext m_ctx;
-};
-
-class IoWriter : public std::enable_shared_from_this<IoWriter>
-{
-public:
-    explicit IoWriter(IoDevice& dev, gsl::span<const std::uint8_t> data)
-      : m_dev(dev)
-      , m_buffer(data.begin(), data.end())
-      , m_ctx(dev.executor())
+      , m_handler(std::move(handler))
     {}
 
-    Future<size_t> write()
+    ~ReadOp()
     {
-        m_anchor = shared_from_this();
-        startWrite();
+        if (!m_promise.satisfied()) {
+            m_promise.setException(std::make_exception_ptr(AsyncOperationWasCancelled()));
+        }
+    }
+
+    Future<std::vector<std::uint8_t>> start()
+    {
+        this->readNextPortion();
         return m_promise.future();
     }
 
 private:
-    void startWrite()
+    using std::enable_shared_from_this<ReadOp>::shared_from_this;
+
+    void readNextPortion()
     {
-        auto chunk = gsl::span(m_buffer).subspan(m_offset);
-        m_dev.write(chunk)
-          .then(m_ctx,
-                [this](const size_t count) {
-                    m_offset += count;
-                    if (m_offset >= m_buffer.size()) {
-                        m_promise.setValue(m_buffer.size());
-                        m_anchor.reset();
-                        return;
-                    }
-                    startWrite();
-                })
-          .fail(m_ctx, [this](auto e) {
-              m_promise.setException(e);
-              m_anchor.reset();
-          });
+        m_portionSize = m_handler(m_buf);
+        if (m_portionSize == 0) {
+            m_promise.setValue(std::move(m_buf));
+            return;
+        }
+
+        m_buf.resize(m_buf.size() + m_portionSize);
+        auto bufForNextPortion = gsl::span(m_buf).last(m_portionSize);
+        m_dev.read(bufForNextPortion, [self = shared_from_this()](auto err, auto count) {
+            self->readPortionHandler(err, count);
+        });
     }
 
-    IoDevice& m_dev;
-    std::shared_ptr<IoWriter> m_anchor;
-    size_t m_offset{};
+    void readPortionHandler(const std::error_code& err, std::size_t count)
+    {
+        assert(m_portionSize >= count);   // NOLINT
 
-    std::vector<std::uint8_t> m_buffer;
-    Promise<size_t> m_promise;
-    nhope::AOContext m_ctx;
+        if (err) {
+            m_promise.setException(std::make_exception_ptr(std::system_error(err)));
+            return;
+        }
+
+        m_buf.resize(m_buf.size() - (m_portionSize - count));
+        if (count == 0) {
+            // EOF
+            m_promise.setValue(std::move(m_buf));
+            return;
+        }
+
+        this->readNextPortion();
+    }
+
+    IODevice& m_dev;
+    Promise<std::vector<std::uint8_t>> m_promise;
+    std::vector<std::uint8_t> m_buf;
+    std::size_t m_portionSize = 0;
+    Handler m_handler;
 };
+
+template<typename Handler>
+std::shared_ptr<ReadOp<Handler>> makeReadOp(IODevice& dev, Handler&& handler)
+{
+    return std::make_shared<ReadOp<Handler>>(dev, std::move(handler));
+}
+
+class WriteOp final : public std::enable_shared_from_this<WriteOp>
+{
+public:
+    WriteOp(IODevice& dev, std::vector<std::uint8_t> data, bool writeAll)
+      : m_dev(dev)
+      , m_data(std::move(data))
+      , m_writeAll(writeAll)
+    {}
+
+    ~WriteOp()
+    {
+        if (!m_promise.satisfied()) {
+            m_promise.setException(std::make_exception_ptr(AsyncOperationWasCancelled()));
+        }
+    }
+
+    Future<std::size_t> start()
+    {
+        this->writeNextPortion();
+        return m_promise.future();
+    }
+
+private:
+    void writeNextPortion()
+    {
+        const auto portion = gsl::span(m_data).subspan(m_written);
+        m_dev.write(portion, [self = shared_from_this()](auto err, auto count) {
+            self->writePortionHandler(err, count);
+        });
+    }
+
+    void writePortionHandler(const std::error_code& err, std::size_t count)
+    {
+        if (err) {
+            m_promise.setException(std::make_exception_ptr(std::system_error(err)));
+            return;
+        }
+
+        m_written += count;
+        if (m_written < m_data.size() && m_writeAll) {
+            writeNextPortion();
+            return;
+        }
+
+        m_promise.setValue(static_cast<std::size_t>(m_written));
+    }
+
+    IODevice& m_dev;
+    Promise<std::size_t> m_promise;
+    const std::vector<std::uint8_t> m_data;
+    const bool m_writeAll;
+    std::size_t m_written = 0;
+};
+
+#ifdef WIN32
+constexpr std::array<std::uint8_t, 2> endLineMarker = {static_cast<std::uint8_t>('\r'),
+                                                       static_cast<std::uint8_t>('\n')};
+#else
+constexpr std::array<std::uint8_t, 1> endLineMarker = {static_cast<std::uint8_t>('\n')};
+#endif
+
+bool hasEndLineMarker(gsl::span<const std::uint8_t> data)
+{
+    if (data.size() < endLineMarker.size()) {
+        return false;
+    }
+
+    return data.last(endLineMarker.size()) == gsl::span(endLineMarker);
+}
 
 }   // namespace
 
-Future<size_t> write(IoDevice& device, gsl::span<const std::uint8_t> data)
+Future<std::vector<std::uint8_t>> read(IODevice& dev, std::size_t bytesCount)
 {
-    return device.write(data);
+    auto readOp = makeReadOp(dev, [bytesCount](auto& /*unused*/) mutable {
+        return std::exchange(bytesCount, 0);
+    });
+
+    return readOp->start();
 }
 
-Future<std::vector<std::uint8_t>> read(IoDevice& device, size_t bytesCount)
+Future<std::size_t> write(IODevice& dev, std::vector<std::uint8_t> data)
 {
-    return device.read(bytesCount);
+    auto writeOp = std::make_shared<WriteOp>(dev, std::move(data), false);
+    return writeOp->start();
 }
 
-Future<std::vector<std::uint8_t>> readExactly(IoDevice& device, size_t bytesCount)
+Future<std::vector<std::uint8_t>> readExactly(IODevice& dev, size_t bytesCount)
 {
-    auto reader = std::make_shared<IoReader>(device, bytesCount);
-    return reader->read();
+    auto readOp = makeReadOp(dev, [bytesCount](const auto& buf) {
+        assert(bytesCount >= buf.size());   // NOLINT
+        const std::size_t nextPortionSize = bytesCount - buf.size();
+        return nextPortionSize;
+    });
+
+    return readOp->start();
 }
 
-Future<size_t> writeExactly(IoDevice& device, gsl::span<const std::uint8_t> data)
+Future<size_t> writeExactly(IODevice& device, std::vector<std::uint8_t> data)
 {
-    auto writer = std::make_shared<IoWriter>(device, data);
-    return writer->write();
+    auto writeOp = std::make_shared<WriteOp>(device, std::move(data), true);
+    return writeOp->start();
 }
 
-Future<std::string> readLine(IoDevice& device)
+Future<std::string> readLine(IODevice& dev)
 {
-    auto reader = std::make_shared<IoReader>(device);
-    return reader->readLine().then(reader->ctx(), [](auto data) {
-        return std::string(data.begin(), data.end());
+    auto readOp = makeReadOp(dev, [](const auto& buf) {
+        const std::size_t nextPortionSize = hasEndLineMarker(buf) ? 0 : 1;
+        return nextPortionSize;
+    });
+
+    return readOp->start().then([](const auto& buf) {
+        std::size_t lineSize = buf.size();
+        if (hasEndLineMarker(buf)) {
+            lineSize -= endLineMarker.size();
+        }
+
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+        return std::string(reinterpret_cast<const char*>(buf.data()), lineSize);
     });
 }
 
-Future<std::vector<std::uint8_t>> readAll(IoDevice& device)
+Future<std::vector<std::uint8_t>> readAll(IODevice& dev)
 {
-    auto reader = std::make_shared<IoReader>(device);
-    return reader->readAll();
+    static constexpr size_t portionSize = 4 * 1024;
+
+    auto readOp = makeReadOp(dev, [](const auto& /*unused*/) {
+        return portionSize;
+    });
+
+    return readOp->start();
 }
 
 }   // namespace nhope
