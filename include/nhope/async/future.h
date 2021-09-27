@@ -152,6 +152,30 @@ public:
     template<typename Fn>
     UnwrapFuture<NextFuture<T, Fn>> then(AOContext& aoCtx, Fn&& fn)
     {
+        using FutureCallback = detail::FutureThenWithAOCtxCallback<T, Fn>;
+
+        if constexpr (std::is_void_v<T>) {
+            static_assert(std::is_invocable_v<Fn>, "Fn must be function without arguments");
+        } else {
+            static_assert(std::is_invocable_v<Fn, T>, "Fn must accept a single argument of same type as the Future");
+        }
+
+        if (this->isWaitFuture()) {
+            throw MakeFutureChainAfterWaitError();
+        }
+
+        auto detachedState = this->detachState();
+
+        auto nextState = detail::makeRefPtr<NextFutureState<T, Fn>>(detachedState->shareCancelToken());
+
+        detachedState->setCallback(std::make_unique<FutureCallback>(aoCtx, std::forward<Fn>(fn), nextState));
+
+        return NextFuture<T, Fn>(std::move(nextState)).unwrap();
+    }
+
+    template<typename Fn>
+    UnwrapFuture<NextFuture<T, Fn>> then(Fn&& fn)
+    {
         using FutureCallback = detail::FutureThenCallback<T, Fn>;
 
         if constexpr (std::is_void_v<T>) {
@@ -166,31 +190,8 @@ public:
 
         auto detachedState = this->detachState();
 
-        auto nextState = detail::makeRefPtr<NextFutureState<T, Fn>>();
-        detachedState->setCallback(std::make_unique<FutureCallback>(aoCtx, std::forward<Fn>(fn), nextState));
-
-        return NextFuture<T, Fn>(std::move(nextState)).unwrap();
-    }
-
-    template<typename Fn>
-    UnwrapFuture<NextFuture<T, Fn>> then(Fn&& fn)
-    {
-        using FutureCallback = detail::FutureThenWithoutAOCtxCallback<T, Fn>;
-
-        if constexpr (std::is_void_v<T>) {
-            static_assert(std::is_invocable_v<Fn>, "Fn must be function without arguments");
-        } else {
-            static_assert(std::is_invocable_v<Fn, T>, "Fn must accept a single argument of same type as the Future");
-        }
-
-        if (this->isWaitFuture()) {
-            throw MakeFutureChainAfterWaitError();
-        }
-
-        auto state = this->detachState();
-
-        auto nextState = detail::makeRefPtr<NextFutureState<T, Fn>>();
-        state->setCallback(std::make_unique<FutureCallback>(std::forward<Fn>(fn), nextState));
+        auto nextState = detail::makeRefPtr<NextFutureState<T, Fn>>(detachedState->shareCancelToken());
+        detachedState->setCallback(std::make_unique<FutureCallback>(std::forward<Fn>(fn), nextState));
 
         return NextFuture<T, Fn>(std::move(nextState)).unwrap();
     }
@@ -210,6 +211,27 @@ public:
     template<typename Fn>
     Future<T> fail(AOContext& aoCtx, Fn&& fn)
     {
+        using FutureCallback = detail::FutureFailWithAOCtxCallback<T, Fn>;
+
+        static_assert(std::is_invocable_v<Fn, std::exception_ptr>, "Fn must take std::exception_ptr as argument");
+        static_assert(std::is_same_v<T, std::invoke_result_t<Fn, std::exception_ptr>>,
+                      "Fn must return a result of same type as the Future");
+
+        if (this->isWaitFuture()) {
+            throw MakeFutureChainAfterWaitError();
+        }
+
+        auto detachedState = this->detachState();
+
+        auto nextState = detail::makeRefPtr<State>(detachedState->shareCancelToken());
+        detachedState->setCallback(std::make_unique<FutureCallback>(aoCtx, std::forward<Fn>(fn), nextState));
+
+        return Future(std::move(nextState)).unwrap();
+    }
+
+    template<typename Fn>
+    Future<T> fail(Fn&& fn)
+    {
         using FutureCallback = detail::FutureFailCallback<T, Fn>;
 
         static_assert(std::is_invocable_v<Fn, std::exception_ptr>, "Fn must take std::exception_ptr as argument");
@@ -222,29 +244,8 @@ public:
 
         auto detachedState = this->detachState();
 
-        auto nextState = detail::makeRefPtr<State>();
-        detachedState->setCallback(std::make_unique<FutureCallback>(aoCtx, std::forward<Fn>(fn), nextState));
-
-        return Future(std::move(nextState)).unwrap();
-    }
-
-    template<typename Fn>
-    Future<T> fail(Fn&& fn)
-    {
-        using FutureCallback = detail::FutureFailWithoutAOCtxCallback<T, Fn>;
-
-        static_assert(std::is_invocable_v<Fn, std::exception_ptr>, "Fn must take std::exception_ptr as argument");
-        static_assert(std::is_same_v<T, std::invoke_result_t<Fn, std::exception_ptr>>,
-                      "Fn must return a result of same type as the Future");
-
-        if (this->isWaitFuture()) {
-            throw MakeFutureChainAfterWaitError();
-        }
-
-        auto state = this->detachState();
-
-        auto nextState = detail::makeRefPtr<State>();
-        state->setCallback(std::make_unique<FutureCallback>(std::forward<Fn>(fn), nextState));
+        auto nextState = detail::makeRefPtr<State>(detachedState->shareCancelToken());
+        detachedState->setCallback(std::make_unique<FutureCallback>(std::forward<Fn>(fn), nextState));
 
         return Future(std::move(nextState)).unwrap();
     }
@@ -269,12 +270,12 @@ public:
             using UnwrapFutureState = typename UnwrapFuture<T>::State;
             using FutureCallback = detail::UnwrapperFutureCallback<T, UnwrappedT>;
 
-            auto detachedState = this->detachState();
+            auto thisDetachedState = this->detachState();
 
-            auto unwrapState = detail::makeRefPtr<UnwrapFutureState>();
-            detachedState->setCallback(std::make_unique<FutureCallback>(unwrapState));
+            auto finalUnwrapState = detail::makeRefPtr<UnwrapFutureState>(thisDetachedState->shareCancelToken());
+            thisDetachedState->setCallback(std::make_unique<FutureCallback>(finalUnwrapState));
 
-            return UnwrapFuture<T>(std::move(unwrapState));
+            return UnwrapFuture<T>(std::move(finalUnwrapState));
         }
     }
 
@@ -288,7 +289,15 @@ public:
         return m_futureReadyEvent != nullptr;
     }
 
+    void cancel()
+    {
+        state().cancel();
+    }
+
 private:
+    template<typename Tp>
+    friend Future<Tp> setTimeout(AOContext&, Future<Tp>, std::chrono::nanoseconds);
+
     using State = detail::FutureState<T>;
 
     /**
@@ -317,6 +326,15 @@ private:
         }
 
         return *m_state;
+    }
+
+    detail::RefPtr<State> shareState()
+    {
+        if (m_state == nullptr) {
+            throw FutureNoStateError();
+        }
+
+        return m_state;
     }
 
     detail::RefPtr<State> detachState()
@@ -411,6 +429,11 @@ public:
     [[nodiscard]] bool satisfied() const noexcept
     {
         return m_satisfiedFlag;
+    }
+
+    [[nodiscard]] bool cancelled() const
+    {
+        return m_state->wasCancelled();
     }
 
 private:
