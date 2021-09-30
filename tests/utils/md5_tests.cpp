@@ -15,7 +15,7 @@
 #include <nhope/utils/md5.h>
 
 namespace {
-using namespace nhope::utils;
+using namespace nhope;
 using namespace std::literals;
 
 auto makeTestStream()

@@ -21,7 +21,7 @@
 
 namespace {
 
-using namespace nhope::utils;
+using namespace nhope;
 
 /* Constants for MD5Transform routine. */
 constexpr std::uint32_t s11 = 7;

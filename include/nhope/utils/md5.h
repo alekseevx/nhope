@@ -12,7 +12,7 @@
 
 #include <gsl/span>
 
-namespace nhope::utils {
+namespace nhope {
 
 // steeled from POCO(http://pocoproject.org/)
 class MD5 final
@@ -51,4 +51,4 @@ private:
     Context m_context;
 };
 
-}   // namespace nhope::utils
+}   // namespace nhope
