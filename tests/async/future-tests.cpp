@@ -9,6 +9,7 @@
 #include "nhope/async/ao-context-error.h"
 #include "nhope/async/detail/future-state.h"
 #include "nhope/async/ao-context.h"
+#include "nhope/async/event.h"
 #include "nhope/async/future.h"
 #include "nhope/async/thread-executor.h"
 #include "test-helpers/wait.h"
@@ -628,12 +629,18 @@ TEST(Future, parallelCancel)   // NOLINT
         Promise<void> p;
         auto f = p.future();
 
-        auto th1 = std::thread([&f] {
+        Event doCancel;
+        auto th1 = std::thread([&] {
+            doCancel.wait();
             f.cancel();
         });
-        auto th2 = std::thread([&f] {
+        auto th2 = std::thread([&] {
+            doCancel.wait();
             f.cancel();
         });
+
+        std::this_thread::sleep_for(1ms);
+        doCancel.set();
 
         EXPECT_TRUE(waitForPred(1s, [&p] {
             return p.cancelled();
