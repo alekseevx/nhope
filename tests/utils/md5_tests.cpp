@@ -67,3 +67,12 @@ TEST(Md5, calcInvalidFile)   // NOLINT
 {
     EXPECT_THROW(MD5::fileDigest("someFile"sv), std::system_error);   // NOLINT
 }
+
+TEST(Md5, emptyBuffer)   // NOLINT
+{
+    constexpr MD5::Digest etalonDigest = {0xd4, 0x1d, 0x8c, 0xd9, 0x8f, 0x00, 0xb2, 0x04,
+                                          0xe9, 0x80, 0x09, 0x98, 0xec, 0xf8, 0x42, 0x7e};
+
+    const auto res = MD5::digest(std::vector<uint8_t>());
+    EXPECT_EQ(etalonDigest, res);
+}

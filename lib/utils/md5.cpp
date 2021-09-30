@@ -308,7 +308,9 @@ MD5& MD5::update(gsl::span<const std::uint8_t> data)
     }
 
     /* Buffer remaining input */
-    std::memcpy(&m_context.buffer[index], data.data(), data.size());
+    if (!data.empty()) {
+        std::memcpy(&m_context.buffer[index], data.data(), data.size());
+    }
 
     return *this;
 }
