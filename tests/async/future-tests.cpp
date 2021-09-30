@@ -11,6 +11,7 @@
 #include "nhope/async/ao-context.h"
 #include "nhope/async/future.h"
 #include "nhope/async/thread-executor.h"
+#include "test-helpers/wait.h"
 
 namespace {
 
@@ -181,8 +182,8 @@ TEST(Future, promiseResolving)   // NOLINT
 
         EXPECT_TRUE(f1.isReady());
         EXPECT_TRUE(f2.isReady());
-        EXPECT_THROW(f1.get(), std::runtime_error);
-        EXPECT_THROW(f2.get(), std::runtime_error);
+        EXPECT_THROW(f1.get(), std::runtime_error);   // NOLINT
+        EXPECT_THROW(f2.get(), std::runtime_error);   // NOLINT
         EXPECT_TRUE(ls.empty());
     }
 }
@@ -616,5 +617,29 @@ TEST(Future, cancelChain)   // NOLINT
                });
     f.cancel();
 
-    EXPECT_THROW(f.get(), std::runtime_error);   //NOLINT
+    EXPECT_THROW(f.get(), std::runtime_error);   // NOLINT
+}
+
+TEST(Future, parallelCancel)   // NOLINT
+{
+    constexpr auto iterCount = 1000;
+
+    for (auto i = 0; i < iterCount; ++i) {
+        Promise<void> p;
+        auto f = p.future();
+
+        auto th1 = std::thread([&f] {
+            f.cancel();
+        });
+        auto th2 = std::thread([&f] {
+            f.cancel();
+        });
+
+        EXPECT_TRUE(waitForPred(1s, [&p] {
+            return p.cancelled();
+        }));
+
+        th1.join();
+        th2.join();
+    }
 }
