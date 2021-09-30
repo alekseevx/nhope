@@ -215,9 +215,8 @@ Future<std::string> readLine(IODevice& dev)
 
 Future<std::vector<std::uint8_t>> readAll(IODevice& dev)
 {
-    static constexpr size_t portionSize = 4 * 1024;
-
     auto readOp = makeReadOp(dev, [](const auto& /*unused*/) {
+        constexpr size_t portionSize = 4 * 1024;
         return portionSize;
     });
 

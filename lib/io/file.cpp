@@ -105,7 +105,7 @@ Future<std::vector<std::uint8_t>> readFile(AOContext& aoCtx, std::string_view fi
 {
     std::shared_ptr<FileDevice> file = openFile(aoCtx, fileName, OpenFileMode::ReadOnly);
     return readAll(*file).then([anchor = file](auto data) {
-        return std::move(data);
+        return data;
     });
 }
 
