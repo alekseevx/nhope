@@ -587,12 +587,12 @@ TEST(Scheduler, StateWatch)   // NOLINT
     const auto secondId = scheduler.push(f);
     auto firstFin = scheduler.asyncWait(firstId);
     EXPECT_EQ(scheduler.getState(firstId), ManageableTask::State::Running);
-    EXPECT_EQ(scheduler.getState(secondId), ManageableTask::State::Waiting);
+    EXPECT_EQ(scheduler.getState(secondId), ManageableTask::State::WaitForStart);
 
     const auto thirdId = scheduler.push(f);
     scheduler.deactivate(thirdId);
     const auto state = scheduler.getState(thirdId).value();
-    EXPECT_TRUE(state == ManageableTask::State::Paused || state == ManageableTask::State::Waiting);
+    EXPECT_TRUE(state == ManageableTask::State::Paused || state == ManageableTask::State::WaitForStart);
     firstFin.wait();
     const auto fourthId = scheduler.push(f, 2);
     scheduler.activate(thirdId);

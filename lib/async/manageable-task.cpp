@@ -101,7 +101,7 @@ public:
                 break;
 
             case State::Paused:
-            case State::Waiting:
+            case State::WaitForStart:
             case State::Stopped:
                 ret = makeReadyFuture();
                 break;
@@ -137,7 +137,7 @@ public:
                 ret = m_resumePromises.emplace_back().future();
                 break;
 
-            case State::Waiting:
+            case State::WaitForStart:
                 ret = makeReadyFuture();
                 m_state = State::Running;
                 m_stateChangedCV.notify_one();
@@ -160,7 +160,7 @@ public:
         std::scoped_lock lock(m_mutex);
 
         switch (m_state) {
-        case State::Waiting:
+        case State::WaitForStart:
         case State::Running:
         case State::Pausing:
         case State::Resuming:
@@ -284,7 +284,7 @@ private:
     std::function<void()> m_afterPause;
 
     mutable std::mutex m_mutex;
-    State m_state = State::Waiting;
+    State m_state = State::WaitForStart;
     std::condition_variable m_stateChangedCV;
     std::list<Promise<void>> m_pausePromises;
     std::list<Promise<void>> m_resumePromises;
