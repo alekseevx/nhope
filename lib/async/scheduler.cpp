@@ -30,6 +30,11 @@ class Scheduler::Impl
             resolvePromises(waitPromises);
         }
 
+        [[nodiscard]] ManageableTask::State state() const noexcept
+        {
+            return taskController->state();
+        }
+
         TaskId id{};
         std::unique_ptr<ManageableTask> taskController;
         int priority{};
@@ -218,19 +223,35 @@ public:
         return m_waitedTasks.size() + m_delayedTasks.size() + (m_activeTask == nullptr ? 0 : 1);
     }
 
+    [[nodiscard]] std::optional<ManageableTask::State> state(TaskId id) const noexcept
+    {
+        if (m_activeTask != nullptr && m_activeTask->id == id) {
+            return m_activeTask->state();
+        }
+        if (auto&& [task, _it] = findTaskById(m_waitedTasks, id); task != nullptr) {
+            return task->state();
+        }
+
+        if (auto&& [task, it] = findTaskById(m_delayedTasks, id); task != nullptr) {
+            return task->state();
+        }
+        return std::nullopt;
+    }
+
 private:
     friend class Scheduler;
     using TaskList = std::list<std::unique_ptr<Task>>;
 
-    static std::pair<std::unique_ptr<Task>&, TaskList::iterator> findTaskById(TaskList& list, TaskId id)
+    static std::pair<std::unique_ptr<Task>&, TaskList::const_iterator> findTaskById(const TaskList& list, TaskId id)
     {
         static std::unique_ptr<Task> nulTask = nullptr;
-        if (auto it = std::find_if(list.begin(), list.end(),
-                                   [id](const auto& t) {
-                                       return t->id == id;
-                                   });
+        if (const auto it = std::find_if(list.begin(), list.end(),
+                                         [id](const auto& t) {
+                                             return t->id == id;
+                                         });
             it != list.end()) {
-            return {*it, it};
+            //NOLINTNEXTLINE (cppcoreguidelines-pro-type-const-cast)
+            return {const_cast<std::unique_ptr<Task>&>(*it), it};
         }
         return {nulTask, list.end()};
     }
@@ -419,6 +440,13 @@ size_t Scheduler::size() const noexcept
 {
     return invoke(m_impl->m_ao, [this] {
         return m_impl->size();
+    });
+}
+
+std::optional<ManageableTask::State> Scheduler::getState(TaskId id) const noexcept
+{
+    return invoke(m_impl->m_ao, [this, id] {
+        return m_impl->state(id);
     });
 }
 

@@ -25,6 +25,7 @@ class ManageableTask
 public:
     enum class State
     {
+        WaitForStart,
         Running,
         Pausing,
         Paused,

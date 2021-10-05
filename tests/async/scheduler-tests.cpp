@@ -1,3 +1,4 @@
+#include <optional>
 #include <thread>
 #include <functional>
 #include <gtest/gtest.h>
@@ -566,4 +567,34 @@ TEST(Scheduler, ResumeWaited)   // NOLINT
     scheduler.activate(resumeId);
     scheduler.waitAll();
     EXPECT_EQ(scheduler.getActiveTaskId(), std::nullopt);
+}
+
+TEST(Scheduler, StateWatch)   // NOLINT
+{
+    Scheduler scheduler;
+    static constexpr auto iterCount{10};
+
+    auto f = [counter = 0](auto& ctx) mutable {
+        while (counter++ < iterCount) {
+            ctx.checkPoint();
+            std::this_thread::sleep_for(50ms);
+        }
+    };
+
+    ASSERT_EQ(scheduler.getState(0), std::nullopt);
+
+    const auto firstId = scheduler.push(f);
+    const auto secondId = scheduler.push(f);
+    auto firstFin = scheduler.asyncWait(firstId);
+    EXPECT_EQ(scheduler.getState(firstId), ManageableTask::State::Running);
+    EXPECT_EQ(scheduler.getState(secondId), ManageableTask::State::WaitForStart);
+
+    const auto thirdId = scheduler.push(f);
+    scheduler.deactivate(thirdId);
+    const auto state = scheduler.getState(thirdId).value();
+    EXPECT_TRUE(state == ManageableTask::State::Paused || state == ManageableTask::State::WaitForStart);
+    firstFin.wait();
+    const auto fourthId = scheduler.push(f, 2);
+    scheduler.activate(thirdId);
+    scheduler.waitAll();
 }

@@ -24,15 +24,20 @@ public:
         m_workThread.join();
     }
 
-    void start(TaskFunction function)
-    {
-        m_workThread = std::thread([this, function = std::move(function)]() {
-            this->run(function);
-        });
-    }
+    explicit ManageableTaskImpl(TaskFunction&& function)
+      : m_workThread([this, function = std::move(function)]() mutable {
+          this->run(std::move(function));
+      })
+    {}
 
-    void run(const TaskFunction& function)
+    void run(TaskFunction&& function)
     {
+        {
+            std::unique_lock lock(m_mutex);
+            m_stateChangedCV.wait(lock, [this] {
+                return m_state == State::Running || m_state == State::Stopping || m_state == State::Pausing;
+            });
+        }
         std::exception_ptr error;
         try {
             if (checkPoint()) {
@@ -96,9 +101,7 @@ public:
                 break;
 
             case State::Paused:
-                ret = makeReadyFuture();
-                break;
-
+            case State::WaitForStart:
             case State::Stopped:
                 ret = makeReadyFuture();
                 break;
@@ -134,6 +137,12 @@ public:
                 ret = m_resumePromises.emplace_back().future();
                 break;
 
+            case State::WaitForStart:
+                ret = makeReadyFuture();
+                m_state = State::Running;
+                m_stateChangedCV.notify_one();
+                break;
+
             case State::Paused:
                 m_state = State::Resuming;
                 m_stateChangedCV.notify_one();
@@ -151,6 +160,7 @@ public:
         std::scoped_lock lock(m_mutex);
 
         switch (m_state) {
+        case State::WaitForStart:
         case State::Running:
         case State::Pausing:
         case State::Resuming:
@@ -270,18 +280,17 @@ public:
     }
 
 private:
-    std::thread m_workThread;
-
     std::function<bool()> m_beforePause;
     std::function<void()> m_afterPause;
 
     mutable std::mutex m_mutex;
-    State m_state = State::Running;
+    State m_state = State::WaitForStart;
     std::condition_variable m_stateChangedCV;
     std::list<Promise<void>> m_pausePromises;
     std::list<Promise<void>> m_resumePromises;
     std::list<Promise<void>> m_stopPromises;
     std::exception_ptr m_error;
+    std::thread m_workThread;
 };
 
 }   // namespace
@@ -309,16 +318,12 @@ void ManageableTask::waitForStopped()
 
 std::unique_ptr<ManageableTask> ManageableTask::start(TaskFunction function)
 {
-    auto task = std::make_unique<ManageableTaskImpl>();
-    task->start(std::move(function));
+    auto task = create(std::move(function));
+    task->resume();
     return task;
 }
 
 std::unique_ptr<ManageableTask> ManageableTask::create(TaskFunction function)
 {
-    auto task = std::make_unique<ManageableTaskImpl>();
-    auto future = task->asyncPause();
-    task->start(std::move(function));
-    future.wait();
-    return task;
+    return std::make_unique<ManageableTaskImpl>(std::move(function));
 }
