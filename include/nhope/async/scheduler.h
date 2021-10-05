@@ -22,6 +22,8 @@ public:
 
     [[nodiscard]] std::optional<TaskId> getActiveTaskId() const noexcept;
 
+    [[nodiscard]] std::optional<ManageableTask::State> getState(TaskId id) const noexcept;
+
     void wait(TaskId id);
     Future<void> asyncWait(TaskId id);
 
