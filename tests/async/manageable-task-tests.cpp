@@ -152,10 +152,11 @@ TEST(ManageableTask, createPausedThenStart)   // NOLINT
         }
     });
 
-    ASSERT_EQ(task->state(), ManageableTask::State::Paused);
+    ASSERT_EQ(task->state(), ManageableTask::State::Waiting);
 
     ASSERT_EQ(counter, 0);
     task->resume();
+    ASSERT_EQ(task->state(), ManageableTask::State::Running);
 
     task->waitForStopped();
     ASSERT_EQ(counter, 4);
