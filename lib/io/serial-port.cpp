@@ -107,7 +107,7 @@ public:
 
 }   // namespace
 
-SerialPortPtr openSerialPort(nhope::AOContext& aoCtx, std::string_view device, const SerialPortParams& params)
+SerialPortPtr SerialPort::open(nhope::AOContext& aoCtx, std::string_view device, const SerialPortParams& params)
 {
     return std::make_unique<SerialPortImpl>(aoCtx, device, params);
 }

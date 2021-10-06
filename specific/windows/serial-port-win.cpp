@@ -2,20 +2,20 @@
 #include <vector>
 #include <string>
 
-#include "nhope/utils/com-discover.h"
+#include "nhope/io/serial-port.h"
 
 #include <Windows.h>
 
-namespace nhope::utils {
+namespace nhope {
 
-std::vector<std::string> getAvailableComs()
+std::list<std::string> SerialPort::availableDevices()
 {
-    std::vector<std::string> result;
+    std::list<std::string> devices;
     HKEY hKey = nullptr;
 
     if (::RegOpenKeyExA(HKEY_LOCAL_MACHINE, "HARDWARE\\DEVICEMAP\\SERIALCOMM", 0, KEY_QUERY_VALUE, &hKey) !=
         ERROR_SUCCESS) {
-        return result;
+        return devices;
     }
 
     DWORD index = 0;
@@ -39,11 +39,11 @@ std::vector<std::string> getAvailableComs()
         if (ret != ERROR_SUCCESS) {
             break;
         }
-        result.emplace_back(outputBuffer.data());
+        devices.emplace_back(outputBuffer.data());
         ++index;
     }
     ::RegCloseKey(hKey);
-    return result;
+    return devices;
 }
 
-}   // namespace nhope::utils
+}   // namespace nhope

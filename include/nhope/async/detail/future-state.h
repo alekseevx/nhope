@@ -165,9 +165,7 @@ class FutureState final : public BaseRefCounter
 public:
     using Type = T;
 
-    FutureState()
-      : m_cancelled{}
-    {}
+    FutureState() = default;
 
     explicit FutureState(const SharedFlag& cancelFlag)
       : m_cancelled(cancelFlag)

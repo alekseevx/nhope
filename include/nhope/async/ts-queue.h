@@ -62,7 +62,7 @@ public:
             return false;
         }
 
-        if (m_closed == true) {
+        if (m_closed) {
             return false;
         }
 

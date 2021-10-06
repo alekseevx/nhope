@@ -18,11 +18,14 @@ enum class OpenFileMode
     WriteOnly,
 };
 
-class FileDevice : public IODevice
-{};
-using FileDevicePtr = std::unique_ptr<FileDevice>;
+class File;
+using FilePtr = std::unique_ptr<File>;
 
-FileDevicePtr openFile(AOContext& aoCtx, std::string_view fileName, OpenFileMode mode);
-Future<std::vector<std::uint8_t>> readFile(AOContext& aoCtx, std::string_view fileName);
+class File : public IODevice
+{
+public:
+    static FilePtr open(AOContext& aoCtx, std::string_view fileName, OpenFileMode mode);
+    static Future<std::vector<std::uint8_t>> readAll(AOContext& aoCtx, std::string_view fileName);
+};
 
 }   // namespace nhope
