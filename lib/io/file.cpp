@@ -35,10 +35,10 @@ std::string toFOpenMode(OpenFileMode mode)
     }
 }
 
-class FileDeviceImpl final : public FileDevice
+class FileImpl final : public File
 {
 public:
-    FileDeviceImpl(AOContext& parent, std::string_view fileName, OpenFileMode mode)
+    FileImpl(AOContext& parent, std::string_view fileName, OpenFileMode mode)
       : m_resultCtx(parent)
       /* Reading/writing over regular files can be synchronous, will do them */
       , m_ioCtx(detail::ioThreadPool())
@@ -54,7 +54,7 @@ public:
         }
     }
 
-    ~FileDeviceImpl() override
+    ~FileImpl() override
     {
         m_ioCtx.close();
         m_resultCtx.close();
@@ -96,15 +96,15 @@ private:
 
 }   // namespace
 
-nhope::FileDevicePtr openFile(AOContext& aoCtx, std::string_view fileName, OpenFileMode mode)
+nhope::FilePtr File::open(AOContext& aoCtx, std::string_view fileName, OpenFileMode mode)
 {
-    return std::make_unique<FileDeviceImpl>(aoCtx, fileName, mode);
+    return std::make_unique<FileImpl>(aoCtx, fileName, mode);
 }
 
-Future<std::vector<std::uint8_t>> readFile(AOContext& aoCtx, std::string_view fileName)
+Future<std::vector<std::uint8_t>> File::readAll(AOContext& aoCtx, std::string_view fileName)
 {
-    std::shared_ptr<FileDevice> file = openFile(aoCtx, fileName, OpenFileMode::ReadOnly);
-    return readAll(*file).then([anchor = file](auto data) {
+    std::shared_ptr<File> file = File::open(aoCtx, fileName, OpenFileMode::ReadOnly);
+    return nhope::readAll(*file).then([anchor = file](auto data) {
         return data;
     });
 }

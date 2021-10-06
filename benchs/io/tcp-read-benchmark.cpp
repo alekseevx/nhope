@@ -117,7 +117,7 @@ void doNextIteration(benchmark::State& state, std::uint64_t& receivedBytes)
     nhope::IOContextSequenceExecutor executor(ioCtx);
     nhope::AOContext aoCtx(executor);
 
-    auto srv = nhope::listen(aoCtx, {"127.0.0.1", port});
+    auto srv = nhope::TcpServer::start(aoCtx, {"127.0.0.1", port});
     startSend();
 
     srv->accept()

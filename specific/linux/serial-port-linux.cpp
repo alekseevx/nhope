@@ -1,17 +1,18 @@
 #include <filesystem>
+#include <list>
 #include <regex>
 #include <set>
 
-#include "nhope/utils/com-discover.h"
+#include "nhope/io/serial-port.h"
 
-namespace nhope::utils {
+namespace nhope {
 
 namespace {
 using namespace std::literals;
-bool checkAlive(std::string_view comName)
+bool checkAlive(std::string_view deviceName)
 {
     namespace fs = std::filesystem;
-    const std::string sysFsPath = "/sys/class/tty/"s + comName.data();
+    const std::string sysFsPath = "/sys/class/tty/"s + deviceName.data();
     const std::string devicePath = sysFsPath + "/device"s;
     const std::string driverPath = devicePath + "/driver"s;
     bool isAlive = fs::exists(driverPath) && fs::exists(devicePath);
@@ -28,9 +29,9 @@ bool checkAlive(std::string_view comName)
 
 }   // namespace
 
-std::vector<std::string> getAvailableComs()
+std::list<std::string> SerialPort::availableDevices()
 {
-    std::vector<std::string> res;
+    std::list<std::string> devices;
 
     namespace fs = std::filesystem;
 
@@ -43,12 +44,12 @@ std::vector<std::string> getAvailableComs()
         if (std::regex_search(entryName.c_str(), m, re)) {
             std::string comName = m[0];
             if (checkAlive(comName)) {
-                res.emplace_back(prefix + comName);
+                devices.emplace_back(prefix + comName);
             }
         }
     }
 
-    return res;
+    return devices;
 }
 
-}   // namespace nhope::utils
+}   // namespace nhope

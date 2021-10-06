@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <optional>
+#include <string>
 #include <string_view>
 
 #include "nhope/async/ao-context.h"
@@ -59,12 +60,14 @@ struct SerialPortParams
     std::optional<FlowControl> flow;
 };
 
+class SerialPort;
+using SerialPortPtr = std::unique_ptr<SerialPort>;
+
 class SerialPort : public IODevice
 {
 public:
+    static SerialPortPtr open(nhope::AOContext& aoCtx, std::string_view device, const SerialPortParams& params);
+    static std::list<std::string> availableDevices();
 };
-using SerialPortPtr = std::unique_ptr<SerialPort>;
-
-SerialPortPtr openSerialPort(nhope::AOContext& aoCtx, std::string_view device, const SerialPortParams& params);
 
 }   // namespace nhope

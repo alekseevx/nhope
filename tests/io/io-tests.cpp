@@ -402,7 +402,7 @@ TEST(IOTest, readFile)   // NOLINT
     ThreadExecutor executor;
     AOContext aoCtx(executor);
 
-    const auto thisFileData = readFile(aoCtx, __FILE__).get();
+    const auto thisFileData = File::readAll(aoCtx, __FILE__).get();
     EXPECT_EQ(thisFileData.size(), std::filesystem::file_size(__FILE__));
 }
 
@@ -411,13 +411,13 @@ TEST(IOTest, writeFile)   // NOLINT
     ThreadExecutor executor;
     AOContext aoCtx(executor);
 
-    const auto thisFileData = readFile(aoCtx, __FILE__).get();
+    const auto thisFileData = File::readAll(aoCtx, __FILE__).get();
 
-    auto dev = openFile(aoCtx, "temp-file", OpenFileMode::WriteOnly);
+    auto dev = File::open(aoCtx, "temp-file", OpenFileMode::WriteOnly);
     EXPECT_EQ(writeExactly(*dev, thisFileData).get(), std::filesystem::file_size(__FILE__));   // NOLINT
     dev.reset();
 
-    const auto tempFileData = readFile(aoCtx, "temp-file").get();
+    const auto tempFileData = File::readAll(aoCtx, "temp-file").get();
     EXPECT_EQ(thisFileData, tempFileData);
 }
 
@@ -427,7 +427,7 @@ TEST(IOTest, openNotExistFile)   // NOLINT
     AOContext aoCtx(executor);
 
     // NOLINTNEXTLINE
-    EXPECT_THROW(openFile(aoCtx, "not-exist-file", OpenFileMode::ReadOnly), std::system_error);
+    EXPECT_THROW(File::open(aoCtx, "not-exist-file", OpenFileMode::ReadOnly), std::system_error);
 }
 
 TEST(IOTest, invalidFileOpenMode)   // NOLINT
@@ -436,7 +436,7 @@ TEST(IOTest, invalidFileOpenMode)   // NOLINT
     AOContext aoCtx(executor);
 
     // NOLINTNEXTLINE
-    EXPECT_THROW(openFile(aoCtx, "temp-file", static_cast<OpenFileMode>(10000)), std::logic_error);
+    EXPECT_THROW(File::open(aoCtx, "temp-file", static_cast<OpenFileMode>(10000)), std::logic_error);
 }
 
 TEST(IOTest, tcpReadWrite)   //NOLINT
@@ -447,7 +447,7 @@ TEST(IOTest, tcpReadWrite)   //NOLINT
     ThreadExecutor e;
     AOContext aoCtx(e);
 
-    auto conDev = connect(aoCtx, test::TcpEchoServer::srvAddress, test::TcpEchoServer::srvPort).get();
+    auto conDev = TcpSocket::connect(aoCtx, test::TcpEchoServer::srvAddress, test::TcpEchoServer::srvPort).get();
 
     std::vector<uint8_t> data(dataSize, 1);
     EXPECT_EQ(writeExactly(*conDev, data).get(), dataSize);
@@ -460,7 +460,7 @@ TEST(IOTest, hostNameResolveFailed)   // NOLINT
     ThreadExecutor e;
     AOContext aoCtx(e);
 
-    auto conDev = connect(aoCtx, "invalid-host-name!!!!!!!", test::TcpEchoServer::srvPort);
+    auto conDev = TcpSocket::connect(aoCtx, "invalid-host-name!!!!!!!", test::TcpEchoServer::srvPort);
     EXPECT_THROW(conDev.get(), std::runtime_error);   // NOLINT
 }
 
@@ -469,7 +469,7 @@ TEST(IOTest, connectFailed)   // NOLINT
     ThreadExecutor e;
     AOContext aoCtx(e);
 
-    auto conDev = connect(aoCtx, test::TcpEchoServer::srvAddress, test::TcpEchoServer::srvPort);
+    auto conDev = TcpSocket::connect(aoCtx, test::TcpEchoServer::srvAddress, test::TcpEchoServer::srvPort);
     EXPECT_THROW(conDev.get(), std::runtime_error);   // NOLINT
 }
 
@@ -478,7 +478,7 @@ TEST(IOTest, cancelConnect)   // NOLINT
     ThreadExecutor e;
     AOContext aoCtx(e);
 
-    auto conDev = connect(aoCtx, test::TcpEchoServer::srvAddress, test::TcpEchoServer::srvPort);
+    auto conDev = TcpSocket::connect(aoCtx, test::TcpEchoServer::srvAddress, test::TcpEchoServer::srvPort);
     aoCtx.close();
 
     // NOLINTNEXTLINE
@@ -491,5 +491,13 @@ TEST(IOTest, openNotExistSerialPort)   // NOLINT
     AOContext aoCtx(e);
 
     // NOLINTNEXTLINE
-    EXPECT_THROW(openSerialPort(aoCtx, "not-exist-serial-port", SerialPortParams{}), std::system_error);
+    EXPECT_THROW(SerialPort::open(aoCtx, "not-exist-serial-port", SerialPortParams{}), std::system_error);
+}
+
+TEST(IOTest, SerialPort_AvailableDevices)   // NOLINT
+{
+    const auto ports = SerialPort::availableDevices();
+    for (const auto& portName : ports) {
+        EXPECT_TRUE(std::filesystem::exists(portName));
+    }
 }

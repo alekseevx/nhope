@@ -172,13 +172,13 @@ private:
 
 }   // namespace
 
-Future<TcpSocketPtr> connect(AOContext& aoCtx, std::string_view hostName, std::uint16_t port)
+Future<TcpSocketPtr> TcpSocket::connect(AOContext& aoCtx, std::string_view hostName, std::uint16_t port)
 {
     auto connectOp = std::make_shared<ConnectOp>(aoCtx);
     return connectOp->start(hostName, port);
 }
 
-TcpServerPtr listen(AOContext& aoCtx, const TcpServerParams& params)
+TcpServerPtr TcpServer::start(AOContext& aoCtx, const TcpServerParams& params)
 {
     return std::make_unique<TcpServerImpl>(aoCtx, params);
 }

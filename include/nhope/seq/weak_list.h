@@ -39,9 +39,8 @@ public:
         WeakIterator(List& l, ListIterator pos)
           : m_list(l)
           , m_pos(pos)
-        {
-            m_current = pos != m_list.end() ? pos->weak.lock() : nullptr;
-        }
+          , m_current(pos != m_list.end() ? pos->weak.lock() : nullptr)
+        {}
 
         bool operator!=(const WeakIterator& o) const noexcept
         {

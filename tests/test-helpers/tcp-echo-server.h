@@ -20,7 +20,7 @@ public:
 
     explicit TcpEchoServer()
       : m_ctx(m_thread)
-      , m_tcpServer(listen(m_ctx, {srvAddress, srvPort}))
+      , m_tcpServer(TcpServer::start(m_ctx, {srvAddress, srvPort}))
     {
         asyncInvoke(m_ctx, [this] {
             this->acceptNextClient();
