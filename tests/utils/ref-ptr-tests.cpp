@@ -174,7 +174,7 @@ TEST(RefPtr, ThreadConcurrency)   // NOLINT
                 ptr3 = ptr;
                 auto ptr4 = std::move(ptr2);
 
-                EXPECT_GE(ptr.refCount(), 3);
+                EXPECT_GE(ptr.refCount(), 3U);
                 std::this_thread::yield();
             }
         };
