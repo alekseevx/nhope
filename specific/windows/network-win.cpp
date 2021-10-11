@@ -52,13 +52,14 @@ std::string getLocalIp()
     constexpr auto maxHost{256};
     char hostname[maxHost] = {0};
 
+#pragma warning(push)
 #pragma warning(disable : 4996)
     gethostname(hostname, maxHost - 1);
-#pragma warning(pop)
-
-    // getaddrinfo()
     struct hostent* ent = gethostbyname(hostname);
+    // getaddrinfo()
+#pragma warning(pop)
     struct in_addr ip_addr = *(struct in_addr*)(ent->h_addr);
+
     WSACleanup();
     return from(ip_addr);
 }
