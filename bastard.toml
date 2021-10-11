@@ -21,11 +21,11 @@ gsl = {git = "git@gitlab.olimp.lan:github/gsl.git", tag = "v3.1.0", interface = 
 benchmark = {git = "git@gitlab.olimp.lan:github/benchmark.git"}
 gtest = {git = "git@gitlab.olimp.lan:google/googletest.git"}
 
-[dependencies.com-discoverer-windows]
+[dependencies.windows-tools]
 path = "specific/windows"
 system = "Windows"
 
-[dependencies.com-discoverer-linux]
+[dependencies.linux-tools]
 path = "specific/linux"
 system = "Unix"
 

@@ -17,7 +17,7 @@ TEST(ManageableTask, checkAsyncWaitForStopped)   // NOLINT
 
     ASSERT_EQ(task->state(), ManageableTask::State::Running);
 
-    ASSERT_TRUE(task->asyncWaitForStopped().waitFor(1s));
+    ASSERT_TRUE(task->asyncWaitForStopped().waitFor(2s));
     ASSERT_EQ(task->state(), ManageableTask::State::Stopped);
 
     /* Повторный вызов допустим asyncWaitForStopped. */
