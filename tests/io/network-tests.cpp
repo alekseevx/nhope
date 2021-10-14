@@ -1,3 +1,6 @@
+#include <string>
+#include <vector>
+
 #include "nhope/io/network.h"
 #include <gtest/gtest.h>
 
