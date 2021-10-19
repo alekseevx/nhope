@@ -29,7 +29,7 @@ public:
         aoCtx.close();
     }
 
-    void read(gsl::span<std::uint8_t> buf, IODevice::Handler handler) override
+    void read(gsl::span<std::uint8_t> buf, IOHandler handler) override
     {
         asioDev.async_read_some(
           asio::buffer(buf.data(), buf.size()),
@@ -42,7 +42,7 @@ public:
           });
     }
 
-    void write(gsl::span<const std::uint8_t> data, IODevice::Handler handler) override
+    void write(gsl::span<const std::uint8_t> data, IOHandler handler) override
     {
         asioDev.async_write_some(
           asio::buffer(data.data(), data.size()),

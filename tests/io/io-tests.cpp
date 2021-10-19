@@ -1,9 +1,13 @@
+#include <array>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <exception>
 #include <filesystem>
+#include <memory>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <system_error>
 #include <thread>
 #include <variant>
@@ -16,13 +20,18 @@
 
 #include "nhope/async/ao-context-error.h"
 #include "nhope/async/ao-context.h"
+#include "nhope/async/async-invoke.h"
 #include "nhope/async/event.h"
+#include "nhope/async/future.h"
 #include "nhope/async/lockable-value.h"
 #include "nhope/async/thread-executor.h"
+#include "nhope/io/bit-seq-reader.h"
 #include "nhope/io/detail/asio-device-wrapper.h"
 #include "nhope/io/file.h"
 #include "nhope/io/io-device.h"
+#include "nhope/io/null-device.h"
 #include "nhope/io/serial-port.h"
+#include "nhope/io/string-reader.h"
 #include "nhope/io/tcp.h"
 
 #include "./test-helpers/tcp-echo-server.h"
@@ -150,14 +159,83 @@ public:
 };
 
 template<typename... C>
-std::vector<std::uint8_t> concat(const C&... c)
+std::vector<std::uint8_t> concatContainers(const C&... c)
 {
     std::vector<std::uint8_t> retval;
     (retval.insert(retval.end(), c.begin(), c.end()), ...);
     return retval;
 }
 
+bool eq(const std::vector<std::uint8_t>& a, std::string_view b)
+{
+    if (a.size() != b.size()) {
+        return false;
+    }
+
+    for (std::size_t i = 0; i < a.size(); ++i) {
+        if (a[i] != static_cast<std::uint8_t>(b[i])) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 }   // namespace
+
+TEST(IOTest, NullDevice)   // NOLINT
+{
+    constexpr std::size_t bufSize = 1024;
+    const auto etalonData = std::vector<std::uint8_t>(bufSize, 0xFE);
+
+    ThreadExecutor executor;
+    AOContext aoCtx(executor);
+    auto dev = NullDevice::create(aoCtx);
+
+    Event finished;
+    asyncInvoke(aoCtx, [&] {
+        dev->write(etalonData, [&](auto& err, auto n) {
+            EXPECT_TRUE(aoCtx.workInThisThread());
+
+            EXPECT_FALSE(err);
+            EXPECT_EQ(n, bufSize);
+
+            finished.set();
+        });
+    });
+
+    finished.wait();
+}
+
+TEST(IOTest, BitSeqReader)   // NOLINT
+{
+    const auto etalonData = std::vector<std::uint8_t>{
+      0b01101101,
+      0b11011011,
+      0b10110110,
+      0b01101101,
+    };
+
+    ThreadExecutor executor;
+    AOContext aoCtx(executor);
+
+    auto dev = BitSeqReader::create(aoCtx, {true, false, true});
+
+    std::vector<std::uint8_t> buf(4);
+    Event finished;
+    asyncInvoke(aoCtx, [&] {
+        dev->read(buf, [&](auto& err, auto n) {
+            EXPECT_TRUE(aoCtx.workInThisThread());
+            EXPECT_FALSE(err);
+            EXPECT_EQ(buf.size(), n);
+
+            finished.set();
+        });
+    });
+
+    finished.wait();
+    EXPECT_EQ(buf, etalonData);
+}
 
 TEST(IOTest, AsioDeviceWrapper_Read)   // NOLINT
 {
@@ -174,15 +252,17 @@ TEST(IOTest, AsioDeviceWrapper_Read)   // NOLINT
     Event finished;
 
     std::vector<std::uint8_t> buf(bufSize);
-    dev.read(buf, [&](std::error_code err, std::size_t size) {
-        EXPECT_TRUE(aoCtx.workInThisThread());
-        EXPECT_FALSE(err);
-        EXPECT_EQ(size, etalonData.size());
+    asyncInvoke(aoCtx, [&] {
+        dev.read(buf, [&](std::error_code err, std::size_t size) {
+            EXPECT_TRUE(aoCtx.workInThisThread());
+            EXPECT_FALSE(err);
+            EXPECT_EQ(size, etalonData.size());
 
-        const auto data = gsl::span<const std::uint8_t>(buf).first(size);
-        EXPECT_EQ(data, gsl::span(etalonData));
+            const auto data = gsl::span<const std::uint8_t>(buf).first(size);
+            EXPECT_EQ(data, gsl::span(etalonData));
 
-        finished.set();
+            finished.set();
+        });
     });
 
     finished.wait();
@@ -201,13 +281,14 @@ TEST(IOTest, AsioDeviceWrapper_Write)   // NOLINT
                           });
 
     Event finished;
+    asyncInvoke(aoCtx, [&] {
+        dev.write(etalonData, [&](std::error_code err, std::size_t size) {
+            EXPECT_TRUE(aoCtx.workInThisThread());
+            EXPECT_FALSE(err);
+            EXPECT_EQ(size, writeSize);
 
-    dev.write(etalonData, [&](std::error_code err, std::size_t size) {
-        EXPECT_TRUE(aoCtx.workInThisThread());
-        EXPECT_FALSE(err);
-        EXPECT_EQ(size, writeSize);
-
-        finished.set();
+            finished.set();
+        });
     });
 
     finished.wait();
@@ -225,7 +306,10 @@ TEST(IOTest, Read)   // NOLINT
                             AsioStub::CloseOp{},
                           });
 
-    const auto data = nhope::read(dev, bytesCount).get();
+    const auto data = asyncInvoke(aoCtx, [&] {
+                          return read(dev, bytesCount);
+                      }).get();
+
     EXPECT_EQ(data, etalonData);
 }
 
@@ -240,7 +324,47 @@ TEST(IOTest, ReadFailed)   // NOLINT
                             AsioStub::CloseOp{},
                           });
 
-    EXPECT_THROW(nhope::read(dev, bytesCount).get(), std::system_error);   // NOLINT
+    auto future = asyncInvoke(aoCtx, [&] {
+        return read(dev, bytesCount);
+    });
+
+    EXPECT_THROW(future.get(), std::system_error);   // NOLINT
+}
+
+TEST(IOTest, CancelRead)   // NOLINT
+{
+    constexpr auto iterCount = 100;
+    constexpr auto bufSize = 1024;
+    const auto etalonData = std::vector<std::uint8_t>(bufSize);
+
+    ThreadExecutor executor;
+
+    for (auto i = 0; i < iterCount; ++i) {
+        AOContext aoCtx(executor);
+        AOContext ioCtx(aoCtx);
+
+        std::thread([&] {
+            std::this_thread::sleep_for(2ms);
+            ioCtx.close();
+        }).detach();
+
+        auto dev = BitSeqReader ::create(ioCtx, {false});
+
+        while (true) {
+            auto future = asyncInvoke(aoCtx, [&] {
+                return read(*dev, bufSize);
+            });
+
+            try {
+                EXPECT_LE(future.get(), etalonData);
+            } catch (const AsyncOperationWasCancelled&) {
+                break;
+            } catch (...) {
+                FAIL() << "Invalid exception";
+                break;
+            }
+        }
+    }
 }
 
 TEST(IOTest, Write)   // NOLINT
@@ -255,7 +379,10 @@ TEST(IOTest, Write)   // NOLINT
                             AsioStub::CloseOp{},
                           });
 
-    const auto written = write(dev, data).get();
+    const auto written = asyncInvoke(aoCtx, [&] {
+                             return write(dev, data);
+                         }).get();
+
     EXPECT_EQ(writeSize, written);
 }
 
@@ -270,14 +397,54 @@ TEST(IOTest, WriteFailed)   // NOLINT
                             AsioStub::CloseOp{},
                           });
 
-    EXPECT_THROW(write(dev, data).get(), std::system_error);   // NOLINT
+    auto future = asyncInvoke(aoCtx, [&] {
+        return write(dev, data);
+    });
+
+    EXPECT_THROW(future.get(), std::system_error);   // NOLINT
+}
+
+TEST(IOTest, CancelWrite)   // NOLINT
+{
+    constexpr auto iterCount = 100;
+    constexpr auto bufSize = 1024;
+    const auto data = std::vector<std::uint8_t>(bufSize, 0x3);
+
+    ThreadExecutor executor;
+
+    for (auto i = 0; i < iterCount; ++i) {
+        AOContext aoCtx(executor);
+        AOContext ioCtx(aoCtx);
+
+        std::thread([&] {
+            std::this_thread::sleep_for(2ms);
+            ioCtx.close();
+        }).detach();
+
+        auto dev = NullDevice::create(ioCtx);
+
+        while (true) {
+            auto future = asyncInvoke(aoCtx, [&] {
+                return write(*dev, data);
+            });
+
+            try {
+                EXPECT_LE(future.get(), bufSize);
+            } catch (const AsyncOperationWasCancelled&) {
+                break;
+            } catch (...) {
+                FAIL() << "Invalid exception";
+                break;
+            }
+        }
+    }
 }
 
 TEST(IOTest, ReadExactly)   // NOLINT
 {
     const auto firstPart = std::vector<std::uint8_t>(70, 0xFD);
     const auto secondPart = std::vector<std::uint8_t>(70, 0xFE);
-    const auto etalonData = concat(firstPart, secondPart);
+    const auto etalonData = concatContainers(firstPart, secondPart);
 
     ThreadExecutor executor;
     AOContext aoCtx(executor);
@@ -295,7 +462,9 @@ TEST(IOTest, ReadExactly)   // NOLINT
                             AsioStub::CloseOp{},
                           });
 
-    const auto data = nhope::readExactly(dev, 140).get();
+    const auto data = asyncInvoke(aoCtx, [&] {
+                          return readExactly(dev, etalonData.size());
+                      }).get();
     EXPECT_EQ(data, etalonData);
 }
 
@@ -303,7 +472,7 @@ TEST(IOTest, ReadExactlyFailed)   // NOLINT
 {
     const auto firstPart = std::vector<std::uint8_t>(70, 0xFD);
     const auto secondPart = std::vector<std::uint8_t>(70, 0xFE);
-    const auto etalonData = concat(firstPart, secondPart);
+    const auto etalonData = concatContainers(firstPart, secondPart);
 
     ThreadExecutor executor;
     AOContext aoCtx(executor);
@@ -315,15 +484,19 @@ TEST(IOTest, ReadExactlyFailed)   // NOLINT
                             AsioStub::CloseOp{},
                           });
 
+    auto future = asyncInvoke(aoCtx, [&] {
+        return readExactly(dev, etalonData.size());
+    });
+
     // NOLINTNEXTLINE
-    EXPECT_THROW(nhope::readExactly(dev, 140).get(), std::system_error);
+    EXPECT_THROW(future.get(), std::system_error);
 }
 
 TEST(IOTest, WriteExactly)   // NOLINT
 {
     const auto firstPart = std::vector<std::uint8_t>(70, 0xFD);
     const auto secondPart = std::vector<std::uint8_t>(70, 0xFE);
-    const auto data = concat(firstPart, secondPart);
+    const auto data = concatContainers(firstPart, secondPart);
 
     ThreadExecutor executor;
     AOContext aoCtx(executor);
@@ -341,14 +514,18 @@ TEST(IOTest, WriteExactly)   // NOLINT
                             AsioStub::CloseOp{},
                           });
 
-    EXPECT_EQ(nhope::writeExactly(dev, data).get(), data.size());
+    auto future = asyncInvoke(aoCtx, [&] {
+        return writeExactly(dev, data);
+    });
+
+    EXPECT_EQ(future.get(), data.size());
 }
 
 TEST(IOTest, WriteExactlyFailed)   // NOLINT
 {
     const auto firstPart = std::vector<std::uint8_t>(70, 0xFD);
     const auto secondPart = std::vector<std::uint8_t>(70, 0xFE);
-    const auto data = concat(firstPart, secondPart);
+    const auto data = concatContainers(firstPart, secondPart);
 
     ThreadExecutor executor;
     AOContext aoCtx(executor);
@@ -360,12 +537,22 @@ TEST(IOTest, WriteExactlyFailed)   // NOLINT
                             AsioStub::CloseOp{},
                           });
 
+    auto future = asyncInvoke(aoCtx, [&] {
+        return writeExactly(dev, data);
+    });
+
     // NOLINTNEXTLINE
-    EXPECT_THROW(nhope::writeExactly(dev, data).get(), std::system_error);
+    EXPECT_THROW(future.get(), std::system_error);
 }
 
 TEST(IOTest, readLine)   // NOLINT
 {
+    constexpr auto etalonLines = std::array{
+      "1"sv,
+      "23"sv,
+      ""sv,
+    };
+
     ThreadExecutor executor;
     AOContext aoCtx(executor);
 
@@ -391,10 +578,12 @@ TEST(IOTest, readLine)   // NOLINT
           AsioStub::CloseOp{},
     });
 
-    // NOLINTNEXTLINE
-    EXPECT_EQ(nhope::readLine(dev).get(), "1"sv);
-    EXPECT_EQ(nhope::readLine(dev).get(), "23"sv);
-    EXPECT_EQ(nhope::readLine(dev).get(), ""sv);
+    for (const auto& etalonLine : etalonLines) {
+        const auto line = asyncInvoke(aoCtx, [&] {
+                              return readLine(dev);
+                          }).get();
+        EXPECT_EQ(line, etalonLine);
+    }
 }
 
 TEST(IOTest, readFile)   // NOLINT
@@ -402,7 +591,9 @@ TEST(IOTest, readFile)   // NOLINT
     ThreadExecutor executor;
     AOContext aoCtx(executor);
 
-    const auto thisFileData = File::readAll(aoCtx, __FILE__).get();
+    const auto thisFileData = asyncInvoke(aoCtx, [&] {
+                                  return File::readAll(aoCtx, __FILE__);
+                              }).get();
     EXPECT_EQ(thisFileData.size(), std::filesystem::file_size(__FILE__));
 }
 
@@ -411,13 +602,20 @@ TEST(IOTest, writeFile)   // NOLINT
     ThreadExecutor executor;
     AOContext aoCtx(executor);
 
-    const auto thisFileData = File::readAll(aoCtx, __FILE__).get();
+    const auto thisFileData = asyncInvoke(aoCtx, [&] {
+                                  return File::readAll(aoCtx, __FILE__);
+                              }).get();
 
     auto dev = File::open(aoCtx, "temp-file", OpenFileMode::WriteOnly);
-    EXPECT_EQ(writeExactly(*dev, thisFileData).get(), std::filesystem::file_size(__FILE__));   // NOLINT
+    auto future = asyncInvoke(aoCtx, [&] {
+        return writeExactly(*dev, thisFileData);
+    });
+    EXPECT_EQ(future.get(), std::filesystem::file_size(__FILE__));   // NOLINT
     dev.reset();
 
-    const auto tempFileData = File::readAll(aoCtx, "temp-file").get();
+    const auto tempFileData = asyncInvoke(aoCtx, [&] {
+                                  return File::readAll(aoCtx, "temp-file");
+                              }).get();
     EXPECT_EQ(thisFileData, tempFileData);
 }
 
@@ -441,18 +639,24 @@ TEST(IOTest, invalidFileOpenMode)   // NOLINT
 
 TEST(IOTest, tcpReadWrite)   //NOLINT
 {
-    constexpr auto dataSize = 512 * 1024;
+    static constexpr auto dataSize = 512 * 1024;
+    const auto etalonData = std::vector<uint8_t>(dataSize, 1);
 
     test::TcpEchoServer echoServer;
     ThreadExecutor e;
     AOContext aoCtx(e);
 
-    auto conDev = TcpSocket::connect(aoCtx, test::TcpEchoServer::srvAddress, test::TcpEchoServer::srvPort).get();
-
-    std::vector<uint8_t> data(dataSize, 1);
-    EXPECT_EQ(writeExactly(*conDev, data).get(), dataSize);
-    const auto readded = readExactly(*conDev, dataSize).get();
-    EXPECT_EQ(readded, data);
+    auto conn = TcpSocket::connect(aoCtx, test::TcpEchoServer::srvAddress, test::TcpEchoServer::srvPort).get();
+    asyncInvoke(aoCtx, [&] {
+        return writeExactly(*conn, etalonData)
+          .then([&](const std::size_t written) {
+              EXPECT_EQ(written, dataSize);
+              return readExactly(*conn, dataSize);
+          })
+          .then([&](const std::vector<std::uint8_t>& readded) {
+              EXPECT_EQ(readded, etalonData);
+          });
+    }).get();
 }
 
 TEST(IOTest, hostNameResolveFailed)   // NOLINT
@@ -500,4 +704,171 @@ TEST(IOTest, SerialPort_AvailableDevices)   // NOLINT
     for (const auto& portName : ports) {
         EXPECT_TRUE(std::filesystem::exists(portName));
     }
+}
+
+constexpr auto copyPortionSize = 4 * 1024;
+
+TEST(IOTest, Copy)   // NOLINT
+{
+    ThreadExecutor executor;
+    AOContext aoCtx(executor);
+
+    // data: "123456789012345678901234567890"
+    StubDevice src(aoCtx, {
+                            AsioStub::ReadOp{copyPortionSize, "1234567890"sv},   // чтение 1 порции
+                            AsioStub::ReadOp{copyPortionSize, "1234567890"sv},   // чтение 2 порции
+                            AsioStub::ReadOp{copyPortionSize, "1234567890"sv},   // чтение 3 порции
+                            AsioStub::ReadOp{copyPortionSize, ""sv},             // EOF
+                            AsioStub::CloseOp{},
+                          });
+
+    StubDevice dest(aoCtx, {
+                             // Запись 1 порции
+                             AsioStub::WriteOp("1234567890"sv, 10),   // NOLINT
+
+                             // Запись 2 порции
+                             AsioStub::WriteOp("1234567890"sv, 5),   // NOLINT
+                             AsioStub::WriteOp("67890"sv, 5),        // NOLINT
+
+                             // Запись 3 порции
+                             AsioStub::WriteOp("1234567890"sv, 1),   // NOLINT
+                             AsioStub::WriteOp("234567890"sv, 1),    // NOLINT
+                             AsioStub::WriteOp("34567890"sv, 1),     // NOLINT
+                             AsioStub::WriteOp("4567890"sv, 1),      // NOLINT
+                             AsioStub::WriteOp("567890"sv, 1),       // NOLINT
+                             AsioStub::WriteOp("67890"sv, 1),        // NOLINT
+                             AsioStub::WriteOp("7890"sv, 1),         // NOLINT
+                             AsioStub::WriteOp("890"sv, 1),          // NOLINT
+                             AsioStub::WriteOp("90"sv, 1),           // NOLINT
+                             AsioStub::WriteOp("0"sv, 1),            // NOLINT
+
+                             AsioStub::CloseOp{},
+                           });
+
+    const auto size = asyncInvoke(aoCtx, [&] {
+                          return copy(src, dest);
+                      }).get();
+
+    EXPECT_EQ(size, 30);
+}
+
+TEST(IOTest, Copy_ReadFailed)   // NOLINT
+{
+    ThreadExecutor executor;
+    AOContext aoCtx(executor);
+
+    StubDevice src(aoCtx, {
+                            AsioStub::ReadOp{copyPortionSize, "1234567890"sv},   // чтение 1 порции
+                            AsioStub::ReadOp{copyPortionSize, std::errc::io_error},
+                          });
+
+    StubDevice dest(aoCtx, {
+                             // Запись 1 порции
+                             AsioStub::WriteOp("1234567890"sv, 10),   // NOLINT
+                             AsioStub::CloseOp{},
+                           });
+
+    auto future = asyncInvoke(aoCtx, [&] {
+        return copy(src, dest);
+    });
+
+    EXPECT_THROW(future.get(), std::system_error);   // NOLINT
+}
+
+TEST(IOTest, Copy_WriteFailed)   // NOLINT
+{
+    ThreadExecutor executor;
+    AOContext aoCtx(executor);
+
+    StubDevice src(aoCtx, {
+                            AsioStub::ReadOp{copyPortionSize, "1234567890"sv},   // чтение 1 порции
+                            AsioStub::CloseOp{},
+                          });
+
+    StubDevice dest(aoCtx, {
+                             // Запись 1 порции
+                             AsioStub::WriteOp("1234567890"sv, std::errc::io_error),   // NOLINT
+                             AsioStub::CloseOp{},
+                           });
+
+    auto future = asyncInvoke(aoCtx, [&] {
+        return copy(src, dest);
+    });
+
+    EXPECT_THROW(future.get(), std::system_error);   // NOLINT
+}
+
+TEST(IOTest, CancelCopy)   // NOLINT
+{
+    ThreadExecutor executor;
+    AOContext aoCtx(executor);
+    auto dest = NullDevice::create(aoCtx);
+    auto src = BitSeqReader::create(aoCtx, {false});
+
+    auto future = asyncInvoke(aoCtx, [&] {
+        return copy(*src, *dest);
+    });
+
+    std::this_thread::sleep_for(100ms);
+
+    aoCtx.close();
+
+    EXPECT_THROW(future.get(), AsyncOperationWasCancelled);   // NOLINT
+}
+
+TEST(IOTest, StringReader)   // NOLINT
+{
+    constexpr auto etalonData = std::array{
+      "12345"sv,
+      "67890"sv,
+      ""sv,
+    };
+
+    ThreadExecutor executor;
+    AOContext aoCtx(executor);
+
+    auto dev = StringReader::create(aoCtx, "1234567890");
+    for (const auto etalonStr : etalonData) {
+        const auto readdedStr = asyncInvoke(aoCtx, [&] {
+                                    return read(*dev, etalonStr.size());
+                                }).get();
+        EXPECT_TRUE(eq(readdedStr, etalonStr));
+    }
+}
+
+TEST(IOTest, Concat)   // NOLINT
+{
+    constexpr auto etalonData = "1234567890"sv;
+
+    ThreadExecutor executor;
+    AOContext aoCtx(executor);
+
+    auto dev = concat(aoCtx,                                //
+                      StringReader::create(aoCtx, "12"),    //
+                      StringReader::create(aoCtx, "345"),   //
+                      StringReader::create(aoCtx, "67890"));
+
+    const auto readedData = asyncInvoke(aoCtx, [&] {
+                                return readAll(*dev);
+                            }).get();
+
+    EXPECT_TRUE(eq(readedData, etalonData));
+}
+
+TEST(IOTest, Concat_Failed)   // NOLINT
+{
+    constexpr auto etalonData = "1234567890"sv;
+
+    ThreadExecutor executor;
+    AOContext aoCtx(executor);
+
+    auto dev = concat(aoCtx, std::make_unique<StubDevice>(aoCtx, AsioStub::Operations{
+                                                                   AsioStub::ReadOp(1, std::errc::io_error),
+                                                                 }));
+
+    auto future = asyncInvoke(aoCtx, [&] {
+        return read(*dev, 1);
+    });
+
+    EXPECT_THROW(future.get(), std::system_error);   // NOLINT
 }

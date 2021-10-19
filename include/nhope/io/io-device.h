@@ -3,8 +3,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <list>
 #include <memory>
-#include <vector>
 
 #include <gsl/span>
 
@@ -15,25 +15,51 @@ namespace nhope {
 
 class AOContext;
 
-class IODevice : public Noncopyable
+using IOHandler = std::function<void(const std::error_code&, std::size_t)>;
+
+class Reader : public Noncopyable
 {
 public:
-    using Handler = std::function<void(const std::error_code&, std::size_t)>;
+    virtual ~Reader() = default;
 
-    virtual ~IODevice() = default;
-
-    virtual void read(gsl::span<std::uint8_t> buf, Handler handler) = 0;
-    virtual void write(gsl::span<const std::uint8_t> data, Handler handler) = 0;
+    virtual void read(gsl::span<std::uint8_t> buf, IOHandler handler) = 0;
 };
+using ReaderPtr = std::unique_ptr<Reader>;
+
+class Writter : public Noncopyable
+{
+public:
+    virtual ~Writter() = default;
+
+    virtual void write(gsl::span<const std::uint8_t> data, IOHandler handler) = 0;
+};
+using WritterPtr = std::unique_ptr<Writter>;
+
+class IODevice
+  : public Reader
+  , public Writter
+{};
 using IODevicePtr = std::unique_ptr<IODevice>;
 
-Future<std::vector<std::uint8_t>> read(IODevice& dev, std::size_t bytesCount);
-Future<std::size_t> write(IODevice& dev, std::vector<std::uint8_t> data);
+Future<std::vector<std::uint8_t>> read(Reader& dev, std::size_t bytesCount);
+Future<std::size_t> write(Writter& dev, std::vector<std::uint8_t> data);
 
-Future<std::vector<std::uint8_t>> readExactly(IODevice& dev, std::size_t bytesCount);
-Future<std::size_t> writeExactly(IODevice& dev, std::vector<std::uint8_t> data);
+Future<std::vector<std::uint8_t>> readExactly(Reader& dev, std::size_t bytesCount);
+Future<std::size_t> writeExactly(Writter& dev, std::vector<std::uint8_t> data);
 
-Future<std::string> readLine(IODevice& dev);
-Future<std::vector<std::uint8_t>> readAll(IODevice& dev);
+Future<std::string> readLine(Reader& dev);
+Future<std::vector<std::uint8_t>> readAll(Reader& dev);
+
+Future<std::size_t> copy(Reader& src, Writter& dest);
+
+ReaderPtr concat(AOContext& aoCtx, std::list<ReaderPtr> readers);
+
+template<typename... ReaderT>
+ReaderPtr concat(AOContext& aoCtx, std::unique_ptr<ReaderT>... reader)
+{
+    std::list<ReaderPtr> readers;
+    (readers.push_back(std::move(reader)), ...);
+    return concat(aoCtx, std::move(readers));
+}
 
 }   // namespace nhope
