@@ -1,5 +1,8 @@
+#include <algorithm>
+#include <cassert>
 #include <climits>
 #include <cstddef>
+#include <cstdint>
 #include <limits>
 #include <memory>
 #include <system_error>
@@ -58,6 +61,27 @@ private:
 BitSeqReaderPtr BitSeqReader::create(AOContext& aoCtx, std::vector<bool> bits)
 {
     return std::make_unique<BitSeqReaderImpl>(aoCtx, std::move(bits));
+}
+
+BitSeqReaderPtr BitSeqReader::create(AOContext& aoCtx, gsl::span<const uint8_t> psp, size_t bitCount)
+{
+    const auto reserved = psp.size() * std::numeric_limits<uint8_t>::digits;
+
+    assert(bitCount <= reserved);   //NOLINT
+
+    std::vector<bool> temp;
+    temp.reserve(bitCount);
+
+    for (auto byte : psp) {
+        for (int n = 0; n < std::numeric_limits<uint8_t>::digits; ++n) {
+            temp.push_back(((byte >> n) & 1) != 0);
+            if (temp.size() == bitCount) {
+                goto end;
+            }
+        }
+    }
+end:
+    return std::make_unique<BitSeqReaderImpl>(aoCtx, std::move(temp));
 }
 
 }   // namespace nhope
