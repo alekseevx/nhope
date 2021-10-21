@@ -344,11 +344,11 @@ TEST(IOTest, CancelRead)   // NOLINT
         AOContext ioCtx(aoCtx);
 
         std::thread([&] {
-            std::this_thread::sleep_for(2ms);
+            std::this_thread::sleep_for(20ms);
             ioCtx.close();
         }).detach();
 
-        auto dev = BitSeqReader ::create(ioCtx, {false});
+        auto dev = BitSeqReader::create(ioCtx, {false});
 
         while (true) {
             auto future = asyncInvoke(aoCtx, [&] {

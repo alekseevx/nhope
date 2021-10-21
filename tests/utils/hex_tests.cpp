@@ -15,20 +15,12 @@ constexpr auto etalonStr = "a6 e7 d3 b4 6f df af 0b de 2a 1f 83 2a 00 d2 de"sv;
 
 }   // namespace
 
-TEST(Hex, simple)   // NOLINT
-{
-    // 0xa6e7d3b46fdfaf0bde2a1f832a00d2de
-
-    EXPECT_FALSE(isAlpha('0'));
-    EXPECT_FALSE(isDigit('f'));
-    EXPECT_TRUE(isDigit('1'));
-}
-
 TEST(Hex, fromHex)   // NOLINT
 {
     auto hex = fromHex("A6 E7 d3 b4 6f df af 0b de 2a 1f 83 2a 00 d2 de"sv);
     EXPECT_EQ(hex, etalon);
     EXPECT_THROW(fromHex("A6.E7"sv), HexParseError);   //NOLINT
+    EXPECT_THROW(fromHex("A6Z7"sv), HexParseError);    //NOLINT
 }
 
 TEST(Hex, toHex)   // NOLINT
