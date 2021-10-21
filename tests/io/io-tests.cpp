@@ -237,6 +237,34 @@ TEST(IOTest, BitSeqReader)   // NOLINT
     EXPECT_EQ(buf, etalonData);
 }
 
+TEST(IOTest, PspReader)   // NOLINT
+{
+    const auto etalonData = std::vector<std::uint8_t>{
+      0b01101101,
+      0b11011011,
+      0b10110110,
+      0b01101101,
+    };
+
+    ThreadExecutor executor;
+    AOContext aoCtx(executor);
+
+    auto dev = BitSeqReader::create(aoCtx, etalonData, etalonData.size() * 8);
+
+    std::vector<std::uint8_t> buf(etalonData.size());
+    Event finished;
+    asyncInvoke(aoCtx, [&] {
+        dev->read(buf, [&](auto&, auto n) {
+            EXPECT_EQ(buf.size(), n);
+
+            finished.set();
+        });
+    });
+
+    finished.wait();
+    EXPECT_EQ(buf, etalonData);
+}
+
 TEST(IOTest, AsioDeviceWrapper_Read)   // NOLINT
 {
     constexpr std::size_t bufSize = 1024;
