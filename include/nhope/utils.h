@@ -9,3 +9,4 @@
 #include "nhope/utils/noncopyable.h"
 #include "nhope/utils/stack-set.h"
 #include "nhope/utils/type.h"
+#include "nhope/utils/hex.h"
