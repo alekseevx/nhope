@@ -186,3 +186,44 @@ TEST(ManageableTask, Exception)   // NOLINT
     task->waitForStopped();
     EXPECT_THROW(std::rethrow_exception(task->getError()), std::invalid_argument);   //NOLINT
 }
+
+TEST(ManageableTask, InsaneControl)   // NOLINT
+{
+    std::atomic_bool stopped{false};
+    std::atomic<ManageableTaskCtx*> ctx{nullptr};
+    auto task = ManageableTask::start([&](auto& c) {
+        c.setBeforePause([] {
+            std::this_thread::sleep_for(1000ms);
+            return true;
+        });
+        c.setAfterPause([] {
+            std::this_thread::sleep_for(1000ms);
+        });
+
+        ctx = &c;
+        while (!stopped) {
+            c.checkPoint();
+        }
+    });
+
+    ASSERT_EQ(task->state(), ManageableTask::State::Running);
+    std::this_thread::sleep_for(100ms);
+    task->pause();
+    EXPECT_THROW(ctx.load()->checkPoint(), std::runtime_error);   //NOLINT
+    task->resume();
+
+    task->asyncPause();
+    // ASSERT_EQ(task->state(), ManageableTask::State::Pausing);
+    task->resume();
+    task->pause();
+
+    task->asyncResume();
+    // ASSERT_EQ(task->state(), ManageableTask::State::Resuming);
+    task->asyncResume();
+    // ASSERT_EQ(task->state(), ManageableTask::State::Resuming);
+    task->pause();
+
+    task->asyncStop();
+    task->resume();
+    stopped = true;
+}
