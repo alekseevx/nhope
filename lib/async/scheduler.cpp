@@ -338,12 +338,10 @@ private:
     std::list<Promise<void>> m_waitStopPromises;
 
     ThreadExecutor m_executor;
-    AOContext m_ao;
+    mutable AOContext m_ao;
 };
 
-Scheduler::Scheduler()
-  : m_impl(std::make_unique<Scheduler::Impl>())
-{}
+Scheduler::Scheduler() = default;
 
 Scheduler::~Scheduler()
 {

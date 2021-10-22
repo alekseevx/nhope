@@ -7,6 +7,7 @@
 #include <thread>
 
 #include "nhope/async/executor.h"
+#include "nhope/utils/detail/fast-pimpl.h"
 
 namespace nhope {
 
@@ -25,7 +26,8 @@ public:
 
 private:
     struct Impl;
-    std::unique_ptr<Impl> m_d;
+    static constexpr size_t implSize{72};
+    nhope::detail::FastPimpl<Impl, implSize> m_d;
 };
 
 }   // namespace nhope

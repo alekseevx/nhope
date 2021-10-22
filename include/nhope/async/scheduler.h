@@ -7,6 +7,7 @@
 
 #include <nhope/async/manageable-task.h>
 #include <nhope/utils/noncopyable.h>
+#include "nhope/utils/detail/fast-pimpl.h"
 
 namespace nhope {
 
@@ -59,7 +60,8 @@ public:
 
 private:
     class Impl;
-    std::unique_ptr<Impl> m_impl;
+    static constexpr size_t implSize{176};
+    detail::FastPimpl<Impl, implSize> m_impl;
 };
 
 }   // namespace nhope
