@@ -55,7 +55,7 @@ struct ThreadPoolExecutor::Impl final
 };
 
 ThreadPoolExecutor::ThreadPoolExecutor(std::size_t threadCount, const std::string& name)
-  : m_d(std::make_unique<Impl>(threadCount, name))
+  : m_d(threadCount, name)
 {}
 
 ThreadPoolExecutor::~ThreadPoolExecutor() = default;

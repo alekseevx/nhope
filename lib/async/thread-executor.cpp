@@ -45,7 +45,7 @@ struct ThreadExecutor::Impl final
 };
 
 ThreadExecutor::ThreadExecutor(const std::string& name)
-  : m_d(std::make_unique<Impl>(name))
+  : m_d(name)
 {}
 
 ThreadExecutor::~ThreadExecutor() = default;
