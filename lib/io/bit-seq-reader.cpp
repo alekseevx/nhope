@@ -19,8 +19,8 @@ class BitSeqReaderImpl final : public BitSeqReader
 {
 public:
     BitSeqReaderImpl(AOContext& parent, std::vector<bool> bits)
-      : m_aoCtx(parent)
-      , m_bits(std::move(bits))
+      : m_bits(std::move(bits))
+      , m_aoCtx(parent)
     {}
 
     ~BitSeqReaderImpl() override
