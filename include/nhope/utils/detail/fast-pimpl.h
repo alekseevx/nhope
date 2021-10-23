@@ -10,6 +10,9 @@ template<class T, size_t Size, size_t Alignment = defaultAlign>
 class FastPimpl final
 {
 public:
+    static constexpr size_t size = Size;
+    static constexpr size_t alignmentSize = Alignment;
+
     template<typename... Args>
     explicit FastPimpl(Args&&... args)
     {
@@ -77,5 +80,11 @@ private:
 
     mutable std::aligned_storage_t<Size, Alignment> m_data;
 };
+
+template<typename T, typename... Args>
+inline FastPimpl<T, sizeof(T), alignof(T)> makeFastPimpl(Args&&... args)
+{
+    return FastPimpl<T, sizeof(T), alignof(T)>(std::forward<Args>(args)...);
+}
 
 }   // namespace nhope::detail
