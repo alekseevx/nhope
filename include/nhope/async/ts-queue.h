@@ -58,11 +58,7 @@ public:
             return m_closed || m_values.size() < m_capacity;
         });
 
-        if (!waitSuccess) {
-            return false;
-        }
-
-        if (m_closed) {
+        if (!waitSuccess || m_closed) {
             return false;
         }
 
@@ -114,11 +110,7 @@ public:
             return m_closed || !m_values.empty();
         });
 
-        if (!waitSuccess) {
-            return false;
-        }
-
-        if (m_values.empty()) {
+        if (!waitSuccess || m_values.empty()) {
             return false;
         }
 

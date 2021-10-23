@@ -12,6 +12,7 @@
 #include "nhope/async/event.h"
 #include "nhope/async/future.h"
 #include "nhope/async/thread-executor.h"
+#include "nhope/async/timer.h"
 #include "test-helpers/wait.h"
 
 namespace {
@@ -122,6 +123,10 @@ TEST(Future, noState)   // NOLINT
         auto executor = ThreadExecutor();
         auto aoCtx = AOContext(executor);
         auto f = makeReadyFuture();
+
+        Future<void> noState;
+        EXPECT_THROW(noState.wait(), FutureNoStateError);                                //NOLINT
+        EXPECT_THROW(setTimeout(aoCtx, Future<void>(), 1s).get(), FutureNoStateError);   //NOLINT
 
         EXPECT_TRUE(f.isValid());
         EXPECT_TRUE(f.isReady());
