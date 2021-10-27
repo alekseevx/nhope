@@ -245,7 +245,9 @@ private:
     void startRead(gsl::span<std::uint8_t> buf, IOHandler handler)
     {
         if (m_readers.empty()) {
-            handler(std::error_code(), 0);
+            m_aoCtx.exec([handler = std::move(handler)] {
+                handler(std::error_code(), 0);
+            });
             return;
         }
 
