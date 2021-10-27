@@ -30,6 +30,7 @@
 #include "nhope/io/file.h"
 #include "nhope/io/io-device.h"
 #include "nhope/io/null-device.h"
+#include "nhope/io/pushback-reader.h"
 #include "nhope/io/serial-port.h"
 #include "nhope/io/string-reader.h"
 #include "nhope/io/tcp.h"
@@ -899,4 +900,56 @@ TEST(IOTest, Concat_Failed)   // NOLINT
     });
 
     EXPECT_THROW(future.get(), std::system_error);   // NOLINT
+}
+
+TEST(IOTest, PushbackReader)   // NOLINT
+{
+    constexpr auto etalonData = "1234567890"sv;
+
+    ThreadExecutor executor;
+    AOContext aoCtx(executor);
+
+    auto stringReader = StringReader::create(aoCtx, std::string(etalonData));
+    auto pushbackReader = PushbackReader::create(aoCtx, std::move(stringReader));
+
+    const auto d1 = invoke(aoCtx, [&] {
+        return read(*pushbackReader, 4);
+    });
+    EXPECT_TRUE(eq(d1, etalonData.substr(0, 4)));
+
+    constexpr auto part = std::array{static_cast<std::uint8_t>('1'), static_cast<std::uint8_t>('2')};
+
+    invoke(aoCtx, [&] {
+        pushbackReader->unread(std::array{static_cast<std::uint8_t>('3'), static_cast<std::uint8_t>('4')});
+        pushbackReader->unread(part);
+    });
+    const auto res = nhope::read(*pushbackReader, 2).get();
+    EXPECT_TRUE(eq(res, "12"sv));
+    pushbackReader->unread(part);
+
+    const auto d2 = invoke(aoCtx, [&] {
+        return readAll(*pushbackReader);
+    });
+    EXPECT_TRUE(eq(d2, etalonData));
+}
+
+TEST(IOTest, PushbackReader_FailRead)   // NOLINT
+{
+    ThreadExecutor executor;
+    AOContext aoCtx(executor);
+
+    auto dev = std::make_unique<StubDevice>(aoCtx, AsioStub::Operations{
+                                                     AsioStub::ReadOp{2, std::errc::io_error},
+                                                     AsioStub::CloseOp{},
+                                                   });
+    auto pushbackReader = PushbackReader::create(aoCtx, std::move(dev));
+    std::array<uint8_t, 2> buf{};
+
+    Event retrived;
+    pushbackReader->read(buf, [&](const std::error_code& e, std::size_t c) {
+        EXPECT_EQ(c, 0);
+        EXPECT_EQ(e, std::errc::io_error);
+        retrived.set();
+    });
+    retrived.wait();
 }
