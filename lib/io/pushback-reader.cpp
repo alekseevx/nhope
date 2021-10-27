@@ -17,60 +17,52 @@ namespace {
 class PushBackReaderImpl final : public PushbackReader
 {
 public:
-    explicit PushBackReaderImpl(AOContext& aoCtx, ReaderPtr reader)
+    explicit PushBackReaderImpl(AOContext& parent, ReaderPtr reader)
       : m_reader(std::move(reader))
-      , m_ctx(aoCtx)
+      , m_aoCtx(parent)
     {}
+
+    ~PushBackReaderImpl() final
+    {
+        m_aoCtx.close();
+    }
 
     void read(gsl::span<std::uint8_t> buf, IOHandler handler) final
     {
-        m_ctx.exec([this, buf, handler = std::move(handler)]() mutable {
-            startRead(buf, std::move(handler));
-        });
+        this->startRead(buf, std::move(handler));
     }
 
     void unread(gsl::span<const std::uint8_t> bytes) final
     {
-        m_ctx.exec(
-          [this, bytes = std::vector(bytes.begin(), bytes.end())]() mutable {
-              m_buf.insert(m_buf.end(), bytes.rbegin(), bytes.rend());
-          },
-          Executor::ExecMode::ImmediatelyIfPossible);
+        m_unreadBuf.insert(m_unreadBuf.end(), bytes.rbegin(), bytes.rend());
     }
 
 private:
     void startRead(gsl::span<std::uint8_t> outBuf, IOHandler handler)
     {
         const auto askSize = outBuf.size();
-        const auto currentBufferSize = m_buf.size();
+        const auto currentBufferSize = m_unreadBuf.size();
 
         const auto readyBufferSize = std::min(currentBufferSize, askSize);
         if (readyBufferSize != 0) {
-            const auto bufSpan = gsl::span(m_buf).last(readyBufferSize);
+            const auto bufSpan = gsl::span(m_unreadBuf).last(readyBufferSize);
             std::copy(bufSpan.rbegin(), bufSpan.rend(), outBuf.begin());
-            m_buf.resize(currentBufferSize - (readyBufferSize));
+            m_unreadBuf.resize(currentBufferSize - readyBufferSize);
         }
+
         const auto leftReadChunk = askSize - readyBufferSize;
         if (leftReadChunk == 0) {
-            handler(std::error_code(), askSize);
+            m_aoCtx.exec([askSize, handler = std::move(handler)] {
+                handler(std::error_code(), askSize);
+            });
             return;
         }
 
         auto next = outBuf.subspan(readyBufferSize);
-        m_reader->read(next, [this, aoCtx = AOContextRef(m_ctx), alreadyRead = readyBufferSize,
+        m_reader->read(next, [this, aoCtx = AOContextRef(m_aoCtx), alreadyRead = readyBufferSize,
                               handler = std::move(handler)](auto err, auto size) mutable {
             aoCtx.exec(
               [this, err, size, alreadyRead, handler = std::move(handler)] {
-                  if (err) {
-                      handler(err, alreadyRead + size);
-                      return;
-                  }
-
-                  if (size == 0) {
-                      handler(std::error_code(), alreadyRead);
-                      return;
-                  }
-
                   handler(err, alreadyRead + size);
               },
               Executor::ExecMode::ImmediatelyIfPossible);
@@ -78,8 +70,8 @@ private:
     }
 
     ReaderPtr m_reader;
-    std::vector<uint8_t> m_buf;
-    AOContext m_ctx;
+    std::vector<uint8_t> m_unreadBuf;
+    AOContext m_aoCtx;
 };
 
 }   // namespace
