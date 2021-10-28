@@ -31,16 +31,19 @@ static_assert(decoded.size() == encoded.size());
 TEST(Base64, decode)   // NOLINT
 {
     for (std::size_t i = 0; i < encoded.size(); ++i) {
-        const auto data = fromBase64(encoded.at(i));
+        const auto data = fromBase64(encoded.at(i), false);
         const auto strData = std::string(data.begin(), data.end());
         EXPECT_EQ(strData, decoded.at(i));
     }
+
+    EXPECT_EQ(fromBase64("PHA+SGVsbG8\n/PC\r9wP g\t==", true), fromBase64("PHA+SGVsbG8/PC9wPg=="sv, false));
 }
 
 TEST(Base64, decode_fail)   // NOLINT
 {
-    EXPECT_THROW(fromBase64("MQ"), Base64ParseError);     // NOLINT
-    EXPECT_THROW(fromBase64("MQ!="), Base64ParseError);   // NOLINT
+    EXPECT_THROW(fromBase64("MQ"), Base64ParseError);             // NOLINT
+    EXPECT_THROW(fromBase64("MQ!="), Base64ParseError);           // NOLINT
+    EXPECT_THROW(fromBase64("MQ ==", false), Base64ParseError);   // NOLINT
 }
 
 TEST(Base64, encode)   // NOLINT
