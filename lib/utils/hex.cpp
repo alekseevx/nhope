@@ -4,6 +4,7 @@
 #include "fmt/format.h"
 
 #include "nhope/utils/hex.h"
+#include "nhope/utils/string-utils.h"
 
 namespace nhope {
 
@@ -43,17 +44,6 @@ uint8_t hexToByte(const char v)
 }
 
 }   // namespace
-
-std::string removeWhitespaces(std::string_view s)
-{
-    std::string result;
-    for (char i : s) {
-        if (isspace(static_cast<unsigned char>(i)) == 0) {
-            result += i;
-        }
-    }
-    return result;
-}
 
 std::vector<uint8_t> fromHex(std::string_view hex)
 {

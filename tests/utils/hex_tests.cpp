@@ -2,6 +2,7 @@
 #include <gtest/gtest.h>
 
 #include <nhope/utils/hex.h>
+#include "nhope/utils/string-utils.h"
 
 using namespace std::literals;
 using namespace nhope;
