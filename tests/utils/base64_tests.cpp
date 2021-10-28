@@ -1,3 +1,5 @@
+#include <array>
+#include <cstddef>
 #include <cstdint>
 #include <limits>
 #include <string>
@@ -14,32 +16,52 @@ namespace {
 using namespace std::literals;
 using namespace nhope;
 
-const auto testEncoded = "PHA+SGVsbG8/PC9wPg=="s;
-const auto testDecoded = "<p>Hello?</p>"s;
+constexpr auto decoded = std::array{
+  ""sv, "1"sv, "12"sv, "123"sv, "1234"sv, "<p>Hello?</p>"sv,
+};
+
+constexpr auto encoded = std::array{
+  ""sv, "MQ=="sv, "MTI="sv, "MTIz"sv, "MTIzNA=="sv, "PHA+SGVsbG8/PC9wPg=="sv,
+};
+
+static_assert(decoded.size() == encoded.size());
 
 }   // namespace
 
 TEST(Base64, decode)   // NOLINT
 {
-    const auto decoded = fromBase64(testEncoded);
-    EXPECT_EQ(std::string(decoded.begin(), decoded.end()), testDecoded);
+    for (std::size_t i = 0; i < encoded.size(); ++i) {
+        const auto data = fromBase64(encoded.at(i));
+        const auto strData = std::string(data.begin(), data.end());
+        EXPECT_EQ(strData, decoded.at(i));
+    }
+}
 
-    EXPECT_TRUE(fromBase64("$"sv).empty());
+TEST(Base64, decode_fail)   // NOLINT
+{
+    EXPECT_THROW(fromBase64("MQ"), Base64ParseError);     // NOLINT
+    EXPECT_THROW(fromBase64("MQ!="), Base64ParseError);   // NOLINT
 }
 
 TEST(Base64, encode)   // NOLINT
 {
-    gsl::span<const uint8_t> dx((uint8_t*)testDecoded.data(), testDecoded.size());
-    const auto encoded = toBase64(dx);
-    EXPECT_EQ(encoded, testEncoded);
-
-    EXPECT_TRUE(toBase64({}).empty());
-
-    constexpr auto bigSize{4096};
-    std::vector<uint8_t> buf(bigSize);
-    for (size_t i = 0; i < bigSize; ++i) {
-        buf[i] = i % std::numeric_limits<uint8_t>::max();
+    for (std::size_t i = 0; i < decoded.size(); ++i) {
+        const auto& data = decoded.at(i);
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+        const auto base64 = toBase64({reinterpret_cast<const std::uint8_t*>(data.data()), data.size()});
+        EXPECT_EQ(base64, encoded.at(i));
     }
-    const auto data = toBase64(buf);
-    EXPECT_GT(data.size(), bigSize);
+}
+
+TEST(Base64, bigdata)   // NOLINT
+{
+    constexpr auto bigSize{4096};
+    auto data = std::vector<std::uint8_t>(bigSize);
+    for (std::size_t i = 0; i < bigSize; ++i) {
+        data[i] = static_cast<std::uint8_t>(i);
+    }
+    const auto base64 = toBase64(data);
+    EXPECT_GT(base64.size(), data.size());
+
+    EXPECT_EQ(data, fromBase64(base64));
 }
