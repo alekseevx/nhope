@@ -4,8 +4,6 @@
 #include <string_view>
 #include <vector>
 
-#include "fmt/format.h"
-
 namespace nhope {
 
 std::string removeWhitespaces(std::string_view s);

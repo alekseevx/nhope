@@ -1,16 +1,15 @@
+#include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
 #include <exception>
 #include <list>
 #include <memory>
+#include <span>
 #include <string>
 #include <system_error>
 #include <utility>
 #include <vector>
-
-#include <gsl/span>
-#include <gsl/span_ext>
 
 #include "nhope/async/ao-context-error.h"
 #include "nhope/async/ao-context.h"
@@ -57,7 +56,7 @@ private:
         }
 
         m_buf.resize(m_buf.size() + m_portionSize);
-        auto bufForNextPortion = gsl::span(m_buf).last(m_portionSize);
+        auto bufForNextPortion = std::span(m_buf).last(m_portionSize);
         m_dev.read(bufForNextPortion, [self = shared_from_this()](auto err, auto count) {
             self->readPortionHandler(std::move(err), count);
         });
@@ -120,7 +119,7 @@ public:
 private:
     void writeNextPortion()
     {
-        const auto portion = gsl::span(m_data).subspan(m_written);
+        const auto portion = std::span(m_data).subspan(m_written);
         m_dev.write(portion, [self = shared_from_this()](auto err, auto count) {
             self->writePortionHandler(err, count);
         });
@@ -194,7 +193,7 @@ private:
     {
         assert(offset + size <= m_buf.size());   // NOLINT
 
-        auto portion = gsl::span(m_buf).subspan(offset, size);
+        auto portion = std::span(m_buf).subspan(offset, size);
         m_dest.write(portion, [offset, size, self = shared_from_this()](auto err, auto count) {
             assert(count <= size);   // NOLINT
 
@@ -237,13 +236,13 @@ public:
         m_aoCtx.close();
     }
 
-    void read(gsl::span<std::uint8_t> buf, IOHandler handler) override
+    void read(std::span<std::uint8_t> buf, IOHandler handler) override
     {
         this->startRead(buf, std::move(handler));
     }
 
 private:
-    void startRead(gsl::span<std::uint8_t> buf, IOHandler handler)
+    void startRead(std::span<std::uint8_t> buf, IOHandler handler)
     {
         if (m_readers.empty()) {
             m_aoCtx.exec([handler = std::move(handler)] {
@@ -278,20 +277,21 @@ private:
     std::list<ReaderPtr> m_readers;
 };
 
+constexpr auto endLineMarker = std::array{
 #ifdef WIN32
-constexpr std::array<std::uint8_t, 2> endLineMarker = {static_cast<std::uint8_t>('\r'),
-                                                       static_cast<std::uint8_t>('\n')};
-#else
-constexpr std::array<std::uint8_t, 1> endLineMarker = {static_cast<std::uint8_t>('\n')};
+  static_cast<std::uint8_t>('\r'),
 #endif
+  static_cast<std::uint8_t>('\n'),
+};
 
-bool hasEndLineMarker(gsl::span<const std::uint8_t> data)
+bool hasEndLineMarker(std::span<const std::uint8_t> data)
 {
     if (data.size() < endLineMarker.size()) {
         return false;
     }
 
-    return data.last(endLineMarker.size()) == gsl::span(endLineMarker);
+    const auto endLine = data.last<endLineMarker.size()>();
+    return std::equal(endLineMarker.begin(), endLineMarker.end(), endLine.begin());
 }
 
 }   // namespace

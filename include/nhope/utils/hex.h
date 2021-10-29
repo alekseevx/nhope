@@ -2,12 +2,11 @@
 
 #include <array>
 #include <cstdint>
+#include <span>
 #include <stdexcept>
-#include <string>
 #include <string_view>
+#include <string>
 #include <vector>
-
-#include <gsl/span>
 
 namespace nhope {
 
@@ -19,6 +18,6 @@ public:
 
 std::uint8_t fromHex(char hi, char lo);
 std::vector<uint8_t> fromHex(std::string_view hex);
-std::string toHex(gsl::span<const uint8_t> bytes);
+std::string toHex(std::span<const uint8_t> bytes);
 
 }   // namespace nhope

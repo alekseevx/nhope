@@ -4,15 +4,13 @@
 
 #include <gtest/gtest.h>
 
-#include "gsl/span"
-
 #include "nhope/seq/fifo.h"
 #include "nhope/utils/noncopyable.h"
 
 namespace {
 
 using namespace nhope;
-using namespace gsl;
+using std::span;
 constexpr auto etalonData = std::array{1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
 
 }   // namespace

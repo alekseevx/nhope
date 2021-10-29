@@ -1,8 +1,7 @@
 #include <algorithm>
 #include <cstdint>
+#include <span>
 #include <vector>
-
-#include <gsl/span>
 
 #include "nhope/async/ao-context.h"
 #include "nhope/async/executor.h"
@@ -26,25 +25,25 @@ public:
         m_aoCtx.close();
     }
 
-    void read(gsl::span<std::uint8_t> buf, IOHandler handler) final
+    void read(std::span<std::uint8_t> buf, IOHandler handler) final
     {
         this->startRead(buf, std::move(handler));
     }
 
-    void unread(gsl::span<const std::uint8_t> bytes) final
+    void unread(std::span<const std::uint8_t> bytes) final
     {
         m_unreadBuf.insert(m_unreadBuf.end(), bytes.rbegin(), bytes.rend());
     }
 
 private:
-    void startRead(gsl::span<std::uint8_t> outBuf, IOHandler handler)
+    void startRead(std::span<std::uint8_t> outBuf, IOHandler handler)
     {
         const auto askSize = outBuf.size();
         const auto currentBufferSize = m_unreadBuf.size();
 
         const auto readyBufferSize = std::min(currentBufferSize, askSize);
         if (readyBufferSize != 0) {
-            const auto bufSpan = gsl::span(m_unreadBuf).last(readyBufferSize);
+            const auto bufSpan = std::span(m_unreadBuf).last(readyBufferSize);
             std::copy(bufSpan.rbegin(), bufSpan.rend(), outBuf.begin());
             m_unreadBuf.resize(currentBufferSize - readyBufferSize);
         }
@@ -81,12 +80,12 @@ public:
       , m_pushbackReader(parent, *m_originReader)
     {}
 
-    void read(gsl::span<std::uint8_t> buf, IOHandler handler) final
+    void read(std::span<std::uint8_t> buf, IOHandler handler) final
     {
         m_pushbackReader.read(buf, std::move(handler));
     }
 
-    void unread(gsl::span<const std::uint8_t> bytes) final
+    void unread(std::span<const std::uint8_t> bytes) final
     {
         m_pushbackReader.unread(bytes);
     }

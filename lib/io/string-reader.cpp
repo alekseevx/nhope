@@ -1,11 +1,10 @@
 #include <cstddef>
 #include <cstring>
 #include <memory>
+#include <span>
 #include <string>
 #include <system_error>
 #include <utility>
-
-#include <gsl/span>
 
 #include "nhope/async/ao-context.h"
 #include "nhope/io/string-reader.h"
@@ -27,10 +26,10 @@ public:
         m_aoCtx.close();
     }
 
-    void read(gsl::span<std::uint8_t> buf, IOHandler handler) override
+    void read(std::span<std::uint8_t> buf, IOHandler handler) override
     {
         m_aoCtx.exec([this, buf, handler = std::move(handler)] {
-            const auto tail = gsl::span(m_str).subspan(m_pos);
+            const auto tail = std::span(m_str).subspan(m_pos);
             const auto n = std::min(tail.size(), buf.size());
             if (n == 0) {
                 handler(nullptr, 0);

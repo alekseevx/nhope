@@ -2,14 +2,13 @@
 
 #include <array>
 #include <cstdint>
+#include <span>
 
-#include <gsl/span>
-
-#include <nhope/utils/bits.h>
+#include "nhope/utils/bits.h"
 
 namespace nhope {
 
-inline constexpr void toBytes(std::uint16_t val, gsl::span<std::uint8_t, 2> bytes, Endian byteOrder)
+inline constexpr void toBytes(std::uint16_t val, std::span<std::uint8_t, 2> bytes, Endian byteOrder)
 {
     switch (byteOrder) {
     case Endian::Little:
@@ -24,7 +23,7 @@ inline constexpr void toBytes(std::uint16_t val, gsl::span<std::uint8_t, 2> byte
     }
 }
 
-inline constexpr void toBytes(std::uint32_t val, gsl::span<std::uint8_t, 4> bytes, Endian byteOrder)
+inline constexpr void toBytes(std::uint32_t val, std::span<std::uint8_t, 4> bytes, Endian byteOrder)
 {
     switch (byteOrder) {
     case Endian::Little:
@@ -44,7 +43,7 @@ inline constexpr void toBytes(std::uint32_t val, gsl::span<std::uint8_t, 4> byte
 }
 
 // NOLINTNEXTLINE(readability-magic-numbers)
-inline constexpr void toBytes(std::uint64_t val, gsl::span<std::uint8_t, 8> bytes, Endian byteOrder)
+inline constexpr void toBytes(std::uint64_t val, std::span<std::uint8_t, 8> bytes, Endian byteOrder)
 {
     switch (byteOrder) {
     case Endian::Little:
@@ -79,7 +78,7 @@ constexpr auto toBytes(Int val, Endian byteOrder)
     return bytes;
 }
 
-inline constexpr void fromBytes(std::uint16_t& var, gsl::span<const std::uint8_t, 2> bytes, Endian byteOrder)
+inline constexpr void fromBytes(std::uint16_t& var, std::span<const std::uint8_t, 2> bytes, Endian byteOrder)
 {
     switch (byteOrder) {
     case Endian::Little:
@@ -96,7 +95,7 @@ inline constexpr void fromBytes(std::uint16_t& var, gsl::span<const std::uint8_t
     }
 }
 
-inline constexpr void fromBytes(std::uint32_t& var, gsl::span<const std::uint8_t, 4> bytes, Endian byteOrder)
+inline constexpr void fromBytes(std::uint32_t& var, std::span<const std::uint8_t, 4> bytes, Endian byteOrder)
 {
     switch (byteOrder) {
     case Endian::Little:
@@ -118,7 +117,7 @@ inline constexpr void fromBytes(std::uint32_t& var, gsl::span<const std::uint8_t
 }
 
 // NOLINTNEXTLINE(readability-magic-numbers)
-inline constexpr void fromBytes(std::uint64_t& var, gsl::span<const std::uint8_t, 8> bytes, Endian byteOrder)
+inline constexpr void fromBytes(std::uint64_t& var, std::span<const std::uint8_t, 8> bytes, Endian byteOrder)
 {
     switch (byteOrder) {
     case Endian::Little:
@@ -146,7 +145,7 @@ inline constexpr void fromBytes(std::uint64_t& var, gsl::span<const std::uint8_t
 }
 
 template<typename Int>
-constexpr Int fromBytes(gsl::span<const std::uint8_t> bytes, Endian byteOrder)
+constexpr Int fromBytes(std::span<const std::uint8_t> bytes, Endian byteOrder)
 {
     Int retval{};
     fromBytes(retval, bytes.first<sizeof(Int)>(), byteOrder);

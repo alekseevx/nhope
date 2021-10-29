@@ -1,10 +1,10 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
+#include <span>
 #include <string>
 
 #include "fmt/format.h"
-#include "gsl/span"
 
 #include "nhope/utils/base64.h"
 #include "nhope/utils/string-utils.h"
@@ -97,7 +97,7 @@ std::vector<std::uint8_t> fromBase64(std::string_view str, bool skipSpaces)
     return fromBase64Impl(str);
 }
 
-std::string toBase64(gsl::span<const std::uint8_t> plainSeq)
+std::string toBase64(std::span<const std::uint8_t> plainSeq)
 {
     constexpr auto table = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
                            "abcdefghijklmnopqrstuvwxyz"

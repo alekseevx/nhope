@@ -6,8 +6,7 @@
 #include <functional>
 #include <list>
 #include <memory>
-
-#include <gsl/span>
+#include <span>
 
 #include "nhope/async/future.h"
 #include "nhope/utils/noncopyable.h"
@@ -23,7 +22,7 @@ class Reader : public Noncopyable
 public:
     virtual ~Reader() = default;
 
-    virtual void read(gsl::span<std::uint8_t> buf, IOHandler handler) = 0;
+    virtual void read(std::span<std::uint8_t> buf, IOHandler handler) = 0;
 };
 using ReaderPtr = std::unique_ptr<Reader>;
 
@@ -32,7 +31,7 @@ class Writter : public Noncopyable
 public:
     virtual ~Writter() = default;
 
-    virtual void write(gsl::span<const std::uint8_t> data, IOHandler handler) = 0;
+    virtual void write(std::span<const std::uint8_t> data, IOHandler handler) = 0;
 };
 using WritterPtr = std::unique_ptr<Writter>;
 

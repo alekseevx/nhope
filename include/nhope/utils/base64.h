@@ -1,11 +1,10 @@
 #pragma once
 
 #include <cstdint>
-#include <string>
+#include <span>
 #include <string_view>
+#include <string>
 #include <vector>
-
-#include "gsl/span"
 
 namespace nhope {
 
@@ -16,6 +15,6 @@ public:
 };
 
 std::vector<std::uint8_t> fromBase64(std::string_view str, bool skipSpaces = true);
-std::string toBase64(gsl::span<const std::uint8_t> plainSeq);
+std::string toBase64(std::span<const std::uint8_t> plainSeq);
 
 }   // namespace nhope

@@ -67,7 +67,7 @@ public:
         }
     }
 
-    void read(gsl::span<std::uint8_t> buf, IOHandler handler) override
+    void read(std::span<std::uint8_t> buf, IOHandler handler) override
     {
         asyncInvoke(m_ioCtx, [this, buf] {
             const auto n = std::fread(buf.data(), 1, buf.size(), m_file);
@@ -77,7 +77,7 @@ public:
         });
     }
 
-    void write(gsl::span<const std::uint8_t> data, IOHandler handler) override
+    void write(std::span<const std::uint8_t> data, IOHandler handler) override
     {
         asyncInvoke(m_ioCtx, [this, data] {
             const auto n = std::fwrite(data.data(), 1, data.size(), m_file);

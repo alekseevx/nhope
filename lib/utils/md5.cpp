@@ -5,19 +5,18 @@
 #include <cstdint>
 #include <cstring>
 #include <fstream>
-
-#include <fmt/format.h>
-#include <gsl/span>
-
 #include <ios>
 #include <istream>
+#include <span>
 #include <stdexcept>
-#include <string>
 #include <string_view>
+#include <string>
 #include <system_error>
 
-#include <nhope/utils/bytes.h>
-#include <nhope/utils/md5.h>
+#include <fmt/format.h>
+
+#include "nhope/utils/bytes.h"
+#include "nhope/utils/md5.h"
 
 namespace {
 
@@ -105,18 +104,18 @@ constexpr void ii(std::uint32_t& a, std::uint32_t b, std::uint32_t c, std::uint3
 }
 
 // NOLINTNEXTLINE(readability-magic-numbers)
-constexpr void encode(gsl::span<std::uint8_t, 8> output, std::uint64_t input)
+constexpr void encode(std::span<std::uint8_t, 8> output, std::uint64_t input)
 {
     nhope::toBytes(input, output, nhope::Endian::Little);
 }
 
-constexpr void encode(gsl::span<std::uint8_t, 4> output, gsl::span<const std::uint32_t, 1> input)
+constexpr void encode(std::span<std::uint8_t, 4> output, std::span<const std::uint32_t, 1> input)
 {
     nhope::toBytes(input[0], output, nhope::Endian::Little);
 }
 
 template<std::size_t N, std::size_t M>
-constexpr void encode(gsl::span<std::uint8_t, N> output, gsl::span<const std::uint32_t, M> input)
+constexpr void encode(std::span<std::uint8_t, N> output, std::span<const std::uint32_t, M> input)
 {
     static_assert(output.size_bytes() == input.size_bytes());
 
@@ -124,13 +123,13 @@ constexpr void encode(gsl::span<std::uint8_t, N> output, gsl::span<const std::ui
     encode(output.template last<N - 4>(), input.template last<M - 1>());
 }
 
-constexpr void decode(gsl::span<std::uint32_t, 1> output, gsl::span<const std::uint8_t, 4> input)
+constexpr void decode(std::span<std::uint32_t, 1> output, std::span<const std::uint8_t, 4> input)
 {
     nhope::fromBytes(output[0], input, nhope::Endian::Little);
 }
 
 template<std::size_t N, std::size_t M>
-constexpr void decode(gsl::span<std::uint32_t, N> output, gsl::span<const std::uint8_t, M> input)
+constexpr void decode(std::span<std::uint32_t, N> output, std::span<const std::uint8_t, M> input)
 {
     static_assert(output.size_bytes() == input.size_bytes());
 
@@ -138,7 +137,7 @@ constexpr void decode(gsl::span<std::uint32_t, N> output, gsl::span<const std::u
     decode(output.template last<N - 1>(), input.template last<M - 4>());
 }
 
-constexpr void transform(gsl::span<std::uint32_t, 4> state, gsl::span<const std::uint8_t, MD5::blockSize> block)
+constexpr void transform(std::span<std::uint32_t, 4> state, std::span<const std::uint8_t, MD5::blockSize> block)
 {
     std::uint32_t a = state[0];
     std::uint32_t b = state[1];
@@ -146,7 +145,7 @@ constexpr void transform(gsl::span<std::uint32_t, 4> state, gsl::span<const std:
     std::uint32_t d = state[3];
     std::array<std::uint32_t, 16> x{};   // NOLINT(readability-magic-numbers)
 
-    decode(gsl::span(x), block);
+    decode(std::span(x), block);
 
     /* Round 1 */
     ff(a, b, c, d, x[0], s11, 0xd76aa478); /* 1 */     // NOLINT(readability-magic-numbers)
@@ -231,7 +230,7 @@ constexpr void transform(gsl::span<std::uint32_t, 4> state, gsl::span<const std:
     state[3] += d;
 }
 
-std::size_t read(std::istream& stream, gsl::span<std::uint8_t> buf)
+std::size_t read(std::istream& stream, std::span<std::uint8_t> buf)
 {
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
     stream.read(reinterpret_cast<char*>(buf.data()), static_cast<std::streamsize>(buf.size()));
@@ -270,7 +269,7 @@ MD5::Digest MD5::digest()
     /* Pad out to 56 mod 64. */
     auto index = static_cast<std::size_t>((m_context.count >> 3) & 0x3f);   // NOLINT(readability-magic-numbers)
     auto padLen = (index < 56) ? (56 - index) : (120 - index);              // NOLINT(readability-magic-numbers)
-    update(gsl::span(padding.data(), padLen));
+    update(std::span(padding.data(), padLen));
 
     /* Append length (before padding) */
     update(bits);
@@ -283,7 +282,7 @@ MD5::Digest MD5::digest()
     return digest;
 }
 
-MD5& MD5::update(gsl::span<const std::uint8_t> data)
+MD5& MD5::update(std::span<const std::uint8_t> data)
 {
     /* Compute number of bytes mod 64 */
     auto index = static_cast<std::size_t>((m_context.count >> 3) & 0x3f);   // NOLINT(readability-magic-numbers)
@@ -315,7 +314,7 @@ MD5& MD5::update(gsl::span<const std::uint8_t> data)
     return *this;
 }
 
-MD5::Digest MD5::digest(gsl::span<const std::uint8_t> data)
+MD5::Digest MD5::digest(std::span<const std::uint8_t> data)
 {
     MD5 md5;
     md5.update(data);
@@ -331,7 +330,7 @@ MD5::Digest MD5::digest(std::istream& stream)
     std::array<std::uint8_t, bufSize> buf{};
     std::size_t n = read(stream, buf);
     while (n > 0) {
-        md5.update(gsl::span(buf.data(), n));
+        md5.update(std::span(buf.data(), n));
         n = read(stream, buf);
     }
 

@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <array>
 #include <chrono>
 #include <cstddef>
@@ -5,9 +6,10 @@
 #include <exception>
 #include <filesystem>
 #include <memory>
+#include <span>
 #include <stdexcept>
-#include <string>
 #include <string_view>
+#include <string>
 #include <system_error>
 #include <thread>
 #include <utility>
@@ -15,8 +17,6 @@
 #include <vector>
 
 #include <asio/io_context.hpp>
-#include <gsl/span_ext>
-#include <gsl/span>
 #include <gtest/gtest.h>
 
 #include "nhope/async/ao-context-error.h"
@@ -317,8 +317,8 @@ TEST(IOTest, AsioDeviceWrapper_Read)   // NOLINT
             EXPECT_FALSE(err);
             EXPECT_EQ(size, etalonData.size());
 
-            const auto data = gsl::span<const std::uint8_t>(buf).first(size);
-            EXPECT_EQ(data, gsl::span(etalonData));
+            const auto data = std::span(buf).first(size);
+            EXPECT_TRUE(std::equal(data.begin(), data.end(), etalonData.begin()));
 
             finished.set();
         });
@@ -509,15 +509,15 @@ TEST(IOTest, ReadExactly)   // NOLINT
     AOContext aoCtx(executor);
     StubDevice dev(aoCtx, {
                             // NOLINTNEXTLINE
-                            AsioStub::ReadOp{140, gsl::span(etalonData).subspan(0, 30)},
+                            AsioStub::ReadOp{140, std::span(etalonData).subspan(0, 30)},
                             // NOLINTNEXTLINE
-                            AsioStub::ReadOp{110, gsl::span(etalonData).subspan(30, 30)},
+                            AsioStub::ReadOp{110, std::span(etalonData).subspan(30, 30)},
                             // NOLINTNEXTLINE
-                            AsioStub::ReadOp{80, gsl::span(etalonData).subspan(60, 30)},
+                            AsioStub::ReadOp{80, std::span(etalonData).subspan(60, 30)},
                             // NOLINTNEXTLINE
-                            AsioStub::ReadOp{50, gsl::span(etalonData).subspan(90, 30)},
+                            AsioStub::ReadOp{50, std::span(etalonData).subspan(90, 30)},
                             // NOLINTNEXTLINE
-                            AsioStub::ReadOp{20, gsl::span(etalonData).subspan(120, 20)},
+                            AsioStub::ReadOp{20, std::span(etalonData).subspan(120, 20)},
                             AsioStub::CloseOp{},
                           });
 
@@ -537,7 +537,7 @@ TEST(IOTest, ReadExactlyFailed)   // NOLINT
     AOContext aoCtx(executor);
     StubDevice dev(aoCtx, {
                             // NOLINTNEXTLINE
-                            AsioStub::ReadOp{140, gsl::span(etalonData).subspan(0, 30)},
+                            AsioStub::ReadOp{140, std::span(etalonData).subspan(0, 30)},
                             // NOLINTNEXTLINE
                             AsioStub::ReadOp{110, std::errc::io_error},
                             AsioStub::CloseOp{},
@@ -563,13 +563,13 @@ TEST(IOTest, WriteExactly)   // NOLINT
                             // NOLINTNEXTLINE
                             AsioStub::WriteOp{data, 30},
                             // NOLINTNEXTLINE
-                            AsioStub::WriteOp{gsl::span(data).last(110), 30},
+                            AsioStub::WriteOp{std::span(data).last(110), 30},
                             // NOLINTNEXTLINE
-                            AsioStub::WriteOp{gsl::span(data).last(80), 30},
+                            AsioStub::WriteOp{std::span(data).last(80), 30},
                             // NOLINTNEXTLINE
-                            AsioStub::WriteOp{gsl::span(data).last(50), 30},
+                            AsioStub::WriteOp{std::span(data).last(50), 30},
                             // NOLINTNEXTLINE
-                            AsioStub::WriteOp{gsl::span(data).last(20), 20},
+                            AsioStub::WriteOp{std::span(data).last(20), 20},
                             AsioStub::CloseOp{},
                           });
 
@@ -592,7 +592,7 @@ TEST(IOTest, WriteExactlyFailed)   // NOLINT
                             // NOLINTNEXTLINE
                             AsioStub::WriteOp{data, 30},
                             // NOLINTNEXTLINE
-                            AsioStub::WriteOp{gsl::span(data).last(110), std::errc::io_error},
+                            AsioStub::WriteOp{std::span(data).last(110), std::errc::io_error},
                             AsioStub::CloseOp{},
                           });
 
@@ -1095,7 +1095,7 @@ TEST(IOTest, StringWritter)   // NOLINT
     for (const auto str : testData) {
         asyncInvoke(aoCtx, [&] {
             // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
-            const auto data = gsl::span{reinterpret_cast<const std::uint8_t*>(str.data()), str.size()};
+            const auto data = std::span{reinterpret_cast<const std::uint8_t*>(str.data()), str.size()};
             return write(*dev, {data.begin(), data.end()});
         }).get();
     }

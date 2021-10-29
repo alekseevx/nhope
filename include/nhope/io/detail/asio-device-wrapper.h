@@ -4,6 +4,7 @@
 #include <exception>
 #include <system_error>
 #include <utility>
+#include <span>
 
 #include <asio/buffer.hpp>
 
@@ -36,7 +37,7 @@ public:
         aoCtx.close();
     }
 
-    void read(gsl::span<std::uint8_t> buf, IOHandler handler) override
+    void read(std::span<std::uint8_t> buf, IOHandler handler) override
     {
         asioDev.async_read_some(
           asio::buffer(buf.data(), buf.size()),
@@ -49,11 +50,11 @@ public:
           });
     }
 
-    void write(gsl::span<const std::uint8_t> data, IOHandler handler) override
+    void write(std::span<const std::uint8_t> data, IOHandler handler) override
     {
         asioDev.async_write_some(
           asio::buffer(data.data(), data.size()),
-          [aoCtx = AOContextRef(aoCtx), handler = std::move(handler)](auto& err, auto count) mutable {
+          [aoCtx = AOContextRef(aoCtx), handler = std::move(handler)](auto err, auto count) mutable {
               aoCtx.exec(
                 [handler = std::move(handler), err, count] {
                     handler(toExceptionPtr(err), count);

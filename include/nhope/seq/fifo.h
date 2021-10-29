@@ -5,11 +5,9 @@
 #include <cstddef>
 #include <cstring>
 #include <optional>
+#include <span>
 #include <type_traits>
 #include <utility>
-
-#include <gsl/span>
-#include <gsl/gsl_assert>
 
 namespace nhope {
 
@@ -47,20 +45,20 @@ public:
         m_count = m_head = m_tail = 0;
     }
 
-    std::size_t push(gsl::span<const T> data)
+    std::size_t push(std::span<const T> data)
     {
         const auto freeSpace = Size - m_count;
         const auto count = std::min(data.size(), freeSpace);
-        if (GSL_UNLIKELY(count == 0)) {
+        if (count == 0) [[unlikely]] {
             return 0;
         }
 
-        if (GSL_LIKELY(m_head + count <= capacity)) {
-            copy(gsl::span(m_buffer).subspan(m_head, count), data.first(count));
+        if (m_head + count <= capacity) [[likely]] {
+            copy(std::span(m_buffer).subspan(m_head, count), data.first(count));
             m_head = (m_head + count) & (capacity - 1);
         } else {
             const auto firstPartCount = capacity - m_head;
-            auto src = gsl::span(m_buffer);
+            auto src = std::span(m_buffer);
             copy(src.subspan(m_head), data.first(firstPartCount));
             m_head = (m_head + count) & (capacity - 1);
             copy(src.first(m_head), data.subspan(firstPartCount));
@@ -71,7 +69,7 @@ public:
 
     std::size_t push(T&& value)
     {
-        return push(gsl::span<T, 1>(&value, 1));
+        return push(std::span<T, 1>(&value, 1));
     }
 
     /*!
@@ -80,20 +78,20 @@ public:
      * @param data 
      * @return size_t really popped size from fifo
      */
-    std::size_t pop(gsl::span<T> data)
+    std::size_t pop(std::span<T> data)
     {
         const std::size_t count = std::min(data.size(), m_count);
-        if (GSL_UNLIKELY(count == 0)) {
+        if (count == 0) [[unlikely]] {
             return count;
         }
 
-        if (GSL_LIKELY(m_tail + count <= capacity)) {
-            copy(data, gsl::span(m_buffer).subspan(m_tail, count));
+        if (m_tail + count <= capacity) [[likely]] {
+            copy(data, std::span(m_buffer).subspan(m_tail, count));
         } else {
-            const auto firstPart = gsl::span(m_buffer).subspan(m_tail);
+            const auto firstPart = std::span(m_buffer).subspan(m_tail);
             const auto firstPartSize = firstPart.size();
             copy(data, firstPart);
-            copy(gsl::span(data).subspan(firstPartSize), gsl::span(m_buffer).first(count - firstPartSize));
+            copy(std::span(data).subspan(firstPartSize), std::span(m_buffer).first(count - firstPartSize));
         }
         m_count -= count;
         m_tail = (m_tail + count) & (capacity - 1);
@@ -104,14 +102,14 @@ public:
     [[nodiscard]] std::optional<T> pop()
     {
         T val{};
-        if (pop(gsl::span<T, 1>(&val, 1)) == 0) {
+        if (pop(std::span<T, 1>(&val, 1)) == 0) {
             return std::nullopt;
         }
         return val;
     }
 
 private:
-    static void copy(gsl::span<T> dst, gsl::span<const T> src)
+    static void copy(std::span<T> dst, std::span<const T> src)
     {
         std::memcpy(dst.data(), src.data(), src.size() * sizeof(T));
     }

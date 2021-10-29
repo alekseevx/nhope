@@ -2,12 +2,12 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <span>
 #include <string>
 #include <vector>
 
 #include <gtest/gtest.h>
 
-#include "gsl/span"
 #include "nhope/utils/base64.h"
 #include "nhope/utils/bytes.h"
 

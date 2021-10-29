@@ -28,7 +28,7 @@ public:
         m_aoCtx.close();
     }
 
-    void read(gsl::span<std::uint8_t> buf, IOHandler handler) override
+    void read(std::span<std::uint8_t> buf, IOHandler handler) override
     {
         m_aoCtx.exec([this, buf, handler = std::move(handler)] {
             for (std::uint8_t& byte : buf) {
@@ -63,7 +63,7 @@ BitSeqReaderPtr BitSeqReader::create(AOContext& aoCtx, std::vector<bool> bits)
     return std::make_unique<BitSeqReaderImpl>(aoCtx, std::move(bits));
 }
 
-BitSeqReaderPtr BitSeqReader::create(AOContext& aoCtx, gsl::span<const uint8_t> psp, std::size_t bitCount)
+BitSeqReaderPtr BitSeqReader::create(AOContext& aoCtx, std::span<const uint8_t> psp, std::size_t bitCount)
 {
     const auto reserved = psp.size() * std::numeric_limits<uint8_t>::digits;
 

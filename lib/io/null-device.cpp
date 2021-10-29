@@ -19,14 +19,14 @@ public:
         m_aoCtx.close();
     }
 
-    void write(gsl::span<const std::uint8_t> data, IOHandler handler) override
+    void write(std::span<const std::uint8_t> data, IOHandler handler) override
     {
         m_aoCtx.exec([this, n = data.size(), handler = std::move(handler)] {
             handler(nullptr, n);
         });
     }
 
-    void read(gsl::span<std::uint8_t> /*buf*/, IOHandler handler) override
+    void read(std::span<std::uint8_t> /*buf*/, IOHandler handler) override
     {
         m_aoCtx.exec([this, handler = std::move(handler)] {
             handler(nullptr, 0);

@@ -7,10 +7,9 @@
 #include <array>
 #include <filesystem>
 #include <istream>
+#include <span>
 #include <string_view>
 #include <vector>
-
-#include <gsl/span>
 
 namespace nhope {
 
@@ -27,11 +26,11 @@ public:
     ~MD5() = default;
 
     void reset();
-    MD5& update(gsl::span<const std::uint8_t> data);
+    MD5& update(std::span<const std::uint8_t> data);
 
     Digest digest();
 
-    static Digest digest(gsl::span<const std::uint8_t> data);
+    static Digest digest(std::span<const std::uint8_t> data);
     static Digest digest(std::istream& stream);
     static Digest fileDigest(const std::filesystem::path& filePath);
 

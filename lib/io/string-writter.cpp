@@ -26,7 +26,7 @@ public:
         return std::move(m_content);
     }
 
-    void write(gsl::span<const std::uint8_t> data, IOHandler handler) override
+    void write(std::span<const std::uint8_t> data, IOHandler handler) override
     {
         m_aoCtx.exec([this, data, handler = std::move(handler)] {
             // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
