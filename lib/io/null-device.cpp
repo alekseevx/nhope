@@ -22,7 +22,7 @@ public:
     void write(gsl::span<const std::uint8_t> data, IOHandler handler) override
     {
         m_aoCtx.exec([this, n = data.size(), handler = std::move(handler)] {
-            handler(std::error_code(), n);
+            handler(nullptr, n);
         });
     }
 

@@ -58,16 +58,16 @@ private:
         m_buf.resize(m_buf.size() + m_portionSize);
         auto bufForNextPortion = gsl::span(m_buf).last(m_portionSize);
         m_dev.read(bufForNextPortion, [self = shared_from_this()](auto err, auto count) {
-            self->readPortionHandler(err, count);
+            self->readPortionHandler(std::move(err), count);
         });
     }
 
-    void readPortionHandler(const std::error_code& err, std::size_t count)
+    void readPortionHandler(std::exception_ptr err, std::size_t count)
     {
         assert(m_portionSize >= count);   // NOLINT
 
         if (err) {
-            m_promise.setException(std::make_exception_ptr(std::system_error(err)));
+            m_promise.setException(std::move(err));
             return;
         }
 
@@ -125,10 +125,10 @@ private:
         });
     }
 
-    void writePortionHandler(const std::error_code& err, std::size_t count)
+    void writePortionHandler(std::exception_ptr err, std::size_t count)
     {
         if (err) {
-            m_promise.setException(std::make_exception_ptr(std::system_error(err)));
+            m_promise.setException(std::move(err));
             return;
         }
 
@@ -173,9 +173,9 @@ public:
 private:
     void readNextPortion()
     {
-        m_src.read(m_buf, [self = shared_from_this()](const auto& err, auto count) {
+        m_src.read(m_buf, [self = shared_from_this()](auto err, auto count) {
             if (err) {
-                self->m_promise.setException(std::make_exception_ptr(std::system_error(err)));
+                self->m_promise.setException(std::move(err));
                 return;
             }
 
@@ -194,11 +194,11 @@ private:
         assert(offset + size <= m_buf.size());   // NOLINT
 
         auto portion = gsl::span(m_buf).subspan(offset, size);
-        m_dest.write(portion, [offset, size, self = shared_from_this()](const auto& err, auto count) {
+        m_dest.write(portion, [offset, size, self = shared_from_this()](auto err, auto count) {
             assert(count <= size);   // NOLINT
 
             if (err) {
-                self->m_promise.setException(std::make_exception_ptr(std::system_error(err)));
+                self->m_promise.setException(std::move(err));
                 return;
             }
 
@@ -246,7 +246,7 @@ private:
     {
         if (m_readers.empty()) {
             m_aoCtx.exec([handler = std::move(handler)] {
-                handler(std::error_code(), 0);
+                handler(nullptr, 0);
             });
             return;
         }

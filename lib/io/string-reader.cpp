@@ -33,14 +33,14 @@ public:
             const auto tail = gsl::span(m_str).subspan(m_pos);
             const auto n = std::min(tail.size(), buf.size());
             if (n == 0) {
-                handler(std::error_code(), 0);
+                handler(nullptr, 0);
                 return;
             }
 
             std::memcpy(buf.data(), tail.data(), n);
             m_pos += n;
 
-            handler(std::error_code(), n);
+            handler(nullptr, n);
         });
     }
 

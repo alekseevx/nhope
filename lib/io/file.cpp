@@ -1,3 +1,4 @@
+#include <exception>
 #ifdef WIN32
 #define _CRT_SECURE_NO_WARNINGS
 #endif
@@ -16,6 +17,7 @@
 #include "nhope/async/async-invoke.h"
 #include "nhope/io/file.h"
 #include "nhope/io/io-device.h"
+#include "nhope/io/detail/asio-device-wrapper.h"
 
 #include "io-thread-pool.h"
 
@@ -69,8 +71,7 @@ public:
     {
         asyncInvoke(m_ioCtx, [this, buf] {
             const auto n = std::fread(buf.data(), 1, buf.size(), m_file);
-            const auto err = std::ferror(m_file);
-            return std::tuple(std::error_code(err, std::system_category()), n);
+            return std::tuple(this->currError(), n);
         }).then(m_resultCtx, [handler = std::move(handler)](auto args) {
             handler(std::get<0>(args), std::get<1>(args));
         });
@@ -80,11 +81,17 @@ public:
     {
         asyncInvoke(m_ioCtx, [this, data] {
             const auto n = std::fwrite(data.data(), 1, data.size(), m_file);
-            const auto err = std::ferror(m_file);
-            return std::tuple(std::error_code(err, std::system_category()), n);
+            return std::tuple(this->currError(), n);
         }).then(m_resultCtx, [handler = std::move(handler)](auto args) {
             handler(std::get<0>(args), std::get<1>(args));
         });
+    }
+
+private:
+    [[nodiscard]] std::exception_ptr currError() const
+    {
+        const auto err = std::ferror(m_file);
+        return detail::toExceptionPtr(std::error_code(err, std::system_category()));
     }
 
 private:

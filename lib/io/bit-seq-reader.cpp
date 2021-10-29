@@ -38,7 +38,7 @@ public:
                 }
             }
 
-            handler(std::error_code(), buf.size());
+            handler(nullptr, buf.size());
         });
     }
 
