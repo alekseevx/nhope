@@ -195,7 +195,7 @@ TEST(IOTest, NullDevice)   // NOLINT
 
     Event finished;
     asyncInvoke(aoCtx, [&] {
-        dev->write(etalonData, [&](auto& err, auto n) {
+        dev->write(etalonData, [&](auto err, auto n) {
             EXPECT_TRUE(aoCtx.workInThisThread());
 
             EXPECT_FALSE(err);
@@ -225,7 +225,7 @@ TEST(IOTest, BitSeqReader)   // NOLINT
     std::vector<std::uint8_t> buf(4);
     Event finished;
     asyncInvoke(aoCtx, [&] {
-        dev->read(buf, [&](auto& err, auto n) {
+        dev->read(buf, [&](auto err, auto n) {
             EXPECT_TRUE(aoCtx.workInThisThread());
             EXPECT_FALSE(err);
             EXPECT_EQ(buf.size(), n);
@@ -255,7 +255,7 @@ TEST(IOTest, PspReader)   // NOLINT
     std::vector<std::uint8_t> buf(etalonData.size());
     Event finished;
     asyncInvoke(aoCtx, [&] {
-        dev->read(buf, [&](auto&, auto n) {
+        dev->read(buf, [&](auto, auto n) {
             EXPECT_EQ(buf.size(), n);
 
             finished.set();
@@ -282,7 +282,7 @@ TEST(IOTest, AsioDeviceWrapper_Read)   // NOLINT
 
     std::vector<std::uint8_t> buf(bufSize);
     asyncInvoke(aoCtx, [&] {
-        dev.read(buf, [&](std::error_code err, std::size_t size) {
+        dev.read(buf, [&](const std::exception_ptr& err, std::size_t size) {
             EXPECT_TRUE(aoCtx.workInThisThread());
             EXPECT_FALSE(err);
             EXPECT_EQ(size, etalonData.size());
@@ -311,7 +311,7 @@ TEST(IOTest, AsioDeviceWrapper_Write)   // NOLINT
 
     Event finished;
     asyncInvoke(aoCtx, [&] {
-        dev.write(etalonData, [&](std::error_code err, std::size_t size) {
+        dev.write(etalonData, [&](const std::exception_ptr& err, std::size_t size) {
             EXPECT_TRUE(aoCtx.workInThisThread());
             EXPECT_FALSE(err);
             EXPECT_EQ(size, writeSize);
@@ -946,9 +946,9 @@ TEST(IOTest, PushbackReader_FailRead)   // NOLINT
     std::array<uint8_t, 2> buf{};
 
     Event retrived;
-    pushbackReader->read(buf, [&](const std::error_code& e, std::size_t c) {
+    pushbackReader->read(buf, [&](const std::exception_ptr& e, std::size_t c) {
         EXPECT_EQ(c, 0);
-        EXPECT_EQ(e, std::errc::io_error);
+        EXPECT_THROW(std::rethrow_exception(e), std::system_error);   // NOLINT
         retrived.set();
     });
     retrived.wait();

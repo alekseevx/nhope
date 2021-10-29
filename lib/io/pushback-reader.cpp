@@ -53,7 +53,7 @@ private:
         const auto leftReadChunk = askSize - readyBufferSize;
         if (leftReadChunk == 0) {
             m_aoCtx.exec([askSize, handler = std::move(handler)] {
-                handler(std::error_code(), askSize);
+                handler(nullptr, askSize);
             });
             return;
         }
@@ -62,8 +62,8 @@ private:
         m_reader->read(next, [this, aoCtx = AOContextRef(m_aoCtx), alreadyRead = readyBufferSize,
                               handler = std::move(handler)](auto err, auto size) mutable {
             aoCtx.exec(
-              [this, err, size, alreadyRead, handler = std::move(handler)] {
-                  handler(err, alreadyRead + size);
+              [this, err = std::move(err), size, alreadyRead, handler = std::move(handler)] {
+                  handler(std::move(err), alreadyRead + size);
               },
               Executor::ExecMode::ImmediatelyIfPossible);
         });

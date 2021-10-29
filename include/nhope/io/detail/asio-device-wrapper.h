@@ -1,6 +1,8 @@
 #pragma once
 
 #include <cstddef>
+#include <exception>
+#include <system_error>
 #include <utility>
 
 #include <asio/buffer.hpp>
@@ -9,6 +11,11 @@
 #include "nhope/io/io-device.h"
 
 namespace nhope::detail {
+
+inline std::exception_ptr toExceptionPtr(std::error_code errCode)
+{
+    return errCode ? std::make_exception_ptr(std::system_error(errCode)) : nullptr;
+}
 
 template<typename BaseClass, typename AsioDev>
 class AsioDeviceWrapper : public BaseClass
@@ -36,7 +43,7 @@ public:
           [aoCtx = AOContextRef(aoCtx), handler = std::move(handler)](auto err, auto count) mutable {
               aoCtx.exec(
                 [handler = std::move(handler), err, count] {
-                    handler(err, count);
+                    handler(toExceptionPtr(err), count);
                 },
                 Executor::ExecMode::ImmediatelyIfPossible);
           });
@@ -49,7 +56,7 @@ public:
           [aoCtx = AOContextRef(aoCtx), handler = std::move(handler)](auto& err, auto count) mutable {
               aoCtx.exec(
                 [handler = std::move(handler), err, count] {
-                    handler(err, count);
+                    handler(toExceptionPtr(err), count);
                 },
                 Executor::ExecMode::ImmediatelyIfPossible);
           });

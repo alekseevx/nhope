@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <exception>
 #include <functional>
 #include <list>
 #include <memory>
@@ -15,7 +16,7 @@ namespace nhope {
 
 class AOContext;
 
-using IOHandler = std::function<void(const std::error_code&, std::size_t)>;
+using IOHandler = std::function<void(std::exception_ptr, std::size_t)>;
 
 class Reader : public Noncopyable
 {
