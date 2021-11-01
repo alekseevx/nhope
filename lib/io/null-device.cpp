@@ -26,6 +26,13 @@ public:
         });
     }
 
+    void read(gsl::span<std::uint8_t> /*buf*/, IOHandler handler) override
+    {
+        m_aoCtx.exec([this, handler = std::move(handler)] {
+            handler(nullptr, 0);
+        });
+    }
+
 private:
     AOContext m_aoCtx;
 };

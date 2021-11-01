@@ -184,7 +184,7 @@ bool eq(const std::vector<std::uint8_t>& a, std::string_view b)
 
 }   // namespace
 
-TEST(IOTest, NullDevice)   // NOLINT
+TEST(IOTest, NullDevice_Write)   // NOLINT
 {
     constexpr std::size_t bufSize = 1024;
     const auto etalonData = std::vector<std::uint8_t>(bufSize, 0xFE);
@@ -200,6 +200,30 @@ TEST(IOTest, NullDevice)   // NOLINT
 
             EXPECT_FALSE(err);
             EXPECT_EQ(n, bufSize);
+
+            finished.set();
+        });
+    });
+
+    finished.wait();
+}
+
+TEST(IOTest, NullDevice_Read)   // NOLINT
+{
+    constexpr auto bufSize = 1024;
+
+    ThreadExecutor executor;
+    AOContext aoCtx(executor);
+    auto dev = NullDevice::create(aoCtx);
+
+    Event finished;
+    auto buf = std::vector<std::uint8_t>(bufSize);
+    asyncInvoke(aoCtx, [&] {
+        dev->read(buf, [&](auto err, auto n) {
+            EXPECT_TRUE(aoCtx.workInThisThread());
+
+            EXPECT_FALSE(err);
+            EXPECT_EQ(n, 0);
 
             finished.set();
         });

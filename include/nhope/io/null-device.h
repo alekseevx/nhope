@@ -10,7 +10,7 @@ namespace nhope {
 class NullDevice;
 using NullDevicePtr = std::unique_ptr<NullDevice>;
 
-class NullDevice : public Writter
+class NullDevice : public IODevice
 {
 public:
     static NullDevicePtr create(AOContext& aoCtx);
