@@ -5,13 +5,13 @@
 #include <utility>
 
 namespace nhope::detail {
-inline constexpr size_t defaultAlign = 8;
-template<class T, size_t Size, size_t Alignment = defaultAlign>
+inline constexpr std::size_t defaultAlign = 8;
+template<class T, std::size_t Size, std::size_t Alignment = defaultAlign>
 class FastPimpl final
 {
 public:
-    static constexpr size_t size = Size;
-    static constexpr size_t alignmentSize = Alignment;
+    static constexpr std::size_t size = Size;
+    static constexpr std::size_t alignmentSize = Alignment;
 
     template<typename... Args>
     explicit FastPimpl(Args&&... args)
@@ -71,7 +71,7 @@ private:
         return reinterpret_cast<T*>(&m_data);
     }
 
-    template<size_t ActualSize, size_t ActualAlignment>
+    template<std::size_t ActualSize, std::size_t ActualAlignment>
     static void validate() noexcept
     {
         static_assert(Size >= ActualSize, "not enough Size for (T)");

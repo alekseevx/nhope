@@ -21,7 +21,7 @@ public:
     Chan(const Chan&) = delete;
     Chan& operator=(const Chan&) = delete;
 
-    Chan(bool autoClose = true, size_t capacity = std::numeric_limits<size_t>::max())
+    Chan(bool autoClose = true, std::size_t capacity = std::numeric_limits<std::size_t>::max())
       : m_d(std::make_shared<Prv>(autoClose, capacity))
     {}
 
@@ -59,14 +59,14 @@ public:
 private:
     struct Prv
     {
-        Prv(bool autoClose, size_t capacity)
+        Prv(bool autoClose, std::size_t capacity)
           : autoClose(autoClose)
           , queue(capacity)
         {}
 
         const bool autoClose;
         TSQueue<T> queue;
-        std::atomic<size_t> inputCount = 0;
+        std::atomic<std::size_t> inputCount = 0;
     };
 
     class Input final : public Consumer<T>

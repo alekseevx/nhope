@@ -1,5 +1,6 @@
 #include <array>
 #include <optional>
+#include <vector>
 
 #include <gtest/gtest.h>
 
@@ -24,6 +25,8 @@ TEST(Fifo, push)   // NOLINT
     EXPECT_EQ(fifo.size(), 2);
     EXPECT_EQ(fifo.push(span(etalonData).subspan(2)), 2);
     EXPECT_EQ(fifo.size(), 4);
+    fifo.clear();
+    EXPECT_EQ(fifo.size(), 0);
 }
 
 TEST(Fifo, pop)   // NOLINT
@@ -71,4 +74,30 @@ TEST(Fifo, overflow)   // NOLINT
 
     EXPECT_EQ(fifo.pop(span(test).subspan(4)), 4);
     EXPECT_EQ(fifo.size(), 0);
+}
+
+TEST(Fifo, pushAndPop)   // NOLINT
+{
+    static constexpr auto bufSize{500};
+    static constexpr auto chunkSize{12};
+
+    nhope::Fifo<int, bufSize> fifo;
+
+    std::vector<int> data(chunkSize);
+    for (int i = 0; i < chunkSize; i++) {
+        data[i] = i;
+    }
+
+    while (fifo.push(data) != 0) {
+    }
+    EXPECT_EQ(fifo.size(), bufSize);
+
+    std::vector<int> test(128);
+    fifo.pop(test);
+    fifo.push(test);
+
+    while (!fifo.empty()) {
+        auto x = fifo.pop();
+    }
+    EXPECT_TRUE(fifo.empty());
 }

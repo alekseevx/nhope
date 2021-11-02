@@ -218,7 +218,7 @@ public:
         return makeReadyFuture();
     }
 
-    [[nodiscard]] size_t size() const noexcept
+    [[nodiscard]] std::size_t size() const noexcept
     {
         return m_waitedTasks.size() + m_delayedTasks.size() + (m_activeTask == nullptr ? 0 : 1);
     }
@@ -434,7 +434,7 @@ void Scheduler::activate(TaskId id)
     asyncActivate(id).get();
 }
 
-size_t Scheduler::size() const noexcept
+std::size_t Scheduler::size() const noexcept
 {
     return invoke(m_impl->m_ao, [this] {
         return m_impl->size();

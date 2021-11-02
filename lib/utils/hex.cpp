@@ -54,7 +54,7 @@ std::vector<uint8_t> fromHex(std::string_view hex)
     if ((strippedSize & 0x1) != 0U) {
         throw HexParseError(fmt::format("incorrect size {}: must be even", hex.size()));
     }
-    for (size_t i = 0; i < strippedSize; i += 2) {
+    for (std::size_t i = 0; i < strippedSize; i += 2) {
         uint8_t value = hexToByte(stripped[i]) << 4 | hexToByte(stripped[i + 1]);
         res.emplace_back(value);
     }
