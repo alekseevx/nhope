@@ -16,7 +16,7 @@ class BitSeqReader : public Reader
 {
 public:
     static BitSeqReaderPtr create(AOContext& aoCtx, std::vector<bool> bits);
-    static BitSeqReaderPtr create(AOContext& aoCtx, gsl::span<const uint8_t> psp, size_t bitCount);
+    static BitSeqReaderPtr create(AOContext& aoCtx, gsl::span<const uint8_t> psp, std::size_t bitCount);
 };
 
 }   // namespace nhope

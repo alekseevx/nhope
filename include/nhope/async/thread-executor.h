@@ -24,7 +24,7 @@ public:
 
 private:
     struct Impl;
-    static constexpr size_t implSize{72};
+    static constexpr std::size_t implSize{72};
     nhope::detail::FastPimpl<Impl, implSize> m_d;
 };
 

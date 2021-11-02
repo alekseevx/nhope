@@ -17,32 +17,56 @@ class Fifo
 {
     static_assert(std::is_standard_layout_v<T> && std::is_trivial_v<T>);
 
-public:
-    [[nodiscard]] size_t size() const noexcept
+    template<std::size_t Value>
+    static constexpr std::size_t nexPowerOf2()
     {
-        return m_offset;
+        static_assert(Value > 0);
+        std::size_t v = Value;
+        int power = 2;
+        --v;
+        while ((v >>= 1) != 0U) {
+            power <<= 1;
+        }
+        return power;
+    }
+
+public:
+    [[nodiscard]] std::size_t size() const noexcept
+    {
+        return m_count;
     }
 
     [[nodiscard]] bool empty() const noexcept
     {
-        return size() == 0;
+        return m_count == 0;
     }
 
     void clear()
     {
-        m_offset = 0;
+        m_count = m_head = m_tail = 0;
     }
 
-    size_t push(gsl::span<const T> data)
+    std::size_t push(gsl::span<const T> data)
     {
-        const auto inputDataSize = data.size();
-        const auto freeSpace = Size - m_offset;
-        const auto count = std::min(inputDataSize, freeSpace);
-        copy(data.first(count));
+        const auto freeSpace = Size - m_count;
+        const auto count = std::min(data.size(), freeSpace);
+        if (count == 0) {
+            return 0;
+        }
+
+        if (m_head + count <= capacity) {   //TODO likely
+            copy(gsl::span(m_buffer).subspan(m_head, count), data.first(count));
+        } else {
+            const auto firstPartCount = capacity - m_head;
+            copy(gsl::span(m_buffer).subspan(m_head), data.first(firstPartCount));
+            copy(gsl::span(m_buffer).first(count - firstPartCount), data.subspan(firstPartCount));
+        }
+        m_head = (m_head + count) & (capacity - 1);
+        m_count += count;
         return count;
     }
 
-    size_t push(T&& value)
+    std::size_t push(T&& value)
     {
         return push(gsl::span<T, 1>(&value, 1));
     }
@@ -53,18 +77,24 @@ public:
      * @param data 
      * @return size_t really popped size from fifo
      */
-    size_t pop(gsl::span<T> data)
+    std::size_t pop(gsl::span<T> data)
     {
-        const auto requestSize = data.size();
-        const auto count = std::min(requestSize, m_offset);
-        copy(data, gsl::span(m_fifo).first(count));
-
-        if (requestSize < m_offset) {
-            // move back
-            std::memmove(m_fifo.data(), m_fifo.data() + count, m_offset * sizeof(T));
+        const auto count = std::min(data.size(), m_count);
+        if (count == 0) {
+            return count;
         }
 
-        m_offset -= count;
+        if (m_tail <= m_head) {
+            copy(data, gsl::span(m_buffer).subspan(m_tail, count));
+        } else {
+            const auto firstPart = gsl::span(m_buffer).subspan(m_tail, count);
+            const auto firstPartSize = firstPart.size();
+            copy(data, firstPart);
+            copy(gsl::span(data).subspan(firstPartSize), gsl::span(m_buffer).first(count - firstPartSize));
+        }
+        m_count -= count;
+        m_tail = (m_tail + count) & (capacity - 1);
+
         return count;
     }
 
@@ -82,14 +112,10 @@ private:
     {
         std::memcpy(dst.data(), src.data(), src.size() * sizeof(T));
     }
-
-    void copy(gsl::span<const T> data)
-    {
-        const auto count = data.size();
-        copy(gsl::span(m_fifo).subspan(m_offset, count), data);
-        m_offset += count;
-    }
-    std::array<T, Size> m_fifo{};
-    size_t m_offset{};
+    static constexpr auto capacity = nexPowerOf2<Size>();
+    std::array<T, capacity> m_buffer{};
+    std::size_t m_head{};
+    std::size_t m_tail{};
+    std::size_t m_count{};
 };
 }   // namespace nhope

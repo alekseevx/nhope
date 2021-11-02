@@ -9,3 +9,4 @@
 #include "nhope/seq/producer.h"
 #include "nhope/seq/take.h"
 #include "nhope/seq/weak_list.h"
+#include "nhope/seq/fifo.h"

@@ -151,10 +151,11 @@ public:
         return f;
     }
 
-    [[nodiscard]] size_t size() const noexcept
+    [[nodiscard]] std::size_t size() const noexcept
     {
         return m_list.size();
     }
+
     [[nodiscard]] bool empty() const noexcept
     {
         return m_list.empty();
@@ -205,7 +206,7 @@ public:
         return m_list.emplace_back(weak);
     }
 
-    [[nodiscard]] size_t size() const noexcept
+    [[nodiscard]] std::size_t size() const noexcept
     {
         std::shared_lock lock(m_mutex);
         return m_list.size();

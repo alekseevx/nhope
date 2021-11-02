@@ -56,11 +56,11 @@ public:
     void activate(TaskId id);
     Future<void> asyncActivate(TaskId id);
 
-    [[nodiscard]] size_t size() const noexcept;
+    [[nodiscard]] std::size_t size() const noexcept;
 
 private:
     class Impl;
-    static constexpr size_t implSize{176};
+    static constexpr std::size_t implSize{176};
     detail::FastPimpl<Impl, implSize> m_impl;
 };
 

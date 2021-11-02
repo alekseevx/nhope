@@ -310,7 +310,7 @@ Future<std::size_t> write(Writter& dev, std::vector<std::uint8_t> data)
     return writeOp->start();
 }
 
-Future<std::vector<std::uint8_t>> readExactly(Reader& dev, size_t bytesCount)
+Future<std::vector<std::uint8_t>> readExactly(Reader& dev, std::size_t bytesCount)
 {
     auto readOp = makeReadOp(dev, [bytesCount](const auto& buf) {
         assert(bytesCount >= buf.size());   // NOLINT
@@ -321,7 +321,7 @@ Future<std::vector<std::uint8_t>> readExactly(Reader& dev, size_t bytesCount)
     return readOp->start();
 }
 
-Future<size_t> writeExactly(Writter& device, std::vector<std::uint8_t> data)
+Future<std::size_t> writeExactly(Writter& device, std::vector<std::uint8_t> data)
 {
     auto writeOp = std::make_shared<WriteOp>(device, std::move(data), true);
     return writeOp->start();
@@ -348,7 +348,7 @@ Future<std::string> readLine(Reader& dev)
 Future<std::vector<std::uint8_t>> readAll(Reader& dev)
 {
     auto readOp = makeReadOp(dev, [](const auto& /*unused*/) {
-        constexpr size_t portionSize = 4 * 1024;
+        constexpr std::size_t portionSize = 4 * 1024;
         return portionSize;
     });
 
