@@ -1,5 +1,7 @@
+#include <array>
 #include <cstdint>
 #include <stdexcept>
+#include <string_view>
 
 #include "fmt/format.h"
 
@@ -7,43 +9,62 @@
 #include "nhope/utils/string-utils.h"
 
 namespace nhope {
+using namespace std::literals;
 
-HexParseError::HexParseError(const std::string& msg)
-  : std::runtime_error(msg)
+HexParseError::HexParseError(const std::string_view msg)
+  : std::runtime_error(fmt::format("hex parse error: {}", msg))
 {}
 
 namespace {
 
 constexpr std::array<char, 2> byteToHex(uint8_t v)
 {
-    auto hx = [](uint8_t p) -> char {
-        constexpr auto ten{10};
-        if (p >= ten) {
-            return static_cast<char>('a' + (p - ten));
-        }
-        return static_cast<char>('0' + p);
-    };
+    constexpr auto hex = "0123456789abcdef"sv;
     //NOLINTNEXTLINE (readability-magic-numbers)
-    return {hx(v >> 4), hx(v & 0xF)};
+    return {hex[v >> 4], hex[v & 0xF]};
 }
 
-uint8_t hexToByte(const char v)
-{
-    constexpr auto ten{10};
+constexpr auto invalidHexValue = 16;
 
-    if (v >= '0' && v <= '9') {
-        return v - '0';
+constexpr auto makeDecodeTable()
+{
+    constexpr auto ten = 10;
+    constexpr auto tableSize = 256;
+
+    std::array<std::uint8_t, tableSize> table{};
+    for (int ch = 0; ch < table.size(); ++ch) {
+        if (ch >= '0' && ch <= '9') {
+            table[ch] = static_cast<std::uint8_t>(ch - '0');
+        } else if (ch >= 'a' && ch <= 'f') {
+            table[ch] = static_cast<std::uint8_t>(ch - 'a' + ten);
+        } else if (ch >= 'A' && ch <= 'F') {
+            table[ch] = static_cast<std::uint8_t>(ch - 'A' + ten);
+        } else {
+            table[ch] = invalidHexValue;
+        }
     }
-    if (v >= 'a' && v <= 'f') {
-        return ten + (v - 'a');
+
+    return table;
+}
+
+constexpr auto decodeTable = makeDecodeTable();
+
+std::uint8_t fromHex(char ch)
+{
+    const std::uint8_t val = decodeTable[ch];
+    if (val == invalidHexValue) {
+        throw HexParseError(fmt::format("invalid value {}", ch));
     }
-    if (v >= 'A' && v <= 'F') {
-        return ten + (v - 'A');
-    }
-    throw HexParseError(fmt::format("hex parse error: invalid value {}", int(v)));
+
+    return val;
 }
 
 }   // namespace
+
+std::uint8_t fromHex(char hi, char lo)
+{
+    return (fromHex(hi) << 4) | fromHex(lo);
+}
 
 std::vector<uint8_t> fromHex(std::string_view hex)
 {
@@ -55,8 +76,8 @@ std::vector<uint8_t> fromHex(std::string_view hex)
         throw HexParseError(fmt::format("incorrect size {}: must be even", hex.size()));
     }
     for (std::size_t i = 0; i < strippedSize; i += 2) {
-        uint8_t value = hexToByte(stripped[i]) << 4 | hexToByte(stripped[i + 1]);
-        res.emplace_back(value);
+        const auto byte = fromHex(stripped[i], stripped[i + 1]);
+        res.push_back(byte);
     }
 
     return res;
@@ -68,8 +89,7 @@ std::string toHex(gsl::span<const uint8_t> bytes)
     hexStr.reserve(bytes.size() * 2);
     for (auto v : bytes) {
         const auto t = byteToHex(v);
-        hexStr.push_back(t[0]);
-        hexStr.push_back(t[1]);
+        hexStr.append(t.data(), t.size());
     }
     return hexStr;
 }
