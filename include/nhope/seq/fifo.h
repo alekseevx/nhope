@@ -9,6 +9,7 @@
 #include <utility>
 
 #include <gsl/span>
+#include <gsl/gsl_assert>
 
 namespace nhope {
 
@@ -50,18 +51,20 @@ public:
     {
         const auto freeSpace = Size - m_count;
         const auto count = std::min(data.size(), freeSpace);
-        if (count == 0) {
+        if (GSL_UNLIKELY(count == 0)) {
             return 0;
         }
 
-        if (m_head + count <= capacity) {   //TODO likely
+        if (GSL_LIKELY(m_head + count <= capacity)) {
             copy(gsl::span(m_buffer).subspan(m_head, count), data.first(count));
+            m_head = (m_head + count) & (capacity - 1);
         } else {
             const auto firstPartCount = capacity - m_head;
-            copy(gsl::span(m_buffer).subspan(m_head), data.first(firstPartCount));
-            copy(gsl::span(m_buffer).first(count - firstPartCount), data.subspan(firstPartCount));
+            auto src = gsl::span(m_buffer);
+            copy(src.subspan(m_head), data.first(firstPartCount));
+            m_head = (m_head + count) & (capacity - 1);
+            copy(src.first(m_head), data.subspan(firstPartCount));
         }
-        m_head = (m_head + count) & (capacity - 1);
         m_count += count;
         return count;
     }
@@ -79,15 +82,15 @@ public:
      */
     std::size_t pop(gsl::span<T> data)
     {
-        const auto count = std::min(data.size(), m_count);
-        if (count == 0) {
+        const std::size_t count = std::min(data.size(), m_count);
+        if (GSL_UNLIKELY(count == 0)) {
             return count;
         }
 
-        if (m_tail <= m_head) {
+        if (GSL_LIKELY(m_tail + count <= capacity)) {
             copy(data, gsl::span(m_buffer).subspan(m_tail, count));
         } else {
-            const auto firstPart = gsl::span(m_buffer).subspan(m_tail, count);
+            const auto firstPart = gsl::span(m_buffer).subspan(m_tail);
             const auto firstPartSize = firstPart.size();
             copy(data, firstPart);
             copy(gsl::span(data).subspan(firstPartSize), gsl::span(m_buffer).first(count - firstPartSize));
@@ -112,7 +115,7 @@ private:
     {
         std::memcpy(dst.data(), src.data(), src.size() * sizeof(T));
     }
-    static constexpr auto capacity = nexPowerOf2<Size>();
+    static constexpr std::size_t capacity = nexPowerOf2<Size>();
     std::array<T, capacity> m_buffer{};
     std::size_t m_head{};
     std::size_t m_tail{};

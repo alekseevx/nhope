@@ -44,6 +44,17 @@ TEST(Fifo, pop)   // NOLINT
     EXPECT_EQ(test[1], 4);
     EXPECT_TRUE(fifo.empty());
     EXPECT_EQ(fifo.pop(), std::nullopt);
+
+    fifo.push(1);
+    EXPECT_EQ(fifo.pop(), 1);
+
+    fifo.push(1);
+    fifo.push(2);
+    fifo.push(3);
+    fifo.push(4);
+    fifo.pop(test);
+    const auto e = std::array{1, 2, 3, 4};
+    EXPECT_EQ(test, e);
 }
 
 TEST(Fifo, overflow)   // NOLINT
