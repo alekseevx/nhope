@@ -1,7 +1,7 @@
 Checks: >
     -*,
     boost-*,
-    cert-*,
+    cert-*,-cert-err58-cpp,
     clang-analyzer-*,
     cppcoreguidelines-*,-cppcoreguidelines-special-member-functions,
       -cppcoreguidelines-avoid-magic-numbers,
