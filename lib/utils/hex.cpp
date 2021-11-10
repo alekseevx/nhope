@@ -34,16 +34,12 @@ constexpr auto makeDecodeTable()
     std::array<std::uint8_t, UCHAR_MAX + 1> table{};
     for (std::size_t ch = 0; ch < table.size(); ++ch) {
         if (ch >= '0' && ch <= '9') {
-            // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-constant-array-index)
             table[ch] = static_cast<std::uint8_t>(ch - '0');
         } else if (ch >= 'a' && ch <= 'f') {
-            // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-constant-array-index)
             table[ch] = static_cast<std::uint8_t>(ch - 'a' + ten);
         } else if (ch >= 'A' && ch <= 'F') {
-            // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-constant-array-index)
             table[ch] = static_cast<std::uint8_t>(ch - 'A' + ten);
         } else {
-            // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-constant-array-index)
             table[ch] = invalidHexValue;
         }
     }
@@ -55,7 +51,6 @@ constexpr auto decodeTable = makeDecodeTable();
 
 std::uint8_t fromHex(char ch)
 {
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-constant-array-index)
     const std::uint8_t val = decodeTable[static_cast<std::uint8_t>(ch)];
     if (val == invalidHexValue) {
         throw HexParseError(fmt::format("invalid value {}", ch));
