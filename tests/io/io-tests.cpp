@@ -33,6 +33,7 @@
 #include "nhope/io/pushback-reader.h"
 #include "nhope/io/serial-port.h"
 #include "nhope/io/string-reader.h"
+#include "nhope/io/string-writter.h"
 #include "nhope/io/tcp.h"
 
 #include "./test-helpers/tcp-echo-server.h"
@@ -990,4 +991,28 @@ TEST(IOTest, PushbackReader_FailRead)   // NOLINT
         retrived.set();
     });
     retrived.wait();
+}
+
+TEST(IOTest, StringWritter)   // NOLINT
+{
+    constexpr auto testData = std::array{
+      "12345"sv,
+      "67890"sv,
+      ""sv,
+    };
+
+    ThreadExecutor executor;
+    AOContext aoCtx(executor);
+
+    auto dev = StringWritter::create(aoCtx);
+    for (const auto str : testData) {
+        asyncInvoke(aoCtx, [&] {
+            // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+            const auto data = gsl::span{reinterpret_cast<const std::uint8_t*>(str.data()), str.size()};
+            return write(*dev, {data.begin(), data.end()});
+        }).get();
+    }
+
+    const auto contetnt = dev->takeContent();
+    EXPECT_EQ(contetnt, "1234567890");
 }
