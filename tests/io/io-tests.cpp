@@ -980,7 +980,7 @@ TEST(IOTest, PushbackReader_FailRead)   // NOLINT
                                                      AsioStub::ReadOp{2, std::errc::io_error},
                                                      AsioStub::CloseOp{},
                                                    });
-    auto pushbackReader = PushbackReader::create(aoCtx, std::move(dev));
+    auto pushbackReader = PushbackReader::create(aoCtx, *dev);
     std::array<uint8_t, 2> buf{};
 
     Event retrived;

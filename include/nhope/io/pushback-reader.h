@@ -18,6 +18,7 @@ class PushbackReader : public Reader
 public:
     virtual void unread(gsl::span<const std::uint8_t> bytes) = 0;
 
+    static PushbackReaderPtr create(AOContext& aoCtx, Reader& reader);
     static PushbackReaderPtr create(AOContext& aoCtx, ReaderPtr reader);
 };
 
