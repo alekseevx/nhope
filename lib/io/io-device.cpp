@@ -15,6 +15,7 @@
 #include "nhope/async/ao-context-error.h"
 #include "nhope/async/ao-context.h"
 #include "nhope/async/executor.h"
+#include "nhope/async/future.h"
 #include "nhope/async/safe-callback.h"
 #include "nhope/io/io-device.h"
 
@@ -355,10 +356,24 @@ Future<std::vector<std::uint8_t>> readAll(Reader& dev)
     return readOp->start();
 }
 
+Future<std::vector<std::uint8_t>> readAll(ReaderPtr dev)
+{
+    return readAll(*dev).then([anchor = std::move(dev)](auto data) {
+        return std::move(data);
+    });
+}
+
 Future<std::size_t> copy(nhope::Reader& src, nhope::Writter& dest)
 {
     auto copyOp = std::make_shared<CopyOp>(src, dest);
     return copyOp->start();
+}
+
+Future<std::size_t> copy(ReaderPtr src, WritterPtr dest)
+{
+    return copy(*src, *dest).then([srcAnchor = std::move(src), destAnchor = std::move(dest)](auto n) {
+        return n;
+    });
 }
 
 ReaderPtr concat(AOContext& aoCtx, std::list<ReaderPtr> readers)

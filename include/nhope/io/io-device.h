@@ -50,8 +50,10 @@ Future<std::size_t> writeExactly(Writter& dev, std::vector<std::uint8_t> data);
 
 Future<std::string> readLine(Reader& dev);
 Future<std::vector<std::uint8_t>> readAll(Reader& dev);
+Future<std::vector<std::uint8_t>> readAll(ReaderPtr dev);
 
 Future<std::size_t> copy(Reader& src, Writter& dest);
+Future<std::size_t> copy(ReaderPtr src, WritterPtr dest);
 
 ReaderPtr concat(AOContext& aoCtx, std::list<ReaderPtr> readers);
 

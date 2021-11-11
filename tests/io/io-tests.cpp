@@ -805,6 +805,20 @@ TEST(IOTest, Copy)   // NOLINT
     EXPECT_EQ(size, 30);
 }
 
+TEST(IOTest, Copy2)   // NOLINT
+{
+    ThreadExecutor executor;
+    AOContext aoCtx(executor);
+
+    const auto n = asyncInvoke(aoCtx, [&] {
+                       return copy(                                   //
+                         StringReader::create(aoCtx, "1234567890"),   //
+                         NullDevice::create(aoCtx));
+                   }).get();
+
+    EXPECT_EQ(n, 10);
+}
+
 TEST(IOTest, Copy_ReadFailed)   // NOLINT
 {
     ThreadExecutor executor;

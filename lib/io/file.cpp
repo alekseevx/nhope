@@ -110,10 +110,8 @@ nhope::FilePtr File::open(AOContext& aoCtx, std::string_view fileName, OpenFileM
 
 Future<std::vector<std::uint8_t>> File::readAll(AOContext& aoCtx, std::string_view fileName)
 {
-    std::shared_ptr<File> file = File::open(aoCtx, fileName, OpenFileMode::ReadOnly);
-    return nhope::readAll(*file).then([anchor = file](auto data) {
-        return data;
-    });
+    auto file = File::open(aoCtx, fileName, OpenFileMode::ReadOnly);
+    return nhope::readAll(std::move(file));
 }
 
 }   // namespace nhope
