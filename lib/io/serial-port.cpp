@@ -69,7 +69,7 @@ serial_port::character_size toAsio(std::optional<SerialPortParams::DataBits> dat
 
 serial_port::stop_bits toAsio(std::optional<SerialPortParams::StopBits> stopbitsOpt)
 {
-    if (stopbitsOpt.has_value()) {
+    if (!stopbitsOpt.has_value()) {
         return serial_port::stop_bits();
     }
 
