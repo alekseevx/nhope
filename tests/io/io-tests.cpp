@@ -37,6 +37,10 @@
 
 #include "./test-helpers/tcp-echo-server.h"
 
+#ifdef __linux__
+#include "./test-helpers/virtual-serial-port.h"
+#endif
+
 namespace {
 using namespace nhope;
 using namespace std::literals;
@@ -753,10 +757,64 @@ TEST(IOTest, openNotExistSerialPort)   // NOLINT
 
 TEST(IOTest, SerialPort_AvailableDevices)   // NOLINT
 {
+#ifdef __linux__
+    nhope::test::VirtualSerialPort com("/dev/ttyS7", "/dev/ttyS8");
+#endif
     const auto ports = SerialPort::availableDevices();
     for (const auto& portName : ports) {
         EXPECT_TRUE(std::filesystem::exists(portName));
     }
+}
+
+TEST(IOTest, openSerialPort)   // NOLINT
+{
+    ThreadExecutor e;
+    AOContext aoCtx(e);
+
+#ifdef __linux__
+    SerialPortParams p{};
+    {
+        nhope::test::VirtualSerialPort com("/tmp/com_1", "/tmp/com_2");
+
+        //NOLINTNEXTLINE
+        EXPECT_NO_THROW(SerialPort::open(aoCtx, "/tmp/com_1", p));
+    }
+    p.baudrate = SerialPortParams::BaudRate::Baud1200;
+
+    auto open = [&] {
+        try {
+            nhope::test::VirtualSerialPort com("/tmp/com_1", "/tmp/com_2");
+            SerialPort::open(aoCtx, "/tmp/com_1", p);
+        } catch (...) {
+        }
+    };
+    auto testFlow = [&] {
+        for (size_t i = 0; i < 4; ++i) {
+            p.flow = static_cast<SerialPortParams::FlowControl>(i);
+            open();
+        }
+        p = SerialPortParams{};
+    };
+    auto testParity = [&] {
+        for (size_t i = 0; i < 4; ++i) {
+            p.parity = static_cast<SerialPortParams::Parity>(i);
+            open();
+        }
+        p = SerialPortParams{};
+    };
+    auto testStopBits = [&] {
+        for (size_t i = 0; i < 4; ++i) {
+            p.stopbits = static_cast<SerialPortParams::StopBits>(i);
+            open();
+        }
+        p = SerialPortParams{};
+    };
+
+    testFlow();
+    testParity();
+    testStopBits();
+
+#endif
 }
 
 constexpr auto copyPortionSize = 4 * 1024;
