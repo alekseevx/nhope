@@ -107,7 +107,7 @@ public:
         }
 
         if constexpr (!std::is_void_v<T>) {
-            return std::move(detachedState->value());
+            return detachedState->value();
         }
     }
 
