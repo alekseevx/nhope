@@ -758,9 +758,9 @@ TEST(IOTest, openNotExistSerialPort)   // NOLINT
 
 TEST(IOTest, SerialPort_AvailableDevices)   // NOLINT
 {
-#ifdef __linux__
-    nhope::test::VirtualSerialPort com("/dev/ttyS7", "/dev/ttyS8");
-#endif
+    // #ifdef __linux__
+    // nhope::test::VirtualSerialPort com("/dev/ttyS7", "/dev/ttyS8");
+    // #endif
     const auto ports = SerialPort::availableDevices();
     for (const auto& portName : ports) {
         EXPECT_TRUE(std::filesystem::exists(portName));

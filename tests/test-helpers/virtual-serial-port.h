@@ -1,9 +1,11 @@
 #pragma once
 
+#include <csignal>
 #include <cstdio>
 #include <filesystem>
 #include <string>
 #include <string_view>
+#include <sys/wait.h>
 #include <thread>
 #include <unistd.h>
 
@@ -17,22 +19,33 @@ public:
     VirtualSerialPort(std::string_view com1, std::string_view com2)
     {
         using namespace std::literals;
-        const auto cmd = fmt::format("socat -d -d pty,link={0},rawer pty,link={1},rawer & echo $!", com1, com2);
-        auto* const pipe = popen(cmd.c_str(), "r");
+
+        const auto cmd =
+          fmt::format("socat -d -d pty,link={0},rawer pty,link={1},rawer 2>/dev/null & echo $! ", com1, com2);
+
+        // NOLINTNEXTLINE
+        auto* pipe = popen(cmd.c_str(), "r");
         if (pipe == nullptr) {
-            throw std::runtime_error("popen() failed!");
+            throw std::runtime_error("Unable to start socat");
         }
-        fscanf(pipe, "%i", &m_pid);
+
+        // NOLINTNEXTLINE
+        if (std::fscanf(pipe, "%i", &m_pid) != 1) {
+            throw std::runtime_error("Unable to get the socat pid");
+        }
         pclose(pipe);
-        while (!(std::filesystem::exists(com1) && std::filesystem::exists(com2))) {
+
+        while (!(std::filesystem::exists(com1) && !std::filesystem::exists(com2))) {
             std::this_thread::yield();
         }
     }
 
     ~VirtualSerialPort()
     {
-        const auto cmd = fmt::format("kill -9 {}", m_pid);
-        std::system(cmd.c_str());
+        kill(m_pid, SIGINT);
+
+        int wstatus = 0;
+        waitpid(m_pid, &wstatus, 0);
     }
 
 private:
