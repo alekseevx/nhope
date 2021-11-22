@@ -35,7 +35,7 @@ public:
         }
         pclose(pipe);
 
-        while (!(std::filesystem::exists(com1) && !std::filesystem::exists(com2))) {
+        while (!(std::filesystem::exists(com1) && std::filesystem::exists(com2))) {
             std::this_thread::yield();
         }
     }
