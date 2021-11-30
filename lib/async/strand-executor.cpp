@@ -21,7 +21,7 @@ public:
       , isOriginSeqExecutor(isSequenceExecutor(executor))
     {}
 
-    void exec(Work& work, ExecMode mode)
+    void exec(Work&& work, ExecMode mode)
     {
         if (isOriginSeqExecutor) {
             originExecutor.exec(std::move(work), mode);
@@ -35,10 +35,10 @@ public:
             return;
         }
 
-        this->scheduleWork(work);
+        this->scheduleWork(std::move(work));
     }
 
-    void scheduleWork(Work& work)
+    void scheduleWork(Work&& work)
     {
         assert(!hasActiveWork);   // NOLINT
 
@@ -62,7 +62,7 @@ public:
             return;
         }
 
-        this->scheduleWork(waitingQueue.front());
+        this->scheduleWork(std::move(waitingQueue.front()));
         waitingQueue.pop_front();
     }
 
@@ -93,7 +93,7 @@ Executor& StrandExecutor::originExecutor() noexcept
 
 void StrandExecutor::exec(Work work, ExecMode mode)
 {
-    m_d->exec(work, mode);
+    m_d->exec(std::move(work), mode);
 }
 
 asio::io_context& StrandExecutor::ioCtx()

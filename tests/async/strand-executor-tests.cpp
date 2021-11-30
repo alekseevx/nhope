@@ -1,9 +1,12 @@
 #include <atomic>
 #include <chrono>
+#include <memory>
 #include <mutex>
+#include <ostream>
 #include <stdexcept>
 #include <thread>
 
+#include "nhope/async/io-context-executor.h"
 #include "nhope/async/strand-executor.h"
 #include "nhope/async/thread-executor.h"
 #include "nhope/async/thread-pool-executor.h"
@@ -153,4 +156,19 @@ TEST(StrandExecutor, UseSequenceExecutor)   // NOLINT
     }
 
     EXPECT_TRUE(waitForValue(100 * 1ms * taskCount, finishedTaskCount, taskCount));
+}
+
+TEST(StrandExecutor, Expired)   // NOLINT
+{
+    constexpr auto taskCount = 100;
+    {
+        auto seqExecutor = IOContextExecutor(ThreadPoolExecutor::defaultExecutor().ioCtx());
+        StrandExecutor strandExecutor(seqExecutor);
+        for (int i = 0; i < taskCount; ++i) {
+            strandExecutor.exec([i] {
+                std::this_thread::sleep_for(1ms);
+            });
+        }
+    }
+    std::this_thread::sleep_for(200ms);
 }
