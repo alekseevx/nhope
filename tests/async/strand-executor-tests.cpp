@@ -4,6 +4,7 @@
 #include <mutex>
 #include <ostream>
 #include <stdexcept>
+#include <string>
 #include <thread>
 
 #include "nhope/async/io-context-executor.h"
@@ -128,47 +129,29 @@ TEST(StrandExecutor, Destroy)   // NOLINT
         }
     }
 
-    // Tasks should run even after the StrandExecutor is destroyed
-    EXPECT_TRUE(waitForValue(100 * 1ms * taskCount, finishedTaskCount, taskCount));
+    std::this_thread::sleep_for(200ms);
+    EXPECT_LE(finishedTaskCount, taskCount);
 }
 
-TEST(StrandExecutor, ReuseImpl)   // NOLINT
+TEST(StrandExecutor, FixUseAfterFreeOriginExecutor)   // NOLINT
 {
+    constexpr auto iterCount = 500;
+    constexpr auto taskCount = 1000;
     constexpr auto executorThreadCount = 10;
+
     ThreadPoolExecutor executor(executorThreadCount);
 
-    StrandExecutor strandExecutor(executor);
-    StrandExecutor strandExecutor2(static_cast<Executor&>(strandExecutor));
-    EXPECT_EQ(&strandExecutor.originExecutor(), &strandExecutor2.originExecutor());
-}
-
-TEST(StrandExecutor, UseSequenceExecutor)   // NOLINT
-{
-    constexpr auto taskCount = 10;
-    ThreadExecutor seqExecutor;
-    StrandExecutor strandExecutor(seqExecutor);
-
-    std::atomic<int> finishedTaskCount = 0;
-    for (int i = 0; i < taskCount; ++i) {
-        strandExecutor.exec([&] {
-            ++finishedTaskCount;
-        });
-    }
-
-    EXPECT_TRUE(waitForValue(100 * 1ms * taskCount, finishedTaskCount, taskCount));
-}
-
-TEST(StrandExecutor, Expired)   // NOLINT
-{
-    constexpr auto taskCount = 100;
-    {
-        auto seqExecutor = IOContextExecutor(ThreadPoolExecutor::defaultExecutor().ioCtx());
-        StrandExecutor strandExecutor(seqExecutor);
-        for (int i = 0; i < taskCount; ++i) {
-            strandExecutor.exec([i] {
-                std::this_thread::sleep_for(1ms);
-            });
+    for (int iter = 0; iter < iterCount; ++iter) {
+        {
+            auto originExecutor = std::make_unique<IOContextExecutor>(executor.ioCtx());
+            auto strandExecutor = std::make_unique<StrandExecutor>(*originExecutor);
+            for (int i = 0; i < taskCount; ++i) {
+                strandExecutor->exec([] {
+                    std::this_thread::yield();
+                });
+            }
         }
+
+        std::this_thread::yield();
     }
-    std::this_thread::sleep_for(200ms);
 }

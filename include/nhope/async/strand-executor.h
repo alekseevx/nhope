@@ -1,7 +1,7 @@
 #pragma once
 
 #include <memory>
-#include <nhope/async/executor.h>
+#include "nhope/async/executor.h"
 
 namespace nhope {
 
@@ -17,9 +17,8 @@ public:
     explicit StrandExecutor(Executor& executor);
 
     /**
-     * @remark Задачи, отправленные через StrandExecutor, но которые еще не были выполнены, 
-     *       все равно будут выполнены последовательно.
-     *       
+     * @remark Задачи, находящиеся в очереди, будут отброшены.
+     * @remark Деструктор не дожидается окончания текущей активной задачи.
      */
     ~StrandExecutor() override;
 
