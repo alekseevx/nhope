@@ -1,9 +1,13 @@
 #include <atomic>
 #include <chrono>
+#include <memory>
 #include <mutex>
+#include <ostream>
 #include <stdexcept>
+#include <string>
 #include <thread>
 
+#include "nhope/async/io-context-executor.h"
 #include "nhope/async/strand-executor.h"
 #include "nhope/async/thread-executor.h"
 #include "nhope/async/thread-pool-executor.h"
@@ -125,32 +129,29 @@ TEST(StrandExecutor, Destroy)   // NOLINT
         }
     }
 
-    // Tasks should run even after the StrandExecutor is destroyed
-    EXPECT_TRUE(waitForValue(100 * 1ms * taskCount, finishedTaskCount, taskCount));
+    std::this_thread::sleep_for(200ms);
+    EXPECT_LE(finishedTaskCount, taskCount);
 }
 
-TEST(StrandExecutor, ReuseImpl)   // NOLINT
+TEST(StrandExecutor, FixUseAfterFreeOriginExecutor)   // NOLINT
 {
+    constexpr auto iterCount = 500;
+    constexpr auto taskCount = 1000;
     constexpr auto executorThreadCount = 10;
+
     ThreadPoolExecutor executor(executorThreadCount);
 
-    StrandExecutor strandExecutor(executor);
-    StrandExecutor strandExecutor2(static_cast<Executor&>(strandExecutor));
-    EXPECT_EQ(&strandExecutor.originExecutor(), &strandExecutor2.originExecutor());
-}
+    for (int iter = 0; iter < iterCount; ++iter) {
+        {
+            auto originExecutor = std::make_unique<IOContextExecutor>(executor.ioCtx());
+            auto strandExecutor = std::make_unique<StrandExecutor>(*originExecutor);
+            for (int i = 0; i < taskCount; ++i) {
+                strandExecutor->exec([] {
+                    std::this_thread::yield();
+                });
+            }
+        }
 
-TEST(StrandExecutor, UseSequenceExecutor)   // NOLINT
-{
-    constexpr auto taskCount = 10;
-    ThreadExecutor seqExecutor;
-    StrandExecutor strandExecutor(seqExecutor);
-
-    std::atomic<int> finishedTaskCount = 0;
-    for (int i = 0; i < taskCount; ++i) {
-        strandExecutor.exec([&] {
-            ++finishedTaskCount;
-        });
+        std::this_thread::yield();
     }
-
-    EXPECT_TRUE(waitForValue(100 * 1ms * taskCount, finishedTaskCount, taskCount));
 }
