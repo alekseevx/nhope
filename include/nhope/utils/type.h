@@ -74,8 +74,9 @@ constexpr bool checkFunctionParams()
     using FnProps = FunctionProps<decltype(std::function(std::declval<Fn>()))>;
     if constexpr (FnProps::argumentCount != sizeof...(Args)) {
         return false;
+    } else {
+        return checkFunctionArgumentTypes<Fn, Args...>(std::make_index_sequence<FnProps::argumentCount>{});
     }
-    return checkFunctionArgumentTypes<Fn, Args...>(std::make_index_sequence<FnProps::argumentCount>{});
 }
 
 template<typename Fn, typename... Args>
