@@ -416,3 +416,29 @@ TEST(AOContext, ConcurentCloseChildAndParent)   // NOLINT
         aoCtx.close();
     }
 }
+
+TEST(AOContext, BugDeadlockWhenRecursivelyClosing)   // NOLINT
+{
+    ThreadExecutor executor;
+    AOContext aoCtx(executor);
+
+    class CloseHandler : public AOContextCloseHandler
+    {
+    public:
+        explicit CloseHandler(AOContext& aoCtx)
+          : m_aoCtx(aoCtx)
+        {}
+
+        void aoContextClose() noexcept override
+        {
+            m_aoCtx.close();
+        }
+
+    private:
+        AOContext& m_aoCtx;
+    };
+    CloseHandler closeHandler(aoCtx);
+    aoCtx.addCloseHandler(closeHandler);
+
+    aoCtx.close();
+}
