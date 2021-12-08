@@ -11,18 +11,7 @@ namespace nhope {
 class AOContextRef;
 
 /**
- * @brief Контекст для выполнения асинхронных операций на заданном Executor
- * 
- * AOContext решает следующие задачи:
- * - обеспечивает вызов обработчика асинхронной операции (AOHandler::call) в заданном Executor-e
- * - гарантирует, что все обработчики асинхронных операций, запущенные на одном AOContext-е,
- *   будут выполнены последовательно
- * - гарантирует, что при уничтожении контекста все асинхронные операции, запущенные
- *   на контексте, будут отменены (AOHandler::cancel) а их обработчики вызваны не будут
- *   (AOHandler::call)
- *
- * @see AOHandler
- * @see AOHandlerCall
+ * @brief Контекст для последовательного выполнения задач на заданном Executor
  */
 class AOContext final
 {
@@ -38,7 +27,7 @@ public:
     /**
      * @brief Конструктор AOContext
      * 
-     * @param executor executor, на котром AOContext должен выполнять свои операции.
+     * @param executor executor на котором AOContext должен выполнять свои операции.
      *
      * @note executor должен существовать, пока AOContext открыт.
      *
@@ -51,8 +40,7 @@ public:
      *
      * Свойства дочернего AOContext
      * 1. Дочерний AOContext использует executor родительского AOContext (AOContext::executor).
-     *    Это гарантирует, что обработчики асинхронных операций родителя и дочерних AOContext
-     *    будут выполняться строго последовательно. 
+     *    Это гарантирует, что задачи родителя и дочерних AOContext будут выполняться строго последовательно. 
      * 2. При закрытии родительского AOContext все дочерние AOContext будут закрыты автоматически.
      * 
      * @param parent Родительский AOContext.
@@ -61,6 +49,8 @@ public:
      *
      * @see AOContext::close
      * @see AOContext::executor
+     *
+     * @throw AOContextClosed Если родительский AOContext уже закрыт
      */
     explicit AOContext(AOContext& parent);
     explicit AOContext(AOContextRef& parent);
@@ -68,50 +58,80 @@ public:
     /**
      * @brief Деструктор AOContext
      *
-     * Производит закрытие AOContext и отмену незавершенных операций
+     * Производит закрытие AOContext
      *
      * @see AOHandler
-     * @see AOContext::close()
+     * @see AOContext::close
+     * @note Метод потокобезопасный
      */
     ~AOContext();
 
     [[nodiscard]] bool isOpen() const noexcept;
 
     /**
-     * @brief Производит закрытие AOContext и отмену незавершенных операций
+     * @brief Производит закрытие AOContext
      *
      * Если close вызовут одновременно несколько потоков, то фактическое закрытие будет
-     * осуществлять только один из потоков, остальны потоки просто дождутся окончание закрытия.
+     * осуществлять только один из потоков, остальны потоки просто дождутся окончания закрытия.
      *
+     * Последовательность действий при закрытии:
+     * - Переходим в состояние "Подготовка к закрытию". Теперь isOpen() == false.
+     *   AOContext задачи больше запускает.
+     * - Если есть активная задача и close делается не из нее - дожидаемся завершения.
+     * - Вызываем зарегистрированные обработчики закрытия AOContext (#addCloseHandler).
+     * - AOContext полностью закрыт.
+     *
+     * @note Задачи, ожидающие выполнения, будут отброшены.
      * @note Метод потокобезопасный
-     *
-     * @see AOHandler
+     * @post isOpen() == false
      */
     void close();
 
     /**
      * @brief Возвращает executor AOContext-а
      *
-     * @note Обратите внимание, что это не тот же executor, что передавался в при создании AOContext.
-     *       Поверх переданного executor AOContext создает StrandExecutor, чтобы гарантировать последовательное
+     * @note Обратите внимание, что это не тот же executor, что передавался при создании AOContext.
+     *       Поверх переданного executor AOContext создает StrandExecutor чтобы гарантировать последовательное
      *       выполнение операций внутри AOContext. Executor AOContext будет уничтожен в момент уничтожения AOContext.
      * 
      * @note Метод потокобезопасный
      */
     SequenceExecutor& executor();
 
+    /**
+     * @brief Планирует новую задачу для выполнения в рамках AOContext.
+     * 
+     * Задачи выполняются строго последовательно на executor-е AOContext.
+     *
+     * @param work планируемая задача
+     *
+     * @see close
+     * @note метод потокобезопасный
+     */
     template<typename Work>
     void exec(Work&& work, Executor::ExecMode mode = Executor::ExecMode::AddInQueue)
     {
         m_aoImpl->exec(std::forward<Work>(work), mode);
     }
 
+    /**
+     * @brief Добавляет обработчик закрытия AOContext
+     *
+     * @note Метод потокобезопасный
+     * @pre isOpen() == true
+     * @throw AOContextClosed Если AOContext уже закрыт
+     */
     void addCloseHandler(AOContextCloseHandler& closeHandler);
+
+    /**
+     * @brief Удаляет обработчик закрытия AOContext
+     * @note Метод потокобезопасный
+     */
     void removeCloseHandler(AOContextCloseHandler& closeHandler) noexcept;
 
     /**
-     * @brief Проверяет работает ли AOContext в потоке, из которого произведен
-     *        вызов workInThisThread.
+     * @brief Проверяет работает ли AOContext в потоке из которого произведен
+     *        вызов workInThisThread (workInThisThread вызван из выполняемой задачи).
      *
      * @note метод потокобезопасный
      *
