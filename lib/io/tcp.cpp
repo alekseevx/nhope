@@ -27,12 +27,29 @@ using Endpoint = asio::ip::tcp::endpoint;
 using Resolver = asio::ip::tcp::resolver;
 using ResolveResults = Resolver::results_type;
 
+asio::ip::tcp::socket::shutdown_type toAsioShutdown(TcpSocket::Shutdown what)
+{
+    switch (what) {
+    case TcpSocket::Shutdown::Receive:
+        return asio::ip::tcp::socket::shutdown_type::shutdown_receive;
+    case TcpSocket::Shutdown::Send:
+        return asio::ip::tcp::socket::shutdown_type::shutdown_send;
+    default:
+        return asio::ip::tcp::socket::shutdown_type::shutdown_both;
+    }
+}
+
 class TcpSocketImpl final : public detail::AsioDeviceWrapper<TcpSocket, AsioSocket>
 {
 public:
     explicit TcpSocketImpl(nhope::AOContextRef& parent)
       : detail::AsioDeviceWrapper<TcpSocket, AsioSocket>(parent)
     {}
+
+    void shutdown(Shutdown what) override
+    {
+        this->asioDev.shutdown(toAsioShutdown(what));
+    }
 };
 
 class TcpServerImpl final
