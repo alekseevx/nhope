@@ -203,7 +203,7 @@ private:
     using AOContextGroupId = std::uintptr_t;
     using WorkingInThisThreadSet = StackSet<AOContextGroupId>;
 
-    using ClosingInThisThreadSet = StackSet<AOContextImpl*>;
+    using ClosingInThisThreadSet = StackSet<const AOContextImpl*>;
 
     explicit AOContextImpl(Executor& executor)
       : m_groupId(reinterpret_cast<AOContextGroupId>(this))   // NOLINT(cppcoreguidelines-pro-type-reinterpret-cast)
@@ -248,6 +248,11 @@ private:
 
     void waitForClosed() const noexcept
     {
+        if (ClosingInThisThreadSet::contains(this)) {
+            // We can't wait, close was called recursively.
+            return;
+        }
+
         if (this->aoContextWorkInThisThread()) {
             // We can't wait, closing is done from exec and we will get a deadlock.
             return;
