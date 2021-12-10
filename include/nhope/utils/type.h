@@ -30,6 +30,28 @@ public:
     using Type = typename Impl<index, Types...>::Type;
 };
 
+template<typename Type, class>
+struct EnableFunc : std::false_type
+{};
+
+template<typename Type>
+struct EnableFunc<Type, decltype(std::function(std::declval<Type>()), void())> : std::true_type
+{};
+
+template<typename Type>
+struct FuncEnabler : public EnableFunc<std::decay_t<Type>, void>
+{};
+
+template<typename Type>
+constexpr bool isFunctional()
+{
+    if constexpr (std::is_member_function_pointer_v<Type>) {
+        return true;
+    } else {
+        return FuncEnabler<Type>::value;
+    }
+}
+
 template<typename R, typename... Args>
 struct FunctionProps
 {
@@ -71,12 +93,15 @@ constexpr bool checkFunctionArgumentTypes(std::index_sequence<I...> /*unused*/)
 template<typename Fn, typename... Args>
 constexpr bool checkFunctionParams()
 {
-    using FnProps = FunctionProps<decltype(std::function(std::declval<Fn>()))>;
-    if constexpr (FnProps::argumentCount != sizeof...(Args)) {
-        return false;
-    } else {
-        return checkFunctionArgumentTypes<Fn, Args...>(std::make_index_sequence<FnProps::argumentCount>{});
+    if constexpr (isFunctional<Fn>()) {
+        using FnProps = FunctionProps<decltype(std::function(std::declval<Fn>()))>;
+        if constexpr (FnProps::argumentCount != sizeof...(Args)) {
+            return false;
+        } else {
+            return checkFunctionArgumentTypes<Fn, Args...>(std::make_index_sequence<FnProps::argumentCount>{});
+        }
     }
+    return false;
 }
 
 template<typename Fn, typename... Args>
@@ -85,8 +110,11 @@ static constexpr bool checkFunctionParamsV = checkFunctionParams<Fn, Args...>();
 template<typename Fn, typename ReturnType>
 constexpr bool checkReturnType()
 {
-    using FnProps = FunctionProps<decltype(std::function(std::declval<Fn>()))>;
-    return std::is_same_v<typename FnProps::ReturnType, ReturnType>;
+    if constexpr (isFunctional<Fn>()) {
+        using FnProps = FunctionProps<decltype(std::function(std::declval<Fn>()))>;
+        return std::is_same_v<typename FnProps::ReturnType, ReturnType>;
+    }
+    return false;
 }
 
 template<typename Fn, typename ReturnType>
@@ -95,7 +123,7 @@ static constexpr bool checkReturnTypeV = checkReturnType<Fn, ReturnType>();
 template<typename Fn, typename R, typename... Args>
 constexpr bool checkFunctionSignature()
 {
-    return checkFunctionParamsV<Fn, Args...> && checkReturnTypeV<Fn, R>;
+    return checkReturnTypeV<Fn, R> && checkFunctionParamsV<Fn, Args...>;
 }
 
 template<typename Fn, typename R, typename... Args>
