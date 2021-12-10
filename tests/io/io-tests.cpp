@@ -10,6 +10,7 @@
 #include <string_view>
 #include <system_error>
 #include <thread>
+#include <utility>
 #include <variant>
 #include <vector>
 
@@ -745,6 +746,34 @@ TEST(IOTest, cancelConnect)   // NOLINT
 
     // NOLINTNEXTLINE
     EXPECT_THROW(conDev.get(), AsyncOperationWasCancelled);
+}
+
+TEST(IOTest, shutdownConnect)   // NOLINT
+{
+    ThreadExecutor e;
+    AOContext aoCtx(e);
+
+    test::TcpEchoServer echoServer;
+    std::vector<std::uint8_t> buf(4);
+
+    {
+        auto conDev = TcpSocket::connect(aoCtx, test::TcpEchoServer::srvAddress, test::TcpEchoServer::srvPort).get();
+        conDev->shutdown(TcpSocket::Shutdown::Receive);
+        conDev->read(buf, [](const std::exception_ptr&, std::size_t c) {
+            EXPECT_EQ(c, 0);
+        });
+        nhope::write(*conDev, {1, 2, 3}).get();
+        conDev->shutdown(TcpSocket::Shutdown::Send);
+        // NOLINTNEXTLINE
+        EXPECT_THROW(nhope::write(*conDev, {1, 2, 3}).get(), std::runtime_error);
+    }
+
+    {
+        auto dev = TcpSocket::connect(aoCtx, test::TcpEchoServer::srvAddress, test::TcpEchoServer::srvPort).get();
+        dev->shutdown();
+        // NOLINTNEXTLINE
+        EXPECT_THROW(nhope::write(*dev, {1, 2, 3}).get(), std::runtime_error);
+    }
 }
 
 TEST(IOTest, openNotExistSerialPort)   // NOLINT
