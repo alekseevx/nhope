@@ -68,3 +68,24 @@ TEST(Types, Functional)   // NOLINT
     };
     EXPECT_TRUE(nhope::isFunctional<decltype(lambda)>());
 }
+
+template<typename T>
+struct IsInt
+{
+    static constexpr bool value = false;
+};
+
+template<>
+struct IsInt<int>
+{
+    static constexpr bool value = true;
+};
+
+TEST(Types, FindArgument)   // NOLINT
+{
+    using FP = FunctionProps<void, bool, double, int>;
+
+    EXPECT_EQ((findArgument<FP, std::is_floating_point>()), 1);
+    EXPECT_EQ((findArgument<FP, std::is_pointer>()), -1);
+    EXPECT_EQ((findArgument<FP, IsInt>()), 2);
+}

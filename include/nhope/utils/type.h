@@ -76,6 +76,18 @@ struct FunctionProps<std::function<R(Args...)>>
     using ArgumentType = typename Extract<index, Args...>::Type;
 };
 
+template<typename FunctionProps, template<typename> typename cond, int pos = 0>
+constexpr int findArgument()
+{
+    if constexpr (pos >= FunctionProps::argumentCount) {
+        return -1;
+    } else if constexpr (cond<typename FunctionProps::template ArgumentType<pos>>::value) {
+        return pos;
+    } else {
+        return findArgument<FunctionProps, cond, pos + 1>();
+    }
+}
+
 template<typename Fn>
 constexpr bool hasSingleArgument()
 {
