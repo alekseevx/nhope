@@ -70,16 +70,7 @@ TEST(Types, Functional)   // NOLINT
 }
 
 template<typename T>
-struct IsInt
-{
-    static constexpr bool value = false;
-};
-
-template<>
-struct IsInt<int>
-{
-    static constexpr bool value = true;
-};
+using IsInt = std::is_same<T, int>;
 
 TEST(Types, FindArgument)   // NOLINT
 {
