@@ -1,6 +1,7 @@
 #include <atomic>
 #include <chrono>
 #include <memory>
+#include <stdexcept>
 #include <thread>
 
 #include <gtest/gtest.h>
@@ -99,6 +100,33 @@ TEST(SetInterval, FourTicks)   // NOLINT
         EXPECT_GE(tickTime, startTime + tickCounter.load() * 20ms);
 
         return tickCounter < tickCount;
+    });
+
+    std::this_thread::sleep_for(4 * 20ms * tickCount);
+    EXPECT_EQ(tickCounter, tickCount);
+}
+
+TEST(SetInterval, CatchException)   // NOLINT
+{
+    static constexpr auto tickCount = 4;
+
+    auto executor = ThreadExecutor();
+    auto aoCtx = AOContext(executor);
+
+    std::atomic<int> tickCounter = 0;
+    const auto startTime = std::chrono::steady_clock::now();
+    setInterval(aoCtx, 20ms, [&](const auto& err) {
+        const auto tickTime = std::chrono::steady_clock::now();
+        ++tickCounter;
+
+        EXPECT_FALSE(err);
+        EXPECT_LE(tickCounter, tickCount);
+        EXPECT_GE(tickTime, startTime + tickCounter.load() * 20ms);
+
+        if (tickCounter < tickCount) {
+            throw std::runtime_error("Exception");
+        }
+        return false;
     });
 
     std::this_thread::sleep_for(4 * 20ms * tickCount);

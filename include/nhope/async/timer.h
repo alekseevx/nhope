@@ -61,7 +61,7 @@ Future<T> setTimeout(AOContext& aoCtx, Future<T> future, std::chrono::nanosecond
  * Starts a periodic timer, which is triggered at a specified time interval.
  * 
  * The timer will stop in one of the following cases:
- * - Destroying AOContext;
+ * - Closing AOContext;
  * - handler returned false;
  * - timer was broken (check error_code)
  */
