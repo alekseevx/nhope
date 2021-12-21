@@ -120,6 +120,7 @@ public:
      * @note Метод потокобезопасный
      * @pre isOpen() == true
      * @throw AOContextClosed Если AOContext уже закрыт
+     * @note Перед удалением обработчика необходимо вызвать removeCloseHandler 
      */
     void addCloseHandler(AOContextCloseHandler& closeHandler);
 

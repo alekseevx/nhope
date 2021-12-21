@@ -17,6 +17,7 @@
 #include "nhope/async/safe-callback.h"
 #include "nhope/io/detail/asio-device-wrapper.h"
 #include "nhope/io/tcp.h"
+#include "nhope/utils/scope-exit.h"
 
 namespace nhope {
 
@@ -102,15 +103,14 @@ private:
     AOContextRef m_aoCtx;
 };
 
-class ConnectOp final
-  : public AOContextCloseHandler
-  , public std::enable_shared_from_this<ConnectOp>
+class ConnectOp final : public AOContextCloseHandler
 {
 public:
-    explicit ConnectOp(AOContext& aoCtx)
+    explicit ConnectOp(AOContext& aoCtx, std::string_view hostName, std::uint16_t port)
       : m_aoCtx(aoCtx)
       , m_resolver(aoCtx.executor().ioCtx())
     {
+        this->start(hostName, port);
         m_aoCtx.addCloseHandler(*this);
     }
 
@@ -119,59 +119,65 @@ public:
         m_aoCtx.removeCloseHandler(*this);
     }
 
-    Future<TcpSocketPtr> start(std::string_view hostName, std::uint16_t port)
+    Future<TcpSocketPtr> future()
     {
-        const auto service = std::to_string(port);
-
-        auto callback = makeSafeCallback(
-          m_aoCtx,
-          [self = shared_from_this()](const std::error_code& err, const ResolveResults& results) {
-              self->resolveHandler(err, results);
-          },
-          NotThrowAOContextClosed);
-
-        m_resolver.async_resolve(hostName, service, std::move(callback));
-
         return m_promise.future();
     }
 
 private:
+    void start(std::string_view hostName, std::uint16_t port)
+    {
+        const auto service = std::to_string(port);
+
+        m_resolver.async_resolve(hostName, service, [this, aoCtx = m_aoCtx](auto err, auto results) mutable {
+            aoCtx.exec(
+              [this, err, results = std::move(results)] {
+                  this->resolveHandler(err, results);
+              },
+              Executor::ExecMode::ImmediatelyIfPossible);
+        });
+    }
+
     void aoContextClose() noexcept override
     {
         this->cancel();
+        delete this;
     }
 
     void cancel()
     {
-        if (!m_promise.satisfied()) {
-            m_resolver.cancel();
-            m_socket.reset();
+        m_resolver.cancel();
+        m_socket.reset();
 
-            m_promise.setException(std::make_exception_ptr(AsyncOperationWasCancelled()));
-        }
+        m_promise.setException(std::make_exception_ptr(AsyncOperationWasCancelled()));
     }
 
-    void resolveHandler(const std::error_code& err, const ResolveResults& results)
+    void resolveHandler(std::error_code err, const ResolveResults& results)
     {
         if (err) {
             m_promise.setException(std::make_exception_ptr(std::system_error(err)));
+            delete this;
             return;
         }
 
         m_socket = std::make_unique<TcpSocketImpl>(m_aoCtx);
 
-        auto callback = makeSafeCallback(
-          m_aoCtx,
-          [self = shared_from_this()](const std::error_code& err) {
-              self->connectHandler(err);
-          },
-          NotThrowAOContextClosed);
         auto& asioSocket = m_socket->asioDev;
-        asioSocket.async_connect(results->endpoint(), std::move(callback));
+        asioSocket.async_connect(results->endpoint(), [this, aoCtx = m_aoCtx](auto err) mutable {
+            aoCtx.exec(
+              [this, err] {
+                  this->connectHandler(err);
+              },
+              Executor::ExecMode::ImmediatelyIfPossible);
+        });
     }
 
     void connectHandler(const std::error_code& err)
     {
+        ScopeExit clear([this] {
+            delete this;
+        });
+
         if (err) {
             m_promise.setException(std::make_exception_ptr(std::system_error(err)));
             return;
@@ -191,8 +197,7 @@ private:
 
 Future<TcpSocketPtr> TcpSocket::connect(AOContext& aoCtx, std::string_view hostName, std::uint16_t port)
 {
-    auto connectOp = std::make_shared<ConnectOp>(aoCtx);
-    return connectOp->start(hostName, port);
+    return (new ConnectOp(aoCtx, hostName, port))->future();
 }
 
 TcpServerPtr TcpServer::start(AOContext& aoCtx, const TcpServerParams& params)
