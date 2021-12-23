@@ -106,9 +106,10 @@ private:
 class ConnectOp final : public AOContextCloseHandler
 {
 public:
-    explicit ConnectOp(AOContext& aoCtx, std::string_view hostName, std::uint16_t port)
+    explicit ConnectOp(AOContext& aoCtx, Promise<TcpSocketPtr>&& promise, std::string_view hostName, std::uint16_t port)
       : m_aoCtx(aoCtx)
       , m_resolver(aoCtx.executor().ioCtx())
+      , m_promise(std::move(promise))
     {
         this->start(hostName, port);
         m_aoCtx.addCloseHandler(*this);
@@ -117,11 +118,6 @@ public:
     ~ConnectOp()
     {
         m_aoCtx.removeCloseHandler(*this);
-    }
-
-    Future<TcpSocketPtr> future()
-    {
-        return m_promise.future();
     }
 
 private:
@@ -197,7 +193,9 @@ private:
 
 Future<TcpSocketPtr> TcpSocket::connect(AOContext& aoCtx, std::string_view hostName, std::uint16_t port)
 {
-    return (new ConnectOp(aoCtx, hostName, port))->future();
+    auto [future, promise] = makePromise<TcpSocketPtr>();
+    new ConnectOp(aoCtx, std::move(promise), hostName, port);
+    return std::move(future);
 }
 
 TcpServerPtr TcpServer::start(AOContext& aoCtx, const TcpServerParams& params)
