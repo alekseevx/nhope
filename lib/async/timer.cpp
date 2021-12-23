@@ -78,9 +78,10 @@ private:
 class PromiseTimer final : public AOContextCloseHandler
 {
 public:
-    explicit PromiseTimer(AOContext& aoCtx, std::chrono::nanoseconds timeout)
+    explicit PromiseTimer(AOContext& aoCtx, Promise<void>&& promise, std::chrono::nanoseconds timeout)
       : m_aoCtxRef(aoCtx)
       , m_impl(aoCtx.executor().ioCtx())
+      , m_promise(std::move(promise))
     {
         this->start(timeout);
         m_aoCtxRef.addCloseHandler(*this);
@@ -89,11 +90,6 @@ public:
     ~PromiseTimer()
     {
         m_aoCtxRef.removeCloseHandler(*this);
-    }
-
-    Future<void> future()
-    {
-        return m_promise.future();
     }
 
 private:
@@ -233,9 +229,9 @@ Future<void> setTimeout(AOContext& aoCtx, std::chrono::nanoseconds timeout)
 {
     assert(timeout.count() >= 0);   // NOLINT
 
-    // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
-    auto* pt = new PromiseTimer(aoCtx, timeout);
-    return pt->future();
+    auto [future, promise] = makePromise();
+    new PromiseTimer(aoCtx, std::move(promise), timeout);
+    return std::move(future);
 }
 
 void setInterval(AOContext& aoCtx, std::chrono::nanoseconds interval,

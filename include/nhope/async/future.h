@@ -452,6 +452,19 @@ Future<T> makeReadyFuture(Args&&... args)
     return promise.future();
 }
 
+template<typename T>
+std::pair<Future<T>, Promise<T>> makePromise()
+{
+    Promise<T> promise;
+    Future<T> future = promise.future();
+    return std::pair{std::move(future), std::move(promise)};
+}
+
+inline std::pair<Future<void>, Promise<void>> makePromise()
+{
+    return makePromise<void>();
+}
+
 inline Future<void> makeReadyFuture()
 {
     return makeReadyFuture<void>();

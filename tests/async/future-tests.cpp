@@ -655,3 +655,12 @@ TEST(Future, parallelCancel)   // NOLINT
         th2.join();
     }
 }
+
+TEST(Future, makePromise)   // NOLINT
+{
+    auto [future, promise] = makePromise();
+
+    EXPECT_FALSE(future.isReady());
+    promise.setValue();
+    EXPECT_TRUE(future.isReady());
+}
