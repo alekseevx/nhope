@@ -417,6 +417,42 @@ TEST(AOContext, ConcurentCloseChildAndParent)   // NOLINT
     }
 }
 
+TEST(AOContext, BugUseAfterFreeWhenRemoveAOContextFromAOContextCloseHandler)   // NOLINT
+{
+    class AsyncOperation : public AOContextCloseHandler
+    {
+    public:
+        AsyncOperation(ThreadExecutor& parent)
+          : m_aoCtx(parent)
+        {
+            m_aoCtx.addCloseHandler(*this);
+        }
+
+        ~AsyncOperation()
+        {
+            m_aoCtx.removeCloseHandler(*this);
+        }
+
+        void cancel()
+        {
+            m_aoCtx.close();
+        }
+
+    private:
+        void aoContextClose() noexcept override
+        {
+            // Delete ourselves and our AOContext (m_aoCtx)
+            delete this;
+        }
+
+        AOContext m_aoCtx;
+    };
+
+    ThreadExecutor executor;
+    auto* ao = new AsyncOperation(executor);
+    ao->cancel();
+}
+
 TEST(AOContext, BugDeadlockWhenRecursivelyClosing)   // NOLINT
 {
     ThreadExecutor executor;

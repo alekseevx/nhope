@@ -98,6 +98,10 @@ public:
         if (m_state.startClose()) {
             ClosingInThisThreadSet::Item thisAOContexItem(this);
 
+            // CloseHandlers can dstroy the AOContext
+            // The anchor will protected as from permature destruction
+            const auto anchor = refPtrFromRawPtr<AOContextImpl>(this);
+
             this->waitForClosing();
             m_state.setClosingFlag();
 
