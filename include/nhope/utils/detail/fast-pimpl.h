@@ -59,18 +59,19 @@ public:
         swap(*lhs, *rhs);
     }
 
-private:
     T* get() noexcept
     {
         //NOLINTNEXTLINE (cppcoreguidelines-pro-type-reinterpret-cast)
         return reinterpret_cast<T*>(&m_data);
     }
+
     const T* get() const noexcept
     {
         //NOLINTNEXTLINE (cppcoreguidelines-pro-type-reinterpret-cast)
         return reinterpret_cast<T*>(&m_data);
     }
 
+private:
     template<std::size_t ActualSize, std::size_t ActualAlignment>
     static void validate() noexcept
     {
