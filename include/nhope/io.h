@@ -7,6 +7,7 @@
 #include "nhope/io/null-device.h"
 #include "nhope/io/pushback-reader.h"
 #include "nhope/io/serial-port.h"
+#include "nhope/io/sock-addr.h"
 #include "nhope/io/string-reader.h"
 #include "nhope/io/string-writter.h"
 #include "nhope/io/tcp.h"
