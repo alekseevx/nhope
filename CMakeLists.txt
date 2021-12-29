@@ -43,6 +43,7 @@ if (WIN32)
 endif()
 
 if (NOT WIN32)
+    target_include_directories(nhope PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/specific/linux)
     target_link_libraries(nhope -latomic)
 endif()
 

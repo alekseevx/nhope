@@ -11,6 +11,7 @@
 #include <fmt/format.h>
 
 #include "nhope/io/detail/asio-device-wrapper.h"
+#include "nhope/io/detail/serial-port-detail.h"
 #include "nhope/io/serial-port.h"
 
 namespace nhope {
@@ -102,6 +103,21 @@ public:
         asioDev.set_option(toAsio(params.flow));
         asioDev.set_option(toAsio(params.databits));
         asioDev.set_option(toAsio(params.stopbits));
+    }
+
+    void setRTS(bool state) override
+    {
+        nhope::detail::setRTS(asioDev, state);
+    }
+
+    void setDTR(bool state) override
+    {
+        nhope::detail::setDTR(asioDev, state);
+    }
+
+    SerialPortParams::ModemControl getModemControl() override
+    {
+        return nhope::detail::getModemControl(asioDev);
     }
 };
 

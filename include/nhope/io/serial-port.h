@@ -53,6 +53,18 @@ struct SerialPortParams
         SoftwareControl
     };
 
+    enum class ModemControl
+    {
+        DSR = 0x001,    //data set ready/line
+        DTR = 0x002,    //data terminal
+        RTS = 0x004,    //request to send
+        STXD = 0x008,   //transmit
+        SRXD = 0x010,   //receive
+        CTS = 0x020,    //clear to send
+        DCD = 0x040,    //data carrier detect
+        RNG = 0x080     //ring
+    };
+
     std::optional<BaudRate> baudrate;
     std::optional<DataBits> databits;
     std::optional<Parity> parity;
@@ -68,6 +80,10 @@ class SerialPort : public IODevice
 public:
     static SerialPortPtr open(nhope::AOContext& aoCtx, std::string_view device, const SerialPortParams& params);
     static std::list<std::string> availableDevices();
+
+    virtual void setRTS(bool state) = 0;
+    virtual void setDTR(bool state) = 0;
+    virtual SerialPortParams::ModemControl getModemControl() = 0;
 };
 
 }   // namespace nhope

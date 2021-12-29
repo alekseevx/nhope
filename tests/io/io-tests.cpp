@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <exception>
 #include <filesystem>
+#include <limits>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -41,6 +42,7 @@
 
 #ifdef __linux__
 #include "./test-helpers/virtual-serial-port.h"
+#include "serial-port-detail-mc.h"
 #endif
 
 namespace {
@@ -859,6 +861,51 @@ TEST(IOTest, openSerialPort)   // NOLINT
     testParity();
     testStopBits();
 
+#endif
+}
+
+TEST(IOTest, modemControlSerialPort)   // NOLINT
+{
+    ThreadExecutor e;
+    AOContext aoCtx(e);
+
+#ifdef __linux__
+    SerialPortParams p{};
+    {
+        nhope::test::VirtualSerialPort com("/tmp/com_1", "/tmp/com_2");
+
+        //NOLINTNEXTLINE
+        EXPECT_NO_THROW(SerialPort::open(aoCtx, "/tmp/com_1", p));
+    }
+    p.baudrate = SerialPortParams::BaudRate::Baud1200;
+    nhope::test::VirtualSerialPort com("/tmp/com_1", "/tmp/com_2");
+    const auto serial = SerialPort::open(aoCtx, "/tmp/com_1", p);
+
+    //VirtualSerialPort don't support modem control
+    EXPECT_THROW(serial->getModemControl(), std::system_error);   //NOLINT
+    EXPECT_THROW(serial->setRTS(true), std::system_error);        //NOLINT
+    EXPECT_THROW(serial->setRTS(false), std::system_error);       //NOLINT
+    EXPECT_THROW(serial->setDTR(true), std::system_error);        //NOLINT
+    EXPECT_THROW(serial->setDTR(false), std::system_error);       //NOLINT
+#else
+    GTEST_SKIP();   //NOLINT
+#endif
+}
+
+TEST(IOTest, toModemControlSerialPort)   // NOLINT
+{
+#ifdef __linux__
+    EXPECT_EQ(nhope::SerialPortParams::ModemControl::DSR, nhope::detail::toModemControl(TIOCM_LE));
+    EXPECT_EQ(nhope::SerialPortParams::ModemControl::DTR, nhope::detail::toModemControl(TIOCM_DTR));
+    EXPECT_EQ(nhope::SerialPortParams::ModemControl::RTS, nhope::detail::toModemControl(TIOCM_RTS));
+    EXPECT_EQ(nhope::SerialPortParams::ModemControl::STXD, nhope::detail::toModemControl(TIOCM_ST));
+    EXPECT_EQ(nhope::SerialPortParams::ModemControl::SRXD, nhope::detail::toModemControl(TIOCM_SR));
+    EXPECT_EQ(nhope::SerialPortParams::ModemControl::CTS, nhope::detail::toModemControl(TIOCM_CTS));
+    EXPECT_EQ(nhope::SerialPortParams::ModemControl::DCD, nhope::detail::toModemControl(TIOCM_CAR));
+    EXPECT_EQ(nhope::SerialPortParams::ModemControl::RNG, nhope::detail::toModemControl(TIOCM_RNG));
+    EXPECT_THROW(nhope::detail::toModemControl(std::numeric_limits<int>::max()), std::logic_error);   //NOLINT
+#else
+    GTEST_SKIP();   //NOLINT
 #endif
 }
 
