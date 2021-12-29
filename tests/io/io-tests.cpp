@@ -718,6 +718,21 @@ TEST(IOTest, tcpReadWrite)   //NOLINT
     }).get();
 }
 
+TEST(IOTest, tcpSockAddresses)   // NOLINT
+{
+    test::TcpEchoServer echoServer;
+    ThreadExecutor e;
+    AOContext aoCtx(e);
+
+    const auto srvAddress = std::string_view(test::TcpEchoServer::srvAddress);
+
+    auto conn = TcpSocket::connect(aoCtx, test::TcpEchoServer::srvAddress, test::TcpEchoServer::srvPort).get();
+    const auto peerAddress = conn->peerAddress().toString();
+    const auto localAddress = conn->localAddress().toString();
+    EXPECT_TRUE(peerAddress.substr(0, srvAddress.size()) == srvAddress);
+    EXPECT_TRUE(localAddress.substr(0, srvAddress.size()) == srvAddress);
+}
+
 TEST(IOTest, hostNameResolveFailed)   // NOLINT
 {
     ThreadExecutor e;

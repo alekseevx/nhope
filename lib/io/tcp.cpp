@@ -16,6 +16,7 @@
 #include "nhope/async/future.h"
 #include "nhope/async/safe-callback.h"
 #include "nhope/io/detail/asio-device-wrapper.h"
+#include "nhope/io/sock-addr.h"
 #include "nhope/io/tcp.h"
 #include "nhope/utils/scope-exit.h"
 
@@ -46,6 +47,18 @@ public:
     explicit TcpSocketImpl(nhope::AOContextRef& parent)
       : detail::AsioDeviceWrapper<TcpSocket, AsioSocket>(parent)
     {}
+
+    [[nodiscard]] SockAddr localAddress() const override
+    {
+        const auto endpoint = this->asioDev.local_endpoint();
+        return SockAddr{endpoint.data(), endpoint.size()};
+    }
+
+    [[nodiscard]] SockAddr peerAddress() const override
+    {
+        const auto endpoint = this->asioDev.remote_endpoint();
+        return SockAddr{endpoint.data(), endpoint.size()};
+    }
 
     void shutdown(Shutdown what) override
     {
