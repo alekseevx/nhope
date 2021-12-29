@@ -25,24 +25,24 @@ class SingleTimer final : public AOContextCloseHandler
 {
 public:
     SingleTimer(AOContext& aoCtx, std::chrono::nanoseconds timeout, std::function<void(const std::error_code&)> handler)
-      : m_aoCtxRef(aoCtx)
-      , m_impl(aoCtx.executor().ioCtx())
+      : m_impl(aoCtx.executor().ioCtx())
       , m_handler(std::move(handler))
+      , m_aoCtx(aoCtx)
     {
         this->start(timeout);
-        m_aoCtxRef.addCloseHandler(*this);
+        m_aoCtx.addCloseHandler(*this);
     }
 
     ~SingleTimer()
     {
-        m_aoCtxRef.removeCloseHandler(*this);
+        m_aoCtx.removeCloseHandler(*this);
     }
 
 private:
     void start(std::chrono::nanoseconds timeout)
     {
         m_impl.expires_at(SteadyClock::now() + timeout);
-        m_impl.async_wait([this, aoCtxRef = m_aoCtxRef](auto err) mutable {
+        m_impl.async_wait([this, aoCtxRef = AOContextRef(m_aoCtx)](auto err) mutable {
             aoCtxRef.exec(
               [this, err] {
                   this->wakeup(err);
@@ -63,40 +63,40 @@ private:
     void wakeup(std::error_code err)
     {
         ScopeExit clear([this] {
-            // Теперь можно спокойно удалять себя.
-            delete this;
+            m_aoCtx.close();
         });
 
         m_handler(err);
     }
 
-    AOContextRef m_aoCtxRef;
     asio::steady_timer m_impl;
     std::function<void(const std::error_code&)> m_handler;
+
+    AOContext m_aoCtx;
 };
 
 class PromiseTimer final : public AOContextCloseHandler
 {
 public:
     explicit PromiseTimer(AOContext& aoCtx, Promise<void>&& promise, std::chrono::nanoseconds timeout)
-      : m_aoCtxRef(aoCtx)
-      , m_impl(aoCtx.executor().ioCtx())
+      : m_impl(aoCtx.executor().ioCtx())
       , m_promise(std::move(promise))
+      , m_aoCtx(aoCtx)
     {
         this->start(timeout);
-        m_aoCtxRef.addCloseHandler(*this);
+        m_aoCtx.addCloseHandler(*this);
     }
 
     ~PromiseTimer()
     {
-        m_aoCtxRef.removeCloseHandler(*this);
+        m_aoCtx.removeCloseHandler(*this);
     }
 
 private:
     void start(std::chrono::nanoseconds timeout)
     {
         m_impl.expires_at(SteadyClock::now() + timeout);
-        m_impl.async_wait([this, aoCtxRef = m_aoCtxRef](auto err) mutable {
+        m_impl.async_wait([this, aoCtxRef = AOContextRef(m_aoCtx)](auto err) mutable {
             aoCtxRef.exec(
               [this, err] {
                   this->wakeup(err);
@@ -109,7 +109,7 @@ private:
     {
         ScopeExit clear([this] {
             // Теперь можно спокойно удалять себя.
-            delete this;
+            m_aoCtx.close();
         });
 
         if (err) {
@@ -124,15 +124,18 @@ private:
     {
         // AOContext закрыт, таймер больше не нужен.
         m_impl.cancel();
-        m_promise.setException(std::make_exception_ptr(AsyncOperationWasCancelled()));
+
+        if (!m_promise.satisfied()) {
+            m_promise.setException(std::make_exception_ptr(AsyncOperationWasCancelled()));
+        }
 
         // Можно спокойно удалять себя - AOContext проследит, чтобы wakeup не был вызван.
         delete this;
     }
 
-    AOContextRef m_aoCtxRef;
     asio::steady_timer m_impl;
     Promise<void> m_promise;
+    AOContext m_aoCtx;
 };
 
 class IntervalTimer final : public AOContextCloseHandler
@@ -140,18 +143,18 @@ class IntervalTimer final : public AOContextCloseHandler
 public:
     IntervalTimer(AOContext& aoCtx, std::chrono::nanoseconds interval,
                   std::function<bool(const std::error_code&)> handler)
-      : m_aoCtxRef(aoCtx)
-      , m_impl(aoCtx.executor().ioCtx())
+      : m_impl(aoCtx.executor().ioCtx())
       , m_interval(interval)
       , m_handler(std::move(handler))
+      , m_aoCtx(aoCtx)
     {
         this->start();
-        m_aoCtxRef.addCloseHandler(*this);
+        m_aoCtx.addCloseHandler(*this);
     }
 
     ~IntervalTimer()
     {
-        m_aoCtxRef.removeCloseHandler(*this);
+        m_aoCtx.removeCloseHandler(*this);
     }
 
 private:
@@ -174,7 +177,7 @@ private:
     {
         m_tickTime += m_interval;
         m_impl.expires_at(m_tickTime);
-        m_impl.async_wait([this, aoCtxRef = m_aoCtxRef](auto err) mutable {
+        m_impl.async_wait([this, aoCtxRef = AOContextRef(m_aoCtx)](auto err) mutable {
             aoCtxRef.exec(
               [this, err] {
                   this->wakeup(err);
@@ -205,14 +208,15 @@ private:
 
     void stopped()
     {
-        delete this;
+        m_aoCtx.close();
     }
 
-    AOContextRef m_aoCtxRef;
     asio::steady_timer m_impl;
     const std::chrono::nanoseconds m_interval;
     const std::function<bool(const std::error_code& err)> m_handler;
     TimePoint m_tickTime;
+
+    AOContext m_aoCtx;
 };
 
 }   // namespace

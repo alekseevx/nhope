@@ -6,11 +6,12 @@
 
 #include <gtest/gtest.h>
 
+#include "nhope/async/ao-context-error.h"
 #include "nhope/async/ao-context.h"
 #include "nhope/async/future.h"
 #include "nhope/async/thread-executor.h"
 #include "nhope/async/timer.h"
-#include "nhope/async/ao-context-error.h"
+#include "nhope/async/event.h"
 
 #include "test-helpers/wait.h"
 
@@ -209,4 +210,33 @@ TEST(SetTimeout, FutureTimeout)   // NOLINT
         p.setValue(1);
         EXPECT_THROW(f.get(), AsyncOperationWasCancelled);   // NOLINT
     }
+}
+
+TEST(SetTimeout, CloseAOContextFromHandler)   // NOLINT
+{
+    auto executor = ThreadExecutor();
+    auto aoCtx = AOContext(executor);
+
+    Event event;
+    setTimeout(aoCtx, 1ms, [&](const std::error_code&) {
+        aoCtx.close();
+        event.set();
+    });
+
+    EXPECT_TRUE(event.waitFor(1s));
+}
+
+TEST(SetInterval, CloseAOContextFromHandler)   // NOLINT
+{
+    auto executor = ThreadExecutor();
+    auto aoCtx = AOContext(executor);
+
+    Event event;
+    setInterval(aoCtx, 1ms, [&](const std::error_code&) {
+        aoCtx.close();
+        event.set();
+        return true;
+    });
+
+    EXPECT_TRUE(event.waitFor(1s));
 }
