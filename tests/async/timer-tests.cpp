@@ -229,14 +229,28 @@ TEST(SetTimeout, CloseAOContextFromHandler)   // NOLINT
 TEST(SetInterval, CloseAOContextFromHandler)   // NOLINT
 {
     auto executor = ThreadExecutor();
-    auto aoCtx = AOContext(executor);
 
-    Event event;
-    setInterval(aoCtx, 1ms, [&](const std::error_code&) {
-        aoCtx.close();
-        event.set();
-        return true;
-    });
+    {
+        Event event;
+        auto aoCtx = AOContext(executor);
+        setInterval(aoCtx, 1ms, [&](std::error_code) {
+            aoCtx.close();
+            event.set();
+            return false;
+        });
 
-    EXPECT_TRUE(event.waitFor(1s));
+        EXPECT_TRUE(event.waitFor(1s));
+    }
+
+    {
+        Event event;
+        auto aoCtx = AOContext(executor);
+        setInterval(aoCtx, 1ms, [&](std::error_code) {
+            aoCtx.close();
+            event.set();
+            return true;
+        });
+
+        EXPECT_TRUE(event.waitFor(1s));
+    }
 }
