@@ -20,6 +20,7 @@
 #include <gsl/span>
 #include <gtest/gtest.h>
 
+#include "asio/error.hpp"
 #include "nhope/async/ao-context-error.h"
 #include "nhope/async/ao-context.h"
 #include "nhope/async/async-invoke.h"
@@ -1164,4 +1165,18 @@ TEST(IOTest, StringWritter)   // NOLINT
 
     const auto contetnt = dev->takeContent();
     EXPECT_EQ(contetnt, "1234567890");
+}
+
+TEST(IOTest, AsioDeviceWrapper_toExceptionPtr)   // NOLINT
+{
+    using asio::error::misc_errors;
+    using asio::error::misc_category;
+
+    EXPECT_EQ(detail::toExceptionPtr(std::error_code()), nullptr);
+
+    const auto eof = std::error_code(misc_errors::eof, misc_category);
+    EXPECT_EQ(detail::toExceptionPtr(eof), nullptr);
+
+    const auto ioErrCode = std::make_error_code(std::errc::io_error);
+    EXPECT_NE(detail::toExceptionPtr(ioErrCode), nullptr);
 }

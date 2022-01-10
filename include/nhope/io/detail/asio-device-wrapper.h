@@ -7,6 +7,7 @@
 
 #include <asio/buffer.hpp>
 
+#include "asio/error.hpp"
 #include "nhope/async/ao-context.h"
 #include "nhope/io/io-device.h"
 
@@ -14,7 +15,17 @@ namespace nhope::detail {
 
 inline std::exception_ptr toExceptionPtr(std::error_code errCode)
 {
-    return errCode ? std::make_exception_ptr(std::system_error(errCode)) : nullptr;
+    using asio::error::misc_errors;
+    using asio::error::misc_category;
+
+    if (!errCode) {
+        return nullptr;
+    }
+    if (misc_category.equivalent(errCode, misc_errors::eof)) {
+        return nullptr;
+    }
+
+    return std::make_exception_ptr(std::system_error(errCode));
 }
 
 template<typename BaseClass, typename AsioDev>
