@@ -29,8 +29,18 @@ public:
       , m_handler(std::move(handler))
       , m_aoCtxRef(aoCtx)
     {
-        this->start(timeout);
-        m_aoCtxRef.addCloseHandler(*this);
+        m_aoCtxRef.startCancellableTask(
+          [&] {
+              m_impl.expires_at(SteadyClock::now() + timeout);
+              m_impl.async_wait([this, aoCtxRef = m_aoCtxRef](auto err) mutable {
+                  aoCtxRef.exec(
+                    [this, err] {
+                        this->wakeup(err);
+                    },
+                    Executor::ExecMode::ImmediatelyIfPossible);
+              });
+          },
+          *this);
     }
 
     ~SingleTimer()
@@ -39,18 +49,6 @@ public:
     }
 
 private:
-    void start(std::chrono::nanoseconds timeout)
-    {
-        m_impl.expires_at(SteadyClock::now() + timeout);
-        m_impl.async_wait([this, aoCtxRef = m_aoCtxRef](auto err) mutable {
-            aoCtxRef.exec(
-              [this, err] {
-                  this->wakeup(err);
-              },
-              Executor::ExecMode::ImmediatelyIfPossible);
-        });
-    }
-
     void aoContextClose() noexcept override
     {
         // AOContext закрыт, таймер больше не нужен.
@@ -82,8 +80,18 @@ public:
       , m_promise(std::move(promise))
       , m_aoCtxRef(aoCtx)
     {
-        this->start(timeout);
-        m_aoCtxRef.addCloseHandler(*this);
+        m_aoCtxRef.startCancellableTask(
+          [&] {
+              m_impl.expires_at(SteadyClock::now() + timeout);
+              m_impl.async_wait([this, aoCtxRef = m_aoCtxRef](auto err) mutable {
+                  aoCtxRef.exec(
+                    [this, err] {
+                        this->wakeup(err);
+                    },
+                    Executor::ExecMode::ImmediatelyIfPossible);
+              });
+          },
+          *this);
     }
 
     ~PromiseTimer()
@@ -92,18 +100,6 @@ public:
     }
 
 private:
-    void start(std::chrono::nanoseconds timeout)
-    {
-        m_impl.expires_at(SteadyClock::now() + timeout);
-        m_impl.async_wait([this, aoCtxRef = m_aoCtxRef](auto err) mutable {
-            aoCtxRef.exec(
-              [this, err] {
-                  this->wakeup(err);
-              },
-              Executor::ExecMode::ImmediatelyIfPossible);
-        });
-    }
-
     void wakeup(std::error_code err)
     {
         auto promise = std::move(m_promise);
@@ -142,8 +138,12 @@ public:
       , m_handler(std::move(handler))
       , m_aoCtx(aoCtx)
     {
-        this->start();
-        m_aoCtx.addCloseHandler(*this);
+        m_aoCtx.startCancellableTask(
+          [&] {
+              m_tickTime = SteadyClock::now();
+              this->startNextTick(AOContextRef(m_aoCtx));
+          },
+          *this);
     }
 
     ~IntervalTimer()
@@ -152,12 +152,6 @@ public:
     }
 
 private:
-    void start()
-    {
-        m_tickTime = SteadyClock::now();
-        this->startNextTick(AOContextRef(m_aoCtx));
-    }
-
     void aoContextClose() noexcept override
     {
         // AOContext закрыт, таймер больше не нужен.

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <utility>
 
 #include "nhope/async/ao-context-error.h"
 #include "nhope/async/detail/ao-context-impl.h"
@@ -130,6 +131,12 @@ public:
      */
     void removeCloseHandler(AOContextCloseHandler& closeHandler) noexcept;
 
+    template<typename StartFn>
+    void startCancellableTask(StartFn&& start, AOContextCloseHandler& closeHandler)
+    {
+        m_aoImpl->startCancellableTask(std::forward<StartFn>(start), &closeHandler);
+    }
+
     /**
      * @brief Проверяет работает ли AOContext в потоке из которого произведен
      *        вызов workInThisThread (workInThisThread вызван из выполняемой задачи).
@@ -175,6 +182,12 @@ public:
 
     void addCloseHandler(AOContextCloseHandler& closeHandler);
     void removeCloseHandler(AOContextCloseHandler& closeHandler) noexcept;
+
+    template<typename StartFn>
+    void startCancellableTask(StartFn&& start, AOContextCloseHandler& closeHandler)
+    {
+        m_aoImpl->startCancellableTask(std::forward<StartFn>(start), &closeHandler);
+    }
 
     [[nodiscard]] bool workInThisThread() const noexcept;
 

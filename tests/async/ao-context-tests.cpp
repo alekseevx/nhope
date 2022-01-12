@@ -478,3 +478,58 @@ TEST(AOContext, BugDeadlockWhenRecursivelyClosing)   // NOLINT
 
     aoCtx.close();
 }
+
+TEST(AOContext, startCancellableTask)   // NOLINT
+{
+    ThreadExecutor executor;
+
+    class CloseHandler : public AOContextCloseHandler
+    {
+    public:
+        void aoContextClose() noexcept override
+        {
+            aoContextCloseCalled = true;
+        }
+
+        bool aoContextCloseCalled = false;
+    };
+
+    // Success start
+    {
+        AOContext aoCtx(executor);
+        CloseHandler closeHandler;
+
+        aoCtx.startCancellableTask([] {}, closeHandler);
+        aoCtx.close();
+
+        EXPECT_TRUE(closeHandler.aoContextCloseCalled);
+    }
+
+    // Failure start
+    {
+        AOContext aoCtx(executor);
+        CloseHandler closeHandler;
+
+        try {
+            aoCtx.startCancellableTask(
+              [] {
+                  throw std::runtime_error("");
+              },
+              closeHandler);
+            GTEST_FAIL();
+        } catch (...) {
+        }
+        aoCtx.close();
+
+        EXPECT_FALSE(closeHandler.aoContextCloseCalled);
+    }
+
+    // AOContext is closed
+    {
+        AOContext aoCtx(executor);
+        aoCtx.close();
+        CloseHandler closeHandler;
+
+        EXPECT_THROW((aoCtx.startCancellableTask([] {}, closeHandler)), AOContextClosed);   // NOLINT
+    }
+}

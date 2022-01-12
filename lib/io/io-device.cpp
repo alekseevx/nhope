@@ -9,8 +9,8 @@
 #include <utility>
 #include <vector>
 
-#include <gsl/span>
-#include <gsl/span_ext>
+#include "gsl/span"
+#include "gsl/span_ext"
 
 #include "nhope/async/ao-context-error.h"
 #include "nhope/async/ao-context.h"
@@ -18,13 +18,14 @@
 #include "nhope/async/future.h"
 #include "nhope/async/safe-callback.h"
 #include "nhope/io/io-device.h"
+#include "nhope/utils/detail/ref-ptr.h"
 
 namespace nhope {
 
 namespace {
 
 template<typename Handler>
-class ReadOp final : public std::enable_shared_from_this<ReadOp<Handler>>
+class ReadOp final : public detail::BaseRefCounter
 {
 public:
     ReadOp(Reader& dev, Handler&& handler)
@@ -46,10 +47,10 @@ public:
     }
 
 private:
-    using std::enable_shared_from_this<ReadOp>::shared_from_this;
-
     void readNextPortion()
     {
+        using detail::refPtrFromRawPtr;
+
         m_portionSize = m_handler(m_buf);
         if (m_portionSize == 0) {
             m_promise.setValue(std::move(m_buf));
@@ -58,7 +59,7 @@ private:
 
         m_buf.resize(m_buf.size() + m_portionSize);
         auto bufForNextPortion = gsl::span(m_buf).last(m_portionSize);
-        m_dev.read(bufForNextPortion, [self = shared_from_this()](auto err, auto count) {
+        m_dev.read(bufForNextPortion, [self = refPtrFromRawPtr(this)](auto err, auto count) {
             self->readPortionHandler(std::move(err), count);
         });
     }
@@ -90,12 +91,12 @@ private:
 };
 
 template<typename Handler>
-std::shared_ptr<ReadOp<Handler>> makeReadOp(Reader& dev, Handler&& handler)
+detail::RefPtr<ReadOp<Handler>> makeReadOp(Reader& dev, Handler&& handler)
 {
-    return std::make_shared<ReadOp<Handler>>(dev, std::move(handler));
+    return detail::makeRefPtr<ReadOp<Handler>>(dev, std::move(handler));
 }
 
-class WriteOp final : public std::enable_shared_from_this<WriteOp>
+class WriteOp final : public detail::BaseRefCounter
 {
 public:
     WriteOp(Writter& dev, std::vector<std::uint8_t> data, bool writeAll)
@@ -120,8 +121,10 @@ public:
 private:
     void writeNextPortion()
     {
+        using detail::refPtrFromRawPtr;
+
         const auto portion = gsl::span(m_data).subspan(m_written);
-        m_dev.write(portion, [self = shared_from_this()](auto err, auto count) {
+        m_dev.write(portion, [self = refPtrFromRawPtr(this)](auto err, auto count) {
             self->writePortionHandler(err, count);
         });
     }
@@ -149,7 +152,7 @@ private:
     std::size_t m_written = 0;
 };
 
-class CopyOp final : public std::enable_shared_from_this<CopyOp>
+class CopyOp final : public detail::BaseRefCounter
 {
 public:
     CopyOp(nhope::Reader& src, nhope::Writter& dest)
@@ -174,7 +177,9 @@ public:
 private:
     void readNextPortion()
     {
-        m_src.read(m_buf, [self = shared_from_this()](auto err, auto count) {
+        using detail::refPtrFromRawPtr;
+
+        m_src.read(m_buf, [self = refPtrFromRawPtr(this)](auto err, auto count) {
             if (err) {
                 self->m_promise.setException(std::move(err));
                 return;
@@ -192,10 +197,12 @@ private:
 
     void writePortion(std::size_t offset, std::size_t size)
     {
+        using detail::refPtrFromRawPtr;
+
         assert(offset + size <= m_buf.size());   // NOLINT
 
         auto portion = gsl::span(m_buf).subspan(offset, size);
-        m_dest.write(portion, [offset, size, self = shared_from_this()](auto err, auto count) {
+        m_dest.write(portion, [offset, size, self = refPtrFromRawPtr(this)](auto err, auto count) {
             assert(count <= size);   // NOLINT
 
             if (err) {
@@ -245,33 +252,33 @@ public:
 private:
     void startRead(gsl::span<std::uint8_t> buf, IOHandler handler)
     {
-        if (m_readers.empty()) {
-            m_aoCtx.exec([handler = std::move(handler)] {
+        m_aoCtx.exec([this, buf, handler = std::move(handler)]() mutable {
+            if (m_readers.empty()) {
                 handler(nullptr, 0);
+                return;
+            }
+
+            auto& currReader = m_readers.front();
+            currReader->read(buf, [this, aoCtx = AOContextRef(m_aoCtx), buf,
+                                   handler = std::move(handler)](auto err, auto size) mutable {
+                aoCtx.exec(
+                  [this, buf, err, size, handler = std::move(handler)]() mutable {
+                      if (err) {
+                          handler(err, size);
+                          return;
+                      }
+
+                      if (size == 0) {
+                          m_readers.pop_front();
+                          this->startRead(buf, std::move(handler));
+                          return;
+                      }
+
+                      handler(err, size);
+                  },
+                  Executor::ExecMode::ImmediatelyIfPossible);
             });
-            return;
-        }
-
-        auto& currReader = m_readers.front();
-        currReader->read(
-          buf, [this, aoCtx = AOContextRef(m_aoCtx), buf, handler = std::move(handler)](auto err, auto size) mutable {
-              aoCtx.exec(
-                [this, buf, err, size, handler = std::move(handler)]() mutable {
-                    if (err) {
-                        handler(err, size);
-                        return;
-                    }
-
-                    if (size == 0) {
-                        m_readers.pop_front();
-                        this->startRead(buf, std::move(handler));
-                        return;
-                    }
-
-                    handler(err, size);
-                },
-                Executor::ExecMode::ImmediatelyIfPossible);
-          });
+        });
     }
 
     AOContext m_aoCtx;
@@ -307,7 +314,7 @@ Future<std::vector<std::uint8_t>> read(Reader& dev, std::size_t bytesCount)
 
 Future<std::size_t> write(Writter& dev, std::vector<std::uint8_t> data)
 {
-    auto writeOp = std::make_shared<WriteOp>(dev, std::move(data), false);
+    auto writeOp = detail::makeRefPtr<WriteOp>(dev, std::move(data), false);
     return writeOp->start();
 }
 
@@ -324,7 +331,7 @@ Future<std::vector<std::uint8_t>> readExactly(Reader& dev, std::size_t bytesCoun
 
 Future<std::size_t> writeExactly(Writter& device, std::vector<std::uint8_t> data)
 {
-    auto writeOp = std::make_shared<WriteOp>(device, std::move(data), true);
+    auto writeOp = detail::makeRefPtr<WriteOp>(device, std::move(data), true);
     return writeOp->start();
 }
 
@@ -365,7 +372,7 @@ Future<std::vector<std::uint8_t>> readAll(ReaderPtr dev)
 
 Future<std::size_t> copy(nhope::Reader& src, nhope::Writter& dest)
 {
-    auto copyOp = std::make_shared<CopyOp>(src, dest);
+    auto copyOp = detail::makeRefPtr<CopyOp>(src, dest);
     return copyOp->start();
 }
 

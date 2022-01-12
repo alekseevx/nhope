@@ -124,8 +124,19 @@ public:
       , m_resolver(aoCtx.executor().ioCtx())
       , m_promise(std::move(promise))
     {
-        this->start(hostName, port);
-        m_aoCtx.addCloseHandler(*this);
+        m_aoCtx.startCancellableTask(
+          [&] {
+              const auto service = std::to_string(port);
+
+              m_resolver.async_resolve(hostName, service, [this, aoCtx = m_aoCtx](auto err, auto results) mutable {
+                  aoCtx.exec(
+                    [this, err, results = std::move(results)] {
+                        this->resolveHandler(err, results);
+                    },
+                    Executor::ExecMode::ImmediatelyIfPossible);
+              });
+          },
+          *this);
     }
 
     ~ConnectOp()
@@ -134,19 +145,6 @@ public:
     }
 
 private:
-    void start(std::string_view hostName, std::uint16_t port)
-    {
-        const auto service = std::to_string(port);
-
-        m_resolver.async_resolve(hostName, service, [this, aoCtx = m_aoCtx](auto err, auto results) mutable {
-            aoCtx.exec(
-              [this, err, results = std::move(results)] {
-                  this->resolveHandler(err, results);
-              },
-              Executor::ExecMode::ImmediatelyIfPossible);
-        });
-    }
-
     void aoContextClose() noexcept override
     {
         this->cancel();

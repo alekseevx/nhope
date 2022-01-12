@@ -3,6 +3,7 @@
 #include <mutex>
 #include <list>
 #include <thread>
+#include <utility>
 
 #include "nhope/async/ao-context-close-handler.h"
 #include "nhope/async/ao-context-error.h"
@@ -17,6 +18,15 @@
 namespace nhope::detail {
 
 class AOContextImpl;
+
+template<typename Fn>
+void tryCall(Fn&& fn) noexcept
+{
+    try {
+        fn();
+    } catch (...) {
+    }
+}
 
 template<>
 struct RefCounterT<AOContextImpl>
@@ -54,12 +64,18 @@ public:
             m_state.unblockClose();
         });
 
-        /* Note that we are working in this thread.
-           Now you can work with the internal storage only from this thread.  */
-        WorkingInThisThreadSet::Item thisAOContexItem(m_groupId);
+        /* In case m_executorHolder->exec is called synchronously. */
+        WorkingInThisThreadSet::Item thisGroup(m_groupId);
+
         m_executorHolder->exec(
           [work = std::move(work), self = refPtrFromRawPtr(this, notAddRef)]() mutable {
-              /* m_executorHolder->exec could be started asynchronously,
+              if (self->aoContextWorkInThisThread()) {
+                  /* m_executorHolder->exec was called synchronously. */
+                  tryCall(std::forward<Work>(work));
+                  return;
+              }
+
+              /* m_executorHolder->exec was called asynchronously,
                  so we need to block closing of the AOContext again and
                  indicate that we working in this thread. */
               if (!self->m_state.blockClose()) {
@@ -67,10 +83,7 @@ public:
               }
               WorkingInThisThreadSet::Item thisGroup(self->m_groupId);
 
-              try {
-                  work();
-              } catch (...) {
-              }
+              tryCall(std::forward<Work>(work));
 
               /* Take the reference from self to atomically 
                  remove the reference and unblock close. */
@@ -78,6 +91,20 @@ public:
               s->unblockCloseAndRelease();
           },
           mode);
+    }
+
+    template<typename StartFn>
+    void startCancellableTask(StartFn&& start, AOContextCloseHandler* closeHandler)
+    {
+        if (!m_state.blockClose()) {
+            throw AOContextClosed();
+        }
+
+        ScopeExit unblock([this] {
+            m_state.unblockClose();
+        });
+
+        this->startCancellableTaskNonBlockClose(std::forward<StartFn>(start), closeHandler);
     }
 
     RefPtr<AOContextImpl> makeChild()
@@ -132,25 +159,12 @@ public:
 
     void addCloseHandler(AOContextCloseHandler* closeHandler)
     {
-        assert(closeHandler != nullptr);           // NOLINT
-        assert(closeHandler->m_next == nullptr);   // NOLINT
-        assert(closeHandler->m_prev == nullptr);   // NOLINT
-
         if (!m_state.blockClose()) {
             throw AOContextClosed();
         }
 
-        m_state.lockCloseHandlerList();
+        this->addCloseHandlerNonBlockClose(closeHandler);
 
-        if (m_closeHandlerList != nullptr) {
-            assert(m_closeHandlerList->m_prev == nullptr);   // NOLINT
-            m_closeHandlerList->m_prev = closeHandler;
-        }
-
-        closeHandler->m_next = m_closeHandlerList;
-        m_closeHandlerList = closeHandler;
-
-        m_state.unlockCloseHandlerList();
         m_state.unblockClose();
     }
 
@@ -323,6 +337,37 @@ private:
         this->m_done = true;
 
         this->close();
+    }
+
+    void addCloseHandlerNonBlockClose(AOContextCloseHandler* closeHandler) noexcept
+    {
+        assert(closeHandler != nullptr);           // NOLINT
+        assert(closeHandler->m_next == nullptr);   // NOLINT
+        assert(closeHandler->m_prev == nullptr);   // NOLINT
+
+        m_state.lockCloseHandlerList();
+
+        if (m_closeHandlerList != nullptr) {
+            assert(m_closeHandlerList->m_prev == nullptr);   // NOLINT
+            m_closeHandlerList->m_prev = closeHandler;
+        }
+
+        closeHandler->m_next = m_closeHandlerList;
+        m_closeHandlerList = closeHandler;
+
+        m_state.unlockCloseHandlerList();
+    }
+
+    template<typename StartFn>
+    void startCancellableTaskNonBlockClose(StartFn&& start, AOContextCloseHandler* closeHandler)
+    {
+        this->addCloseHandlerNonBlockClose(closeHandler);
+        try {
+            start();
+        } catch (...) {
+            this->removeCloseHandler(closeHandler);
+            throw;
+        }
     }
 
     AOContextState m_state;
