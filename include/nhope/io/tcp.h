@@ -46,6 +46,7 @@ public:
     virtual ~TcpServer() = default;
 
     virtual Future<TcpSocketPtr> accept() = 0;
+    [[nodiscard]] virtual SockAddr bindAddress() const = 0;
 
     static TcpServerPtr start(AOContext& aoCtx, const TcpServerParams& params);
 };

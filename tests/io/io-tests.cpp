@@ -9,6 +9,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+
 #include <system_error>
 #include <thread>
 #include <utility>
@@ -41,9 +42,15 @@
 
 #include "./test-helpers/tcp-echo-server.h"
 
+#ifdef WIN32
+#define _WINSOCK_DEPRECATED_NO_WARNINGS
+#include <WinSock2.h>
+#endif
+
 #ifdef __linux__
 #include "./test-helpers/virtual-serial-port.h"
 #include "serial-port-detail-mc.h"
+#include <sys/socket.h>
 #endif
 
 namespace {
@@ -734,6 +741,23 @@ TEST(IOTest, tcpSockAddresses)   // NOLINT
     const auto localAddress = conn->localAddress().toString();
     EXPECT_TRUE(peerAddress.substr(0, srvAddress.size()) == srvAddress);
     EXPECT_TRUE(localAddress.substr(0, srvAddress.size()) == srvAddress);
+}
+
+TEST(IOTest, tcpServerBindAddress)   // NOLINT
+{
+    test::TcpEchoServer echoServer;
+    ThreadExecutor e;
+    AOContext aoCtx(e);
+
+    constexpr uint16_t listenPort{27777};
+
+    auto tcp = TcpServer::start(aoCtx, {"*", listenPort});
+    auto bind = tcp->bindAddress();
+    auto [sockaddr, s] = bind.native();
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+    const auto* sockaddrIn = reinterpret_cast<const sockaddr_in*>(sockaddr);
+    const auto port = ntohs(sockaddrIn->sin_port);
+    EXPECT_EQ(port, listenPort);   // NOLINT
 }
 
 TEST(IOTest, hostNameResolveFailed)   // NOLINT
