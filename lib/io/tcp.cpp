@@ -83,6 +83,12 @@ public:
         m_aoCtx.removeCloseHandler(*this);
     }
 
+    [[nodiscard]] SockAddr bindAddress() const override
+    {
+        const auto endpoint = this->m_acceptor.local_endpoint();
+        return SockAddr{endpoint.data(), endpoint.size()};
+    }
+
     Future<TcpSocketPtr> accept() override
     {
         Promise<TcpSocketPtr> promise;
