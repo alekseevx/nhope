@@ -39,33 +39,27 @@ public:
 private:
     void startRead(gsl::span<std::uint8_t> outBuf, IOHandler handler)
     {
-        const auto askSize = outBuf.size();
-        const auto currentBufferSize = m_unreadBuf.size();
+        if (!m_unreadBuf.empty()) {
+            const auto size = std::min(outBuf.size(), m_unreadBuf.size());
+            const auto bufSpan = gsl::span(m_unreadBuf).last(size);
 
-        const auto readyBufferSize = std::min(currentBufferSize, askSize);
-        if (readyBufferSize != 0) {
-            const auto bufSpan = gsl::span(m_unreadBuf).last(readyBufferSize);
             std::copy(bufSpan.rbegin(), bufSpan.rend(), outBuf.begin());
-            m_unreadBuf.resize(currentBufferSize - readyBufferSize);
-        }
+            m_unreadBuf.resize(m_unreadBuf.size() - size);
 
-        const auto leftReadChunk = askSize - readyBufferSize;
-        if (leftReadChunk == 0) {
-            m_aoCtx.exec([askSize, handler = std::move(handler)] {
-                handler(nullptr, askSize);
+            m_aoCtx.exec([size, handler = std::move(handler)] {
+                handler(nullptr, size);
             });
             return;
         }
 
-        auto next = outBuf.subspan(readyBufferSize);
-        m_originReader.read(next, [this, aoCtx = AOContextRef(m_aoCtx), alreadyRead = readyBufferSize,
-                                   handler = std::move(handler)](auto err, auto size) mutable {
-            aoCtx.exec(
-              [this, err = std::move(err), size, alreadyRead, handler = std::move(handler)] {
-                  handler(std::move(err), alreadyRead + size);
-              },
-              Executor::ExecMode::ImmediatelyIfPossible);
-        });
+        m_originReader.read(
+          outBuf, [this, aoCtx = AOContextRef(m_aoCtx), handler = std::move(handler)](auto err, auto size) mutable {
+              aoCtx.exec(
+                [this, err = std::move(err), size, handler = std::move(handler)] {
+                    handler(std::move(err), size);
+                },
+                Executor::ExecMode::ImmediatelyIfPossible);
+          });
     }
 
     Reader& m_originReader;
