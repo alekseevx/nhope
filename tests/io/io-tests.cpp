@@ -1146,6 +1146,33 @@ TEST(IOTest, PushbackReader)   // NOLINT
     EXPECT_TRUE(eq(d2, etalonData));
 }
 
+// http://gitlab.olimp.lan/alekseev/nhope/-/issues/28
+TEST(IOTest, PushbackReader_ReadUnreadRead)   //  NOLINT
+{
+    constexpr auto etalonData = "1234567890"sv;
+
+    ThreadExecutor executor;
+    AOContext aoCtx(executor);
+
+    auto stringReader = StringReader::create(aoCtx, std::string(etalonData));
+    auto pushbackReader = PushbackReader::create(aoCtx, std::move(stringReader));
+
+    const auto d1 = invoke(aoCtx, [&] {
+        return read(*pushbackReader, 4);
+    });
+
+    invoke(aoCtx, [&] {
+        pushbackReader->unread(gsl::span(d1).first(2));
+    });
+
+    const auto d2 = invoke(aoCtx, [&] {
+        return read(*pushbackReader, 4);
+    });
+
+    // Read only onread data
+    EXPECT_TRUE(eq(d2, etalonData.substr(0, 2)));
+}
+
 TEST(IOTest, PushbackReader_FailRead)   // NOLINT
 {
     ThreadExecutor executor;
