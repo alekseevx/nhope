@@ -16,7 +16,7 @@ using namespace std::chrono_literals;
 Future<int> doWork(int value)
 {
     static std::atomic_int counter{};
-    return toThread<int>([value] {
+    return toThread([value] {
         EXPECT_EQ(counter, 0);
         ++counter;
         std::this_thread::sleep_for(10ms);
