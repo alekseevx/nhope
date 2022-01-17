@@ -5,6 +5,7 @@
 #include <utility>
 
 #include <gtest/gtest.h>
+#include <vector>
 
 #include "nhope/async/ao-context-error.h"
 #include "nhope/async/detail/future-state.h"
@@ -203,7 +204,7 @@ TEST(Future, simpleChain)   // NOLINT
     auto future = makeReadyFuture()
                     .then(aoCtx,
                           [] {
-                              return toThread<int>([] {
+                              return toThread([] {
                                   std::this_thread::sleep_for(1s);
                                   return testValue;
                               });
@@ -220,7 +221,7 @@ TEST(Future, simpleChain2)   // NOLINT
 {
     auto future = makeReadyFuture()
                     .then([] {
-                        return toThread<int>([] {
+                        return toThread([] {
                             std::this_thread::sleep_for(1s);
                             return testValue;
                         });
@@ -273,7 +274,7 @@ TEST(Future, caughtException)   // NOLINT
     auto future = makeReadyFuture()
                     .then(aoCtx,
                           [] {
-                              return toThread<int>([]() -> int {
+                              return toThread([]() -> int {
                                   throw std::runtime_error("TestTest");
                               });
                           })
@@ -319,7 +320,7 @@ TEST(Future, caughtException3)   // NOLINT
 {
     auto future = makeReadyFuture()
                     .then([] {
-                        return toThread<int>([]() -> int {
+                        return toThread([]() -> int {
                             throw std::runtime_error("TestTest");
                         });
                     })
@@ -583,8 +584,8 @@ TEST(Future, cancelThenWithoutAOContext)   // NOLINT
 
 TEST(Future, cancelUnwrap)   // NOLINT
 {
-    auto f = toThread<Future<Future<void>>>([] {
-                 return toThread<Future<void>>([] {
+    auto f = toThread([] {
+                 return toThread([] {
                      Promise<void> p;
                      auto innerFuture = p.future();
                      std::thread([p = std::move(p)]() mutable {
@@ -663,4 +664,54 @@ TEST(Future, makePromise)   // NOLINT
     EXPECT_FALSE(future.isReady());
     promise.setValue();
     EXPECT_TRUE(future.isReady());
+}
+TEST(Future, all)   // NOLINT
+{
+    nhope::ThreadExecutor executor;
+    nhope::AOContext ao(executor);
+
+    const std::vector<int> input{1, 2, 3, 4, 5};
+    {
+        const std::vector<int> expect{3, 4, 5, 6, 7};
+
+        auto res = all(
+                     ao,
+                     [](AOContext&, int x) {
+                         return toThread([x] {
+                             return x + 2;
+                         });
+                     },
+                     input)
+                     .get();
+
+        EXPECT_EQ(res, expect);   //NOLINT
+    }
+    {
+        auto res = all(
+          ao,
+          [](AOContext&, int arg) {
+              return toThread([arg] {
+                  if (arg == 2) {
+                      std::this_thread::sleep_for(10ms);
+                      throw std::invalid_argument("some problem");
+                  }
+                  return std::to_string(arg);
+              });
+          },
+          input);
+        EXPECT_THROW(res.get(), std::invalid_argument);   // NOLINT
+    }
+
+    {
+        auto res = all(
+          ao,
+          [](AOContext&, int arg) {
+              if (arg == 2) {
+                  throw std::invalid_argument("some problem");
+              }
+              return makeReadyFuture<std::string>(std::to_string(arg));
+          },
+          input);
+        EXPECT_THROW(res.get(), std::invalid_argument);   // NOLINT
+    }
 }
