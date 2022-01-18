@@ -753,11 +753,9 @@ TEST(IOTest, tcpServerBindAddress)   // NOLINT
 
     auto tcp = TcpServer::start(aoCtx, {"*", listenPort});
     auto bind = tcp->bindAddress();
-    auto [sockaddr, s] = bind.native();
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
-    const auto* sockaddrIn = reinterpret_cast<const sockaddr_in*>(sockaddr);
-    const auto port = ntohs(sockaddrIn->sin_port);
-    EXPECT_EQ(port, listenPort);   // NOLINT
+    const auto port = bind.port();
+    EXPECT_TRUE(port.has_value());
+    EXPECT_EQ(port.value(), listenPort);   // NOLINT
 }
 
 TEST(IOTest, hostNameResolveFailed)   // NOLINT

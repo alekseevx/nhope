@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <string_view>
 
@@ -17,6 +18,8 @@ class SockAddr final
 public:
     SockAddr(const struct sockaddr* sockaddr, std::size_t size);
     ~SockAddr();
+
+    std::optional<std::uint16_t> port() const noexcept;
 
     std::pair<const struct sockaddr*, std::size_t> native() const;
     std::string toString() const;
