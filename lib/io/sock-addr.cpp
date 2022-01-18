@@ -9,6 +9,7 @@
 
 #include <cerrno>
 #include <cstring>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <system_error>
@@ -49,6 +50,18 @@ SockAddr::SockAddr(const struct sockaddr* sockaddr, std::size_t size)
 }
 
 SockAddr::~SockAddr() = default;
+
+std::optional<std::uint16_t> SockAddr::port() const noexcept
+{
+    switch (m_impl->ss_family) {
+    case AF_INET:
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+        return ntohs(reinterpret_cast<const sockaddr_in&>(*m_impl).sin_port);
+
+    default:
+        return std::nullopt;
+    }
+}
 
 std::pair<const struct sockaddr*, std::size_t> SockAddr::native() const
 {
