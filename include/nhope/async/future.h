@@ -439,6 +439,24 @@ public:
         return m_state->wasCancelled();
     }
 
+    // For compatible with std
+
+    template<typename... Tp>
+    void set_value(Tp&&... args)   // NOLINT(readability-identifier-naming)
+    {
+        this->setValue(std::forward<Tp>(args)...);
+    }
+
+    void set_exception(std::exception_ptr ex)   // NOLINT(readability-identifier-naming)
+    {
+        this->setException(std::move(ex));
+    }
+
+    Future<T> get_future()   // NOLINT(readability-identifier-naming)
+    {
+        return this->future();
+    }
+
 private:
     using State = detail::FutureState<T>;
 
