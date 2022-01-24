@@ -2,7 +2,6 @@
 #include <cstddef>
 #include <cstring>
 
-#include <linux/prctl.h>
 #include <sys/prctl.h>
 
 #include "nhope/async/detail/thread-name.h"
