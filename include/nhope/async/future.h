@@ -604,6 +604,9 @@ auto all(AOContext& ctx, Fn&& fn, std::vector<ArgT> args)
     };
 
     const auto resSize = args.size();
+    if (resSize == 0) {
+        return makeReadyFuture<std::vector<T>>();
+    }
     auto state = std::make_shared<AllHelper>(ctx, resSize);
     auto res = state->future();
     try {

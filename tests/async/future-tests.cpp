@@ -669,6 +669,19 @@ TEST(Future, all)   // NOLINT
 {
     nhope::ThreadExecutor executor;
     nhope::AOContext ao(executor);
+    {
+        auto res = all(
+                     ao,
+                     [](AOContext&, int x) {
+                         return toThread([x] {
+                             return x + 2;
+                         });
+                     },
+                     std::vector<int>{})
+                     .get();
+
+        EXPECT_TRUE(res.empty());
+    }
 
     const std::vector<int> input{1, 2, 3, 4, 5};
     {
