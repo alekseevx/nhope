@@ -19,7 +19,7 @@ class Fifo
     static_assert(std::is_standard_layout_v<T> && std::is_trivial_v<T>);
 
     template<std::size_t Value>
-    static constexpr std::size_t nexPowerOf2()
+    static constexpr std::size_t nextPowerOf2()
     {
         static_assert(Value > 0);
         std::size_t v = Value;
@@ -115,7 +115,7 @@ private:
     {
         std::memcpy(dst.data(), src.data(), src.size() * sizeof(T));
     }
-    static constexpr std::size_t capacity = nexPowerOf2<Size>();
+    static constexpr std::size_t capacity = nextPowerOf2<Size>();
     std::array<T, capacity> m_buffer{};
     std::size_t m_head{};
     std::size_t m_tail{};
