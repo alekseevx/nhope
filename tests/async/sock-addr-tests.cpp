@@ -18,13 +18,15 @@ using namespace nhope;
 TEST(SockAddr, ConstructionWithInvalidSockaddrLen)   // NOLINT
 {
     {
-        sockaddr nativeSockaddr{AF_UNSPEC};
+        sockaddr nativeSockaddr{};
+        nativeSockaddr.sa_family = AF_UNSPEC;
         EXPECT_THROW(SockAddr(&nativeSockaddr, 1), std::runtime_error);      // NOLINT
         EXPECT_THROW(SockAddr(&nativeSockaddr, 1024), std::runtime_error);   // NOLINT
     }
 
     {
-        sockaddr nativeSockaddr{AF_INET};
+        sockaddr nativeSockaddr{};
+        nativeSockaddr.sa_family = AF_INET;
         EXPECT_THROW(SockAddr(&nativeSockaddr, sizeof(sockaddr_in) - 1), std::runtime_error);   // NOLINT
     }
 }
@@ -32,7 +34,8 @@ TEST(SockAddr, ConstructionWithInvalidSockaddrLen)   // NOLINT
 TEST(SockAddr, Native)   // NOLINT
 {
     {
-        sockaddr_storage native{AF_UNSPEC};
+        sockaddr_storage native{};
+        native.ss_family = {AF_UNSPEC};
 
         // NOLINTNEXTLINE
         SockAddr sockAddr(&reinterpret_cast<sockaddr&>(native), 20);
@@ -41,7 +44,8 @@ TEST(SockAddr, Native)   // NOLINT
     }
 
     {
-        sockaddr_storage native{AF_INET};
+        sockaddr_storage native{};
+        native.ss_family = {AF_INET};
         // NOLINTNEXTLINE
         SockAddr sockAddr(&reinterpret_cast<sockaddr&>(native), sizeof(sockaddr_storage));
         EXPECT_EQ(sockAddr.native().first->sa_family, AF_INET);
@@ -72,7 +76,8 @@ TEST(SockAddr, IPv4ToString)   // NOLINT
 
 TEST(SockAddr, ToStringFail)   // NOLINT
 {
-    sockaddr nativeSockaddr{AF_UNSPEC};
+    sockaddr nativeSockaddr{};
+    nativeSockaddr.sa_family = AF_UNSPEC;
     SockAddr sockaddr(&nativeSockaddr, sizeof(nativeSockaddr));
 
     EXPECT_THROW(sockaddr.toString(), std::runtime_error);   // NOLINT

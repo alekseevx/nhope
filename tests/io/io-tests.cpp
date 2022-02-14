@@ -1097,8 +1097,6 @@ TEST(IOTest, Concat)   // NOLINT
 
 TEST(IOTest, Concat_Failed)   // NOLINT
 {
-    constexpr auto etalonData = "1234567890"sv;
-
     ThreadExecutor executor;
     AOContext aoCtx(executor);
 

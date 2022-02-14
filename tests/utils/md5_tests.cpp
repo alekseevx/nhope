@@ -34,7 +34,7 @@ auto makeTestStream()
     }
 
     return std::pair{std::stringstream(stream.str()), digest};
-};
+}
 
 }   // namespace
 

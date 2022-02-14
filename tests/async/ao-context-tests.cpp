@@ -419,7 +419,7 @@ TEST(AOContext, ConcurentCloseChildAndParent)   // NOLINT
 
 TEST(AOContext, BugUseAfterFreeWhenRemoveAOContextFromAOContextCloseHandler)   // NOLINT
 {
-    class AsyncOperation : public AOContextCloseHandler
+    class AsyncOperation final : public AOContextCloseHandler
     {
     public:
         AsyncOperation(ThreadExecutor& parent)

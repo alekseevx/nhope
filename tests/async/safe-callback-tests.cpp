@@ -95,7 +95,7 @@ TEST(CallSafeCallback, AOContextClosedActions_ThrowAOContextClosed)   // NOLINT
             EXPECT_FALSE(aoContextDestroyed);
         });
 
-        auto callbackCaller = std::thread([safeCallback, &aoContextDestroyed] {
+        auto callbackCaller = std::thread([&] {
             for (;;) {
                 try {
                     safeCallback();
@@ -116,8 +116,6 @@ TEST(CallSafeCallback, AOContextClosedActions_ThrowAOContextClosed)   // NOLINT
 
 TEST(CallSafeCallback, AOContextClosedActions_NotThrowAOContextClosed)   // NOLINT
 {
-    constexpr auto iterCount = 100;
-
     ThreadExecutor executor;
     auto aoContext = std::make_unique<AOContext>(executor);
 
