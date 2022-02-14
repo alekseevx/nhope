@@ -35,7 +35,6 @@ TEST(CallQueue, Queue)   // NOLINT
     CallQueue calls(ctx);
 
     constexpr auto taskCount = 100;
-    int previous{};
     Future<int> f;
     for (int taskNum = 0; taskNum < taskCount; ++taskNum) {
         f = calls.push(doWork, taskNum);

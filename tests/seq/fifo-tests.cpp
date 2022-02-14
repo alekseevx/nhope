@@ -108,7 +108,7 @@ TEST(Fifo, pushAndPop)   // NOLINT
     fifo.push(test);
 
     while (!fifo.empty()) {
-        auto x = fifo.pop();
+        [[maybe_unused]] auto x = fifo.pop();
     }
     EXPECT_TRUE(fifo.empty());
 }

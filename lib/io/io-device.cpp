@@ -365,7 +365,7 @@ Future<std::vector<std::uint8_t>> readAll(Reader& dev)
 
 Future<std::vector<std::uint8_t>> readAll(ReaderPtr dev)
 {
-    return readAll(*dev).then([anchor = std::move(dev)](auto data) {
+    return readAll(*dev).then([anchor = std::move(dev)](auto&& data) {
         return std::move(data);
     });
 }

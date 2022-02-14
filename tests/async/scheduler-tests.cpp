@@ -594,7 +594,7 @@ TEST(Scheduler, StateWatch)   // NOLINT
     const auto state = scheduler.getState(thirdId).value();
     EXPECT_TRUE(state == ManageableTask::State::Paused || state == ManageableTask::State::WaitForStart);
     firstFin.wait();
-    const auto fourthId = scheduler.push(f, 2);
+    scheduler.push(f, 2);
     scheduler.activate(thirdId);
     scheduler.waitAll();
 }

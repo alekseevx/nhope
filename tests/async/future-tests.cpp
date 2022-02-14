@@ -116,8 +116,8 @@ TEST(Future, noState)   // NOLINT
         // Now future has no state
 
         EXPECT_FALSE(f.isValid());
-        EXPECT_THROW(f.get(), FutureNoStateError);                // NOLINT
-        EXPECT_THROW(auto b = f.isReady(), FutureNoStateError);   // NOLINT
+        EXPECT_THROW(f.get(), FutureNoStateError);                                 // NOLINT
+        EXPECT_THROW([[maybe_unused]] auto b = f.isReady(), FutureNoStateError);   // NOLINT
     }
 
     {
@@ -137,12 +137,12 @@ TEST(Future, noState)   // NOLINT
         // Now future has no state
 
         EXPECT_FALSE(f.isValid());
-        EXPECT_THROW(f.get(), FutureNoStateError);                      // NOLINT
-        EXPECT_THROW(f.then(aoCtx, [] {}), FutureNoStateError);         // NOLINT
-        EXPECT_THROW(f.then([] {}), FutureNoStateError);                // NOLINT
-        EXPECT_THROW(f.fail(aoCtx, [](auto) {}), FutureNoStateError);   // NOLINT
-        EXPECT_THROW(f.fail([](auto) {}), FutureNoStateError);          // NOLINT
-        EXPECT_THROW(auto b = f.isReady(), FutureNoStateError);         // NOLINT
+        EXPECT_THROW(f.get(), FutureNoStateError);                                 // NOLINT
+        EXPECT_THROW(f.then(aoCtx, [] {}), FutureNoStateError);                    // NOLINT
+        EXPECT_THROW(f.then([] {}), FutureNoStateError);                           // NOLINT
+        EXPECT_THROW(f.fail(aoCtx, [](auto) {}), FutureNoStateError);              // NOLINT
+        EXPECT_THROW(f.fail([](auto) {}), FutureNoStateError);                     // NOLINT
+        EXPECT_THROW([[maybe_unused]] auto b = f.isReady(), FutureNoStateError);   // NOLINT
     }
 }
 

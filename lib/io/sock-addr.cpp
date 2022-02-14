@@ -92,7 +92,8 @@ SockAddr SockAddr::ipv4(std::string_view ip, std::uint16_t port)
 {
     std::string cip(ip);   // C-string for inet_aton
 
-    sockaddr_in sin{AF_INET};
+    sockaddr_in sin{};
+    sin.sin_family = AF_INET;
     sin.sin_port = htons(port);
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-acces)
     sin.sin_addr.s_addr = inet_addr(cip.c_str());

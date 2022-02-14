@@ -13,7 +13,7 @@ void fifo(benchmark::State& state)
         while (fifo.push(data) != 0) {
         }
         while (!fifo.empty()) {
-            auto x = fifo.pop(indata);
+            [[maybe_unused]] auto x = fifo.pop(indata);
         }
     }
 }
