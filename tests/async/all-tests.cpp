@@ -78,6 +78,62 @@ TEST(all, vector)   // NOLINT
     }
 }
 
+TEST(all, vectorAndRetvalVoid)   // NOLINT
+{
+    ThreadExecutor executor;
+    AOContext ao(executor);
+    {
+        Future<void> future = all(
+          ao,
+          [](AOContext&, int) {
+              return toThread([] {});
+          },
+          std::vector<int>{});
+
+        EXPECT_NO_THROW(future.get());   // NOLINT
+    }
+
+    const std::vector<int> input{1, 2, 3, 4, 5};
+    {
+        Future<void> future = all(
+          ao,
+          [](AOContext&, int) {
+              return toThread([] {});
+          },
+          input);
+
+        EXPECT_NO_THROW(future.get());   //NOLINT
+    }
+
+    {
+        Future<void> future = all(
+          ao,
+          [](AOContext&, int arg) {
+              return toThread([arg] {
+                  if (arg == 2) {
+                      std::this_thread::sleep_for(10ms);
+                      throw std::invalid_argument("some problem");
+                  }
+              });
+          },
+          input);
+        EXPECT_THROW(future.get(), std::invalid_argument);   // NOLINT
+    }
+
+    {
+        Future<void> future = all(
+          ao,
+          [](AOContext&, int arg) {
+              if (arg == 2) {
+                  throw std::invalid_argument("some problem");
+              }
+              return makeReadyFuture<void>();
+          },
+          input);
+        EXPECT_THROW(future.get(), std::invalid_argument);   // NOLINT
+    }
+}
+
 TEST(all, tuple)   // NOLINT
 {
     nhope::ThreadExecutor executor;
