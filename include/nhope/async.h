@@ -1,5 +1,6 @@
 #pragma once
 
+#include "nhope/async/all.h"
 #include "nhope/async/ao-context-close-handler.h"
 #include "nhope/async/ao-context-error.h"
 #include "nhope/async/ao-context.h"
