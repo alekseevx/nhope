@@ -3,9 +3,9 @@
 #include <string>
 #include <thread>
 #include <utility>
+#include <vector>
 
 #include <gtest/gtest.h>
-#include <vector>
 
 #include "nhope/async/ao-context-error.h"
 #include "nhope/async/detail/future-state.h"
@@ -14,6 +14,7 @@
 #include "nhope/async/future.h"
 #include "nhope/async/thread-executor.h"
 #include "nhope/async/timer.h"
+
 #include "test-helpers/wait.h"
 
 namespace {
@@ -664,67 +665,4 @@ TEST(Future, makePromise)   // NOLINT
     EXPECT_FALSE(future.isReady());
     promise.setValue();
     EXPECT_TRUE(future.isReady());
-}
-TEST(Future, all)   // NOLINT
-{
-    nhope::ThreadExecutor executor;
-    nhope::AOContext ao(executor);
-    {
-        auto res = all(
-                     ao,
-                     [](AOContext&, int x) {
-                         return toThread([x] {
-                             return x + 2;
-                         });
-                     },
-                     std::vector<int>{})
-                     .get();
-
-        EXPECT_TRUE(res.empty());
-    }
-
-    const std::vector<int> input{1, 2, 3, 4, 5};
-    {
-        const std::vector<int> expect{3, 4, 5, 6, 7};
-
-        auto res = all(
-                     ao,
-                     [](AOContext&, int x) {
-                         return toThread([x] {
-                             return x + 2;
-                         });
-                     },
-                     input)
-                     .get();
-
-        EXPECT_EQ(res, expect);   //NOLINT
-    }
-    {
-        auto res = all(
-          ao,
-          [](AOContext&, int arg) {
-              return toThread([arg] {
-                  if (arg == 2) {
-                      std::this_thread::sleep_for(10ms);
-                      throw std::invalid_argument("some problem");
-                  }
-                  return std::to_string(arg);
-              });
-          },
-          input);
-        EXPECT_THROW(res.get(), std::invalid_argument);   // NOLINT
-    }
-
-    {
-        auto res = all(
-          ao,
-          [](AOContext&, int arg) {
-              if (arg == 2) {
-                  throw std::invalid_argument("some problem");
-              }
-              return makeReadyFuture<std::string>(std::to_string(arg));
-          },
-          input);
-        EXPECT_THROW(res.get(), std::invalid_argument);   // NOLINT
-    }
 }

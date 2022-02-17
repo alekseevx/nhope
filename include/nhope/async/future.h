@@ -2,8 +2,10 @@
 
 #include <cstddef>
 #include <exception>
+#include <functional>
 #include <memory>
 #include <thread>
+#include <tuple>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -554,78 +556,6 @@ auto toThread(Fn&& fn, Args&&... args)
     }).detach();
 
     return future;
-}
-
-/*!
- * @brief Вызывает пользовательскую функцию для каждого параметра из args
- * 
- * возвращает Future<вектор с полученными результатами>
- * 
- * @tparam Fn Пользовательская функция должна возвращать Future<T>
- * @tparam ArgT Тип аргументов
- * @param args вектор с аргументами для вызова пользовательской функции
- * @return Future<std::vector<FnRetValType>>
- */
-template<typename Fn, typename ArgT>
-auto all(AOContext& ctx, Fn&& fn, std::vector<ArgT> args)
-{
-    using FnProps = FunctionProps<decltype(std::function(std::declval<Fn>()))>;
-
-    using FutureType = typename FnProps::ReturnType;
-    static_assert(isFuture<FutureType>, "function must return future");
-
-    using T = typename FutureType::Type;
-    static_assert(std::is_invocable_v<Fn, AOContext&, ArgT>, "Fn must accept AOContext and ArgT");
-
-    struct AllHelper
-    {
-        explicit AllHelper(AOContext& parent, std::size_t resSize)
-          : result(resSize)
-          , ctx(parent)
-        {}
-
-        Promise<std::vector<T>> promise;
-        std::vector<T> result;
-        std::size_t counter = 0;
-        AOContext ctx;
-
-        void collect(std::size_t i, T&& res)
-        {
-            result[i] = std::move(res);
-            if (++counter == result.size()) {
-                promise.setValue(std::move(result));
-            }
-        }
-
-        Future<std::vector<T>> future()
-        {
-            return promise.future();
-        }
-    };
-
-    const auto resSize = args.size();
-    if (resSize == 0) {
-        return makeReadyFuture<std::vector<T>>();
-    }
-    auto state = std::make_shared<AllHelper>(ctx, resSize);
-    auto res = state->future();
-    try {
-        for (size_t i = 0; i < resSize; ++i) {
-            fn(state->ctx, args[i])
-              .then(state->ctx,
-                    [i, state](auto r) mutable {
-                        state->collect(i, std::move(r));
-                    })
-              .fail(state->ctx, [state](auto e) {
-                  state->promise.setException(std::move(e));
-                  state->ctx.close();
-              });
-        }
-    } catch (...) {
-        state->ctx.close();
-        return makeExceptionalFuture<std::vector<T>>(std::current_exception());
-    }
-    return res;
 }
 
 }   // namespace nhope
