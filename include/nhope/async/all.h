@@ -27,13 +27,17 @@ public:
     Future<std::vector<ResT>> start(Fn&& fn, std::vector<ArgT> args)
     {
         auto future = m_promise.future();
+        if (args.empty()) {
+            m_promise.setValue(std::vector<ResT>{});
+            return future;
+        }
 
         m_result.resize(args.size());
         try {
             for (size_t i = 0; i < args.size(); ++i) {
                 fn(m_ctx, args[i])
                   .then(m_ctx,
-                        [i, self = this->shared_from_this()](auto r) mutable {
+                        [i, self = this->shared_from_this()](auto r) {
                             self->taskFinished(i, std::move(r));
                         })
                   .fail(m_ctx, [self = this->shared_from_this()](auto e) {
@@ -74,17 +78,81 @@ private:
     AOContext m_ctx;
 };
 
+template<typename ArgT>
+class AllOpForVec<void, ArgT> final : public std::enable_shared_from_this<AllOpForVec<void, ArgT>>
+{
+public:
+    explicit AllOpForVec(AOContext& parent)
+      : m_ctx(parent)
+    {}
+
+    template<typename Fn>
+    Future<void> start(Fn&& fn, std::vector<ArgT> args)
+    {
+        auto future = m_promise.future();
+        if (args.empty()) {
+            m_promise.setValue();
+            return future;
+        }
+
+        m_taskCount = args.size();
+        try {
+            for (size_t i = 0; i < args.size(); ++i) {
+                fn(m_ctx, args[i])
+                  .then(m_ctx,
+                        [self = this->shared_from_this()] {
+                            self->taskFinished();
+                        })
+                  .fail(m_ctx, [self = this->shared_from_this()](auto e) {
+                      self->taskFailed(std::move(e));
+                  });
+            }
+        } catch (...) {
+            m_ctx.close();
+            return makeExceptionalFuture(std::current_exception());
+        }
+
+        return future;
+    }
+
+    static std::shared_ptr<AllOpForVec> create(AOContext& parent)
+    {
+        return std::make_shared<AllOpForVec>(parent);
+    }
+
+private:
+    void taskFinished()
+    {
+        if (++m_taskFinishedCount == m_taskCount) {
+            m_promise.setValue();
+        }
+    }
+
+    void taskFailed(std::exception_ptr e)
+    {
+        m_promise.setException(std::move(e));
+        m_ctx.close();
+    }
+
+    Promise<void> m_promise;
+    std::size_t m_taskCount = 0;
+    std::size_t m_taskFinishedCount = 0;
+    AOContext m_ctx;
+};
+
 }   // namespace detail
 
 /*!
  * @brief Вызывает пользовательскую функцию для каждого параметра из args
  *
- * возвращает Future<вектор с полученными результатами>
+ * возвращает Future<вектор с полученными результатами> или Future<void>,
+ * если Fn возвращает Future<void>.
  *
  * @tparam Fn Пользовательская функция должна возвращать Future<T>
  * @tparam ArgT Тип аргументов
  * @param args вектор с аргументами для вызова пользовательской функции
- * @return Future<std::vector<FnRetValType>>
+ *
+ * @return Future<std::vector<FnRetValType>> или Future<void>, если Fn возвращает Future<void>.
  */
 template<typename Fn, typename ArgT>
 auto all(AOContext& ctx, Fn&& fn, std::vector<ArgT> args)
@@ -96,11 +164,6 @@ auto all(AOContext& ctx, Fn&& fn, std::vector<ArgT> args)
 
     using ResT = typename FutureType::Type;
     static_assert(std::is_invocable_v<Fn, AOContext&, ArgT>, "Fn must accept AOContext and ArgT");
-
-    const auto resSize = args.size();
-    if (resSize == 0) {
-        return makeReadyFuture<std::vector<ResT>>();
-    }
 
     auto op = detail::AllOpForVec<ResT, ArgT>::create(ctx);
     return op->start(std::forward<Fn>(fn), std::move(args));
