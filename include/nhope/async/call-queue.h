@@ -15,47 +15,39 @@ namespace nhope {
 class CallQueue final
 {
 public:
-    explicit CallQueue(AOContext& parentCtx)
+    explicit CallQueue()
       : m_callChain(makeReadyFuture())
-      , m_ctx(parentCtx)
     {}
 
     ~CallQueue()
     {
-        m_ctx.close();
+        m_callChain.cancel();
     }
 
     template<typename Fn, typename... Args>
-    auto push(Fn&& fn, Args&&... args)
+    auto push(AOContext& ctx, Fn&& fn, Args&&... args)
     {
         using Result = typename UnwrapFuture<std::invoke_result_t<Fn, Args...>>::Type;
-
-        auto binded = std::bind(std::forward<Fn>(fn), std::forward<Args>(args)...);
-        return asyncInvoke(m_ctx, [this, fn = std::move(binded)]() mutable {
-            auto resultPromise = std::make_shared<Promise<Result>>();
-
-            auto callFuture = m_callChain.then(m_ctx, std::move(fn));
-            if constexpr (std::is_void_v<Result>) {
-                m_callChain = callFuture.then(m_ctx, [resultPromise] {
-                    resultPromise->setValue();
-                });
-            } else {
-                m_callChain = callFuture.then(m_ctx, [resultPromise](auto value) {
-                    resultPromise->setValue(std::move(value));
-                });
-            }
-
-            m_callChain = m_callChain.fail(m_ctx, [resultPromise](auto ex) {
-                resultPromise->setException(std::move(ex));
+        auto resultPromise = std::make_shared<Promise<Result>>();
+        auto callFuture = m_callChain.then(ctx, std::bind(std::forward<Fn>(fn), std::forward<Args>(args)...));
+        if constexpr (std::is_void_v<Result>) {
+            m_callChain = callFuture.then(ctx, [resultPromise] {
+                resultPromise->setValue();
             });
-
-            return resultPromise->future();
+        } else {
+            m_callChain = callFuture.then(ctx, [resultPromise](auto&& value) {
+                resultPromise->setValue(std::move(value));
+            });
+        }
+        m_callChain = m_callChain.fail(ctx, [resultPromise](auto&& ex) {
+            resultPromise->setException(std::move(ex));
         });
+
+        return resultPromise->future();
     }
 
 private:
     Future<void> m_callChain;
-    AOContext m_ctx;
 };
 
 }   // namespace nhope

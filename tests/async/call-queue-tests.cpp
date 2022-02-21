@@ -32,12 +32,12 @@ TEST(CallQueue, Queue)   // NOLINT
     auto& executor = ThreadPoolExecutor::defaultExecutor();
     AOContext ctx(executor);
 
-    CallQueue calls(ctx);
+    CallQueue calls;
 
     constexpr auto taskCount = 100;
     Future<int> f;
     for (int taskNum = 0; taskNum < taskCount; ++taskNum) {
-        f = calls.push(doWork, taskNum);
+        f = calls.push(ctx, doWork, taskNum);
     }
     EXPECT_EQ(f.get(), taskCount + 3);
 
@@ -49,8 +49,8 @@ TEST(CallQueue, Queue)   // NOLINT
         std::this_thread::sleep_for(10ms);
     };
 
-    EXPECT_EQ(calls.push(simple).get(), 1);
-    calls.push(simpleVoid).get();
+    EXPECT_EQ(calls.push(ctx, simple).get(), 1);
+    calls.push(ctx, simpleVoid).get();
 }
 
 TEST(CallQueue, Exceptions)   // NOLINT
@@ -58,7 +58,7 @@ TEST(CallQueue, Exceptions)   // NOLINT
     auto& executor = ThreadPoolExecutor::defaultExecutor();
     AOContext ctx(executor);
 
-    CallQueue calls(ctx);
+    CallQueue calls;
 
     auto exceptVoid = [] {
         throw std::runtime_error("error");
@@ -71,6 +71,6 @@ TEST(CallQueue, Exceptions)   // NOLINT
         return val;
     };
 
-    EXPECT_THROW(calls.push(except, 1).get(), std::runtime_error);    //NOLINT
-    EXPECT_THROW(calls.push(exceptVoid).get(), std::runtime_error);   //NOLINT
+    EXPECT_THROW(calls.push(ctx, except, 1).get(), std::runtime_error);    //NOLINT
+    EXPECT_THROW(calls.push(ctx, exceptVoid).get(), std::runtime_error);   //NOLINT
 }
