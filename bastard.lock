@@ -4,11 +4,11 @@ cmake = 3.22.1
 bastard = 0.16.0
 
 [dependencies]
-asio = { git = "git@gitlab.olimp.lan:github/standalone-asio.git", rev = "6c054e98", interface = "asio/include" }
+asio = { git = "git@gitlab.olimp.lan:github/standalone-asio.git", rev = "0d4e89a1", interface = "asio/include" }
 fmt = { git = "git@gitlab.olimp.lan:github/fmtlib.git", rev = "7bdf0628" }
 gsl = { git = "git@gitlab.olimp.lan:github/gsl.git", rev = "0f6dbc9", interface = "include" }
 
 [dev-dependencies]
-benchmark = { git = "git@gitlab.olimp.lan:github/benchmark.git", rev = "acd7562" }
-gtest = { git = "git@gitlab.olimp.lan:google/googletest.git", rev = "3d81736c" }
+benchmark = { git = "git@gitlab.olimp.lan:github/benchmark.git", rev = "e33986a" }
+gtest = { git = "git@gitlab.olimp.lan:google/googletest.git", rev = "c9461a9b" }
 
