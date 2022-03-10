@@ -23,7 +23,7 @@ if(COVERAGE_ENABLED)
     append_coverage_compiler_flags()
     setup_target_for_coverage_gcovr_html(
           NAME coverage
-          EXECUTABLE ./tests
+          EXECUTABLE ./tests --gtest_output=xml:junit-report.xml
           EXCLUDE ".deps" "tests" "benchs"
           )          
 endif()
@@ -48,4 +48,3 @@ if (NOT WIN32)
 endif()
 
 EnableWarnings(${BASTARD_PACKAGE_NAME})
-
