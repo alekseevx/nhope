@@ -35,8 +35,10 @@ test:linux:
     name: ${CI_JOB_NAME}-${CI_COMMIT_REF_NAME}-${CI_COMMIT_SHA}
     paths:
       - build/coverage
+      - build/junit-report.xml
     reports:
       cobertura: coverage.xml
+      junit: build/junit-report.xml
 
 build:windows:
   stage: build
@@ -59,9 +61,16 @@ test:windows:
     - test
   script:
     - cd build/Debug
-    - ./tests.exe
+    - ./tests.exe --gtest_output=xml:junit-report.xml
+    - cd ../..
   dependencies:
     - build:windows
+  artifacts:
+    name: ${CI_JOB_NAME}-${CI_COMMIT_REF_NAME}-${CI_COMMIT_SHA}
+    paths:
+      - build/Debug/junit-report.xml
+    reports:
+      junit: build/Debug/junit-report.xml
 
 build:arm32v5:21.07.15:
   stage: build
