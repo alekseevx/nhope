@@ -19,7 +19,7 @@ gsl = {git = "git@gitlab.olimp.lan:github/gsl.git", tag = "v3.1.0", interface = 
 
 [dev-dependencies]
 benchmark = {git = "git@gitlab.olimp.lan:github/benchmark.git", branch="main"}
-gtest = {git = "git@gitlab.olimp.lan:google/googletest.git", branch="main"}
+gtest = {git = "git@gitlab.olimp.lan:google/googletest.git", branch="file-info"}
 
 [dependencies.windows-specific]
 path = "specific/windows"
