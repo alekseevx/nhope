@@ -28,6 +28,7 @@ test:linux:
     - cmake --build . --target coverage
     - cd ..
     - gcovr --xml-pretty --print-summary --exclude-unreachable-branches -e .deps -e tests -e benchs -o coverage.xml --root .
+    - replace-content --file=build/junit-report.xml --replace=${CI_PROJECT_DIR}/
   dependencies:
     - build:linux
   coverage: /^\s*lines:\s*\d+.\d+\%/
@@ -61,7 +62,7 @@ test:windows:
     - test
   script:
     - cd build/Debug
-    - ./tests.exe --gtest_output=xml:junit-report.xml
+    - ./tests.exe --gtest_output=xml:junit-report.xml --gtest_print_file_info
     - cd ../..
   dependencies:
     - build:windows

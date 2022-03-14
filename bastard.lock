@@ -1,6 +1,6 @@
 [package]
 name = nhope
-cmake = 3.22.1
+cmake = 3.18.4
 bastard = 0.16.0
 
 [dependencies]
@@ -10,5 +10,5 @@ gsl = { git = "git@gitlab.olimp.lan:github/gsl.git", rev = "0f6dbc9", interface 
 
 [dev-dependencies]
 benchmark = { git = "git@gitlab.olimp.lan:github/benchmark.git", rev = "e33986a" }
-gtest = { git = "git@gitlab.olimp.lan:google/googletest.git", rev = "c9461a9b" }
+gtest = { git = "git@gitlab.olimp.lan:google/googletest.git", rev = "79f5982c" }
 
