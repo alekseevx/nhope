@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chrono>
 #include <memory>
 #include <utility>
 
@@ -55,6 +56,9 @@ public:
      */
     explicit AOContext(AOContext& parent);
     explicit AOContext(AOContextRef& parent);
+
+    explicit AOContext(Executor& executor, std::chrono::nanoseconds timeout);
+    explicit AOContext(AOContext& parent, std::chrono::nanoseconds timeout);
 
     /**
      * @brief Деструктор AOContext
