@@ -36,7 +36,7 @@ inline constexpr bool isFuture = detail::isFuture<T>;
 
 /**
  * @brief A Future represents the result of an asynchronous computation.
- * 
+ *
  * @tparam T Result type
  */
 template<typename T>
@@ -54,50 +54,50 @@ public:
     using Type = T;
 
     /**
-     * @post isValid() == false
-     * @post isWaitFuture() = false
-     */
+   * @post isValid() == false
+   * @post isWaitFuture() = false
+   */
     Future() = default;
 
     Future(const Future&) = delete;
 
     /**
-     * @post other.isValid() == false
-     * @post other.isWaitFuture() = false
-     */
+   * @post other.isValid() == false
+   * @post other.isWaitFuture() = false
+   */
     Future(Future&& other) noexcept = default;
 
     /**
-     * @post other.isValid() == false
-     * @post other.isWaitFuture() = false
-     */
+   * @post other.isValid() == false
+   * @post other.isWaitFuture() = false
+   */
     Future& operator=(Future&& other) noexcept = default;
 
     /**
-     * @brief Checks if the Future has state
-     */
+   * @brief Checks if the Future has state
+   */
     [[nodiscard]] bool isValid() const
     {
         return m_state != nullptr;
     }
 
     /**
-     * @brief Checks if the Future has result
-     * @pre isValid() == true
-     */
+   * @brief Checks if the Future has result
+   * @pre isValid() == true
+   */
     [[nodiscard]] bool isReady() const
     {
         return state().hasResult();
     }
 
     /**
-     * @brief Waits and returns result
-     * 
-     * @pre isValid() == true
-     * @post isValid() == false
-     * @post isWaitFuture() = true
-     * @post isReady() = true
-     */
+   * @brief Waits and returns result
+   *
+   * @pre isValid() == true
+   * @post isValid() == false
+   * @post isWaitFuture() = true
+   * @post isReady() = true
+   */
     T get()
     {
         auto detachedState = this->detachState();
@@ -117,12 +117,12 @@ public:
     }
 
     /**
-     * @brief Blocks until the result become available
-     *
-     * @pre isValid() == true
-     * @post isValid() == true
-     * @post isWaitFuture() == true
-     */
+   * @brief Blocks until the result become available
+   *
+   * @pre isValid() == true
+   * @post isValid() == true
+   * @post isWaitFuture() == true
+   */
     void wait()
     {
         auto& futureReadyEvent = this->makeWaitFuture(state());
@@ -130,12 +130,13 @@ public:
     }
 
     /**
-     * @brief Blocks until specified time has elapsed or the result become available
-     *
-     * @pre isValid() == true
-     * @post isValid() == true
-     * @post isWaitFuture() == true
-     */
+   * @brief Blocks until specified time has elapsed or the result become
+   * available
+   *
+   * @pre isValid() == true
+   * @post isValid() == true
+   * @post isWaitFuture() == true
+   */
     [[nodiscard]] bool waitFor(std::chrono::nanoseconds time)
     {
         auto& futureReadyEvent = this->makeWaitFuture(state());
@@ -143,17 +144,17 @@ public:
     }
 
     /**
-     * @brief Returns the next chaining Future, where fn is callback will be called
-     * when this Future is succeeds.
-     *
-     * @param aoCtx The AOContext on which the fn should be called.
-     *
-     * @pre isValid() == true
-     * @pre isWaitFuture() == false
-     * @post isValid() == false
-     *
-     * @return UnwrapFuture<NextFuture<T, Fn>>
-     */
+   * @brief Returns the next chaining Future, where fn is callback will be
+   * called when this Future is succeeds.
+   *
+   * @param aoCtx The AOContext on which the fn should be called.
+   *
+   * @pre isValid() == true
+   * @pre isWaitFuture() == false
+   * @post isValid() == false
+   *
+   * @return UnwrapFuture<NextFuture<T, Fn>>
+   */
     template<typename Fn>
     UnwrapFuture<NextFuture<T, Fn>> then(AOContext& aoCtx, Fn&& fn)
     {
@@ -202,17 +203,17 @@ public:
     }
 
     /**
-     * @brief Returns the next chaining Future, where fn is callback will be called
-     * when this Future fails.
-     *
-     * @param aoCtx The AOContext on which the fn should be called.
-     *
-     * @pre isValid() == true
-     * @pre isWaitFuture() == false
-     * @post isValid() == false
-     *
-     * @return Future<T>
-     */
+   * @brief Returns the next chaining Future, where fn is callback will be
+   * called when this Future fails.
+   *
+   * @param aoCtx The AOContext on which the fn should be called.
+   *
+   * @pre isValid() == true
+   * @pre isWaitFuture() == false
+   * @post isValid() == false
+   *
+   * @return Future<T>
+   */
     template<typename Fn>
     Future<T> fail(AOContext& aoCtx, Fn&& fn)
     {
@@ -256,12 +257,12 @@ public:
     }
 
     /**
-     * @brief Unwraps Future<Future<...<Future<T>...>> into Future<T>
-     *
-     * @pre isValid() == true
-     * @pre isWaitFuture() == false
-     * @post isValid() == false
-     */
+   * @brief Unwraps Future<Future<...<Future<T>...>> into Future<T>
+   *
+   * @pre isValid() == true
+   * @pre isWaitFuture() == false
+   * @post isValid() == false
+   */
     UnwrapFuture<T> unwrap()
     {
         if (this->isWaitFuture()) {
@@ -285,16 +286,16 @@ public:
     }
 
     /**
-     * @brief Checks whether was called wait or waitFor
-     * 
-     * If #wait or waitFor was called, then and fail must not be called.
-     */
+   * @brief Checks whether was called wait or waitFor
+   *
+   * If #wait or waitFor was called, then and fail must not be called.
+   */
     [[nodiscard]] bool isWaitFuture() const
     {
         return m_futureReadyEvent != nullptr;
     }
 
-    void cancel()
+    [[deprecated("Use AOContext::close")]] void cancel()
     {
         state().cancel();
     }
@@ -306,9 +307,9 @@ private:
     using State = detail::FutureState<T>;
 
     /**
-     * @post other.isValid() == true if state != nullptr
-     * @post other.isWaitFuture() = false
-     */
+   * @post other.isValid() == true if state != nullptr
+   * @post other.isWaitFuture() = false
+   */
     explicit Future(detail::RefPtr<State> state)
       : m_state(std::move(state))
     {
@@ -527,7 +528,7 @@ void rejectPromises(Cont<Promise<T>, Alloc>& promises, const std::exception_ptr&
 
 /*!
  * @brief Запускает функцию в отдельном потоке и возвращает Future
- * 
+ *
  * @tparam Fn пользовательская функция
  * @tparam Args аргументы для вызова пользовательской функции
  * @return Future<T>
