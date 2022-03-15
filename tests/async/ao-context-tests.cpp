@@ -533,3 +533,40 @@ TEST(AOContext, startCancellableTask)   // NOLINT
         EXPECT_THROW((aoCtx.startCancellableTask([] {}, closeHandler)), AOContextClosed);   // NOLINT
     }
 }
+
+TEST(AOContext, withTimeout)   // NOLINT
+{
+    class TimeoutHandler final : public AOContextCloseHandler
+    {
+    public:
+        void aoContextClose() noexcept override
+        {
+            closeEvent.set();
+        }
+
+        nhope::Event closeEvent;
+    };
+
+    ThreadExecutor executor;
+    // timeout
+    {
+        AOContext ctx(executor, 10ms);
+        TimeoutHandler handler;
+        ctx.addCloseHandler(handler);
+        const auto start = std::chrono::steady_clock::now();
+        EXPECT_TRUE(handler.closeEvent.waitFor(100ms));
+        const auto delta = std::chrono::steady_clock::now() - start;
+        EXPECT_GE(delta, 10ms);
+    }
+    // timeout parent
+    {
+        AOContext parent(executor, 100ms);
+        AOContext child(parent, 200ms);
+        TimeoutHandler handler;
+        child.addCloseHandler(handler);
+        const auto start = std::chrono::steady_clock::now();
+        EXPECT_TRUE(handler.closeEvent.waitFor(200ms));
+        const auto delta = std::chrono::steady_clock::now() - start;
+        EXPECT_LE(delta, 200ms);
+    }
+}

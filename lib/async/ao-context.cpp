@@ -1,4 +1,5 @@
 #include "nhope/async/ao-context.h"
+#include "nhope/async/timer.h"
 
 namespace nhope {
 
@@ -78,6 +79,22 @@ void AOContextRef::removeCloseHandler(AOContextCloseHandler& closeHandler) noexc
 [[nodiscard]] bool AOContextRef::workInThisThread() const noexcept
 {
     return m_aoImpl->aoContextWorkInThisThread();
+}
+
+AOContext::AOContext(Executor& executor, std::chrono::nanoseconds timeout)
+  : m_aoImpl(AOContextImpl::makeRoot(executor))
+{
+    setTimeout(*this, timeout, [this](auto) {
+        this->close();
+    });
+}
+
+AOContext::AOContext(AOContext& parent, std::chrono::nanoseconds timeout)
+  : m_aoImpl(parent.m_aoImpl->makeChild())
+{
+    setTimeout(*this, timeout, [this](auto) {
+        this->close();
+    });
 }
 
 }   // namespace nhope
