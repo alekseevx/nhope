@@ -13,6 +13,7 @@ class AOContextCloseHandler
     friend class detail::AOContextImpl;
 
 public:
+    virtual ~AOContextCloseHandler() = default;
     virtual void aoContextClose() noexcept = 0;
 
 private:

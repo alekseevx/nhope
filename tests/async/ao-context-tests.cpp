@@ -36,8 +36,6 @@ public:
       : m_handler(std::move(handler))
     {}
 
-    ~TestAOContextCloseHandler() = default;
-
     void aoContextClose() noexcept override
     {
         if (m_handler) {
@@ -428,7 +426,7 @@ TEST(AOContext, BugUseAfterFreeWhenRemoveAOContextFromAOContextCloseHandler)   /
             m_aoCtx.addCloseHandler(*this);
         }
 
-        ~AsyncOperation()
+        ~AsyncOperation() override
         {
             m_aoCtx.removeCloseHandler(*this);
         }
@@ -449,6 +447,7 @@ TEST(AOContext, BugUseAfterFreeWhenRemoveAOContextFromAOContextCloseHandler)   /
     };
 
     ThreadExecutor executor;
+    // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
     auto* ao = new AsyncOperation(executor);
     ao->cancel();
 }

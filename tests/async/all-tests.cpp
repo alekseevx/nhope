@@ -139,7 +139,7 @@ TEST(all, tuple)   // NOLINT
     nhope::ThreadExecutor executor;
     nhope::AOContext ao(executor);
     {   // Empty
-        const std::tuple<> res = all<>(ao).get();
+        [[maybe_unused]] const std::tuple<> res = all<>(ao).get();
     }
 
     {

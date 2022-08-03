@@ -3,7 +3,6 @@
 #include <stdexcept>
 
 #include "nhope/io/detail/serial-port-detail.h"
-#include "serial-port-detail-mc.h"
 
 namespace nhope::detail {
 
@@ -27,15 +26,15 @@ void setDTR(asio::serial_port& serialPort, bool state)
     }
 }
 
-nhope::SerialPortParams::ModemControl getModemControl(asio::serial_port& serialPort)
+SerialPortParams::ModemControl getModemControl(asio::serial_port& serialPort)
 {
-    int arg = 0;
+    SerialPortParams::ModemControl arg{};
     const auto hander = serialPort.native_handle();
     if (ioctl(hander, TIOCMGET, &arg) == -1) {
         const auto err = std::error_code(errno, std::system_category());
         throw std::system_error(err, "serial-port: failed to get modem control");
     }
-    return toModemControl(arg);
+    return arg;
 }
 
 }   // namespace nhope::detail

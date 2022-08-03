@@ -63,7 +63,7 @@ TEST(Types, Functional)   // NOLINT
     EXPECT_TRUE(nhope::isFunctional<int()>());
     EXPECT_TRUE(nhope::isFunctional<std::function<int()>>());
     int val{2};
-    auto lambda = [=](int) {
+    [[maybe_unused]] auto lambda = [val](int) {
         return 1 + val;
     };
     EXPECT_TRUE(nhope::isFunctional<decltype(lambda)>());

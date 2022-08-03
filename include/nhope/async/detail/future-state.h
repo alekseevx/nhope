@@ -464,7 +464,7 @@ public:
         m_aoCtxRef.addCloseHandler(*this);
     }
 
-    ~FutureCallbackWithAOContext()
+    ~FutureCallbackWithAOContext() override
     {
         m_aoCtxRef.removeCloseHandler(*this);
     }

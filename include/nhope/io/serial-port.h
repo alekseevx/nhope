@@ -55,14 +55,14 @@ struct SerialPortParams
 
     enum class ModemControl
     {
-        DSR = 0x001,    //data set ready/line
-        DTR = 0x002,    //data terminal
-        RTS = 0x004,    //request to send
-        STXD = 0x008,   //transmit
-        SRXD = 0x010,   //receive
-        CTS = 0x020,    //clear to send
-        DCD = 0x040,    //data carrier detect
-        RNG = 0x080     //ring
+        DSR = 0x001,    // DSR (линия включена/данные готовы, Data Set Ready)
+        DTR = 0x002,    // DTR (терминал данных готов, Data Terminal Ready)
+        RTS = 0x004,    // RTS (запрос на отправку, Request To Send)
+        STXD = 0x008,   // Вторичное TXD (передача, Secondary Transmit)
+        SRXD = 0x010,   // Вторичное RXD (получение, Secondary Receive)
+        CTS = 0x020,    //  Готов к отправке CTS (Clear To Send)
+        DCD = 0x040,    // Обнаружены данные DCD (Data Carrier Detect)
+        RNG = 0x080     // RNG (ring, звонок)
     };
 
     std::optional<BaudRate> baudrate;

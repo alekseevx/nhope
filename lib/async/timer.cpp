@@ -43,7 +43,7 @@ public:
           *this);
     }
 
-    ~SingleTimer()
+    ~SingleTimer() override
     {
         m_aoCtxRef.removeCloseHandler(*this);
     }
@@ -94,7 +94,7 @@ public:
           *this);
     }
 
-    ~PromiseTimer()
+    ~PromiseTimer() override
     {
         m_aoCtxRef.removeCloseHandler(*this);
     }
@@ -146,7 +146,7 @@ public:
           *this);
     }
 
-    ~IntervalTimer()
+    ~IntervalTimer() override
     {
         m_aoCtx.removeCloseHandler(*this);
     }

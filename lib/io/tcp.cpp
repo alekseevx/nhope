@@ -145,7 +145,7 @@ public:
           *this);
     }
 
-    ~ConnectOp()
+    ~ConnectOp() override
     {
         m_aoCtx.removeCloseHandler(*this);
     }

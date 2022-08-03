@@ -236,8 +236,6 @@ private:
         parent->addCloseHandler(this);
     }
 
-    ~AOContextImpl() = default;
-
     void addRef() noexcept
     {
         m_state.addRef();

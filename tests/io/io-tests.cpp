@@ -49,7 +49,6 @@
 
 #ifdef __linux__
 #include "./test-helpers/virtual-serial-port.h"
-#include "serial-port-detail-mc.h"
 #include <sys/socket.h>
 #endif
 
@@ -910,23 +909,6 @@ TEST(IOTest, modemControlSerialPort)   // NOLINT
     EXPECT_THROW(serial->setRTS(false), std::system_error);       //NOLINT
     EXPECT_THROW(serial->setDTR(true), std::system_error);        //NOLINT
     EXPECT_THROW(serial->setDTR(false), std::system_error);       //NOLINT
-#else
-    GTEST_SKIP();   //NOLINT
-#endif
-}
-
-TEST(IOTest, toModemControlSerialPort)   // NOLINT
-{
-#ifdef __linux__
-    EXPECT_EQ(nhope::SerialPortParams::ModemControl::DSR, nhope::detail::toModemControl(TIOCM_LE));
-    EXPECT_EQ(nhope::SerialPortParams::ModemControl::DTR, nhope::detail::toModemControl(TIOCM_DTR));
-    EXPECT_EQ(nhope::SerialPortParams::ModemControl::RTS, nhope::detail::toModemControl(TIOCM_RTS));
-    EXPECT_EQ(nhope::SerialPortParams::ModemControl::STXD, nhope::detail::toModemControl(TIOCM_ST));
-    EXPECT_EQ(nhope::SerialPortParams::ModemControl::SRXD, nhope::detail::toModemControl(TIOCM_SR));
-    EXPECT_EQ(nhope::SerialPortParams::ModemControl::CTS, nhope::detail::toModemControl(TIOCM_CTS));
-    EXPECT_EQ(nhope::SerialPortParams::ModemControl::DCD, nhope::detail::toModemControl(TIOCM_CAR));
-    EXPECT_EQ(nhope::SerialPortParams::ModemControl::RNG, nhope::detail::toModemControl(TIOCM_RNG));
-    EXPECT_THROW(nhope::detail::toModemControl(std::numeric_limits<int>::max()), std::logic_error);   //NOLINT
 #else
     GTEST_SKIP();   //NOLINT
 #endif
