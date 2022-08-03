@@ -38,8 +38,10 @@ test:linux:
       - build/coverage
       - build/junit-report.xml
     reports:
-      cobertura: coverage.xml
       junit: build/junit-report.xml
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
 
 build:windows:
   stage: build
