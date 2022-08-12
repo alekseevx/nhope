@@ -285,6 +285,15 @@ private:
     std::list<ReaderPtr> m_readers;
 };
 
+bool endsWith(gsl::span<const std::uint8_t> data, gsl::span<const std::uint8_t> expect)
+{
+    const auto expectSize = expect.size();
+    if (data.size() < expectSize) {
+        return false;
+    }
+    return data.last(expectSize) == expect;
+}
+
 #ifdef WIN32
 constexpr std::array<std::uint8_t, 2> endLineMarker = {static_cast<std::uint8_t>('\r'),
                                                        static_cast<std::uint8_t>('\n')};
@@ -294,11 +303,7 @@ constexpr std::array<std::uint8_t, 1> endLineMarker = {static_cast<std::uint8_t>
 
 bool hasEndLineMarker(gsl::span<const std::uint8_t> data)
 {
-    if (data.size() < endLineMarker.size()) {
-        return false;
-    }
-
-    return data.last(endLineMarker.size()) == gsl::span(endLineMarker);
+    return endsWith(data, endLineMarker);
 }
 
 }   // namespace
@@ -335,22 +340,28 @@ Future<std::size_t> writeExactly(Writter& device, std::vector<std::uint8_t> data
     return writeOp->start();
 }
 
-Future<std::string> readLine(Reader& dev)
+Future<std::vector<std::uint8_t>> readUntil(Reader& dev, std::vector<std::uint8_t> expect)
 {
-    auto readOp = makeReadOp(dev, [](const auto& buf) {
-        const std::size_t nextPortionSize = hasEndLineMarker(buf) ? 0 : 1;
+    auto readOp = makeReadOp(dev, [expect = std::move(expect)](const auto& buf) {
+        const std::size_t nextPortionSize = endsWith(buf, expect) ? 0 : 1;
         return nextPortionSize;
     });
 
-    return readOp->start().then([](const auto& buf) {
-        std::size_t lineSize = buf.size();
-        if (hasEndLineMarker(buf)) {
-            lineSize -= endLineMarker.size();
-        }
+    return readOp->start();
+}
 
-        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
-        return std::string(reinterpret_cast<const char*>(buf.data()), lineSize);
-    });
+Future<std::string> readLine(Reader& dev)
+{
+    return readUntil(dev, std::vector<std::uint8_t>(endLineMarker.begin(), endLineMarker.end()))
+      .then([](const auto& buf) {
+          std::size_t lineSize = buf.size();
+          if (hasEndLineMarker(buf)) {
+              lineSize -= endLineMarker.size();
+          }
+
+          // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+          return std::string(reinterpret_cast<const char*>(buf.data()), lineSize);
+      });
 }
 
 Future<std::vector<std::uint8_t>> readAll(Reader& dev)

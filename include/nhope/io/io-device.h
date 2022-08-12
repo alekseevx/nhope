@@ -48,6 +48,8 @@ Future<std::size_t> write(Writter& dev, std::vector<std::uint8_t> data);
 Future<std::vector<std::uint8_t>> readExactly(Reader& dev, std::size_t bytesCount);
 Future<std::size_t> writeExactly(Writter& dev, std::vector<std::uint8_t> data);
 
+Future<std::vector<std::uint8_t>> readUntil(Reader& dev, std::vector<std::uint8_t> expect);
+
 Future<std::string> readLine(Reader& dev);
 Future<std::vector<std::uint8_t>> readAll(Reader& dev);
 Future<std::vector<std::uint8_t>> readAll(ReaderPtr dev);
