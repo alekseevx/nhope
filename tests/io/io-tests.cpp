@@ -613,6 +613,33 @@ TEST(IOTest, WriteExactlyFailed)   // NOLINT
     EXPECT_THROW(future.get(), std::system_error);
 }
 
+TEST(IOTest, readUntil)   // NOLINT
+{
+    ThreadExecutor executor;
+    AOContext aoCtx(executor);
+
+    constexpr auto etalon = "0123456789"sv;
+    StubDevice dev(aoCtx, {
+                            AsioStub::ReadOp{1, "0"sv},
+                            AsioStub::ReadOp{1, "1"sv},
+                            AsioStub::ReadOp{1, "2"sv},
+                            AsioStub::ReadOp{1, "3"sv},
+                            AsioStub::ReadOp{1, "4"sv},
+                            AsioStub::ReadOp{1, "5"sv},
+                            AsioStub::ReadOp{1, "6"sv},
+                            AsioStub::ReadOp{1, "7"sv},
+                            AsioStub::ReadOp{1, "8"sv},
+                            AsioStub::ReadOp{1, "9"sv},
+                            AsioStub::CloseOp{},
+                          });
+
+    constexpr auto expect = "789"sv;
+    const auto data = invoke(aoCtx, [&] {
+        return readUntil(dev, std::vector<std::uint8_t>(expect.begin(), expect.end()));
+    });
+    EXPECT_EQ(data, std::vector<std::uint8_t>(etalon.begin(), etalon.end()));
+}
+
 TEST(IOTest, readLine)   // NOLINT
 {
     constexpr auto etalonLines = std::array{
