@@ -83,6 +83,8 @@ public:
     static SerialPortPtr open(nhope::AOContext& aoCtx, std::string_view device, const SerialPortParams& params);
     static std::list<std::string> availableDevices();
 
+    virtual void clearReadBuffer() = 0;
+
     virtual void setRTS(bool state) = 0;
     virtual void setDTR(bool state) = 0;
     virtual SerialPortParams::ModemControl getModemControl() = 0;
