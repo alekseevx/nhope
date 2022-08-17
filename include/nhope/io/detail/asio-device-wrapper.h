@@ -47,6 +47,11 @@ public:
         aoCtx.close();
     }
 
+    void ioCancel() override
+    {
+        asioDev.cancel();
+    }
+
     void read(gsl::span<std::uint8_t> buf, IOHandler handler) override
     {
         asioDev.async_read_some(

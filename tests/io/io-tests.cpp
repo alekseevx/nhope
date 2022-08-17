@@ -105,12 +105,20 @@ public:
     struct CloseOp
     {};
 
-    using Operation = std::variant<CloseOp, ReadOp, WriteOp>;
+    struct CancelOp
+    {};
+
+    using Operation = std::variant<CloseOp, ReadOp, WriteOp, CancelOp>;
     using Operations = std::list<Operation>;
 
     explicit AsioStub(asio::io_context& ctx)
       : m_ioCtx(ctx)
     {}
+
+    void cancel()
+    {
+        nextOperation<CancelOp>();
+    }
 
     template<typename Buff, typename Handler>
     void async_read_some(const Buff& buffer,   // NOLINT(readability-identifier-naming)
@@ -164,11 +172,16 @@ private:
     LockableValue<std::list<Operation>> m_operations;
 };
 
-class StubDevice final : public detail::AsioDeviceWrapper<IODevice, AsioStub>
+class StubGate
+  : public IODevice
+  , public IOCancellable
+{};
+
+class StubDevice final : public detail::AsioDeviceWrapper<StubGate, AsioStub>
 {
 public:
     explicit StubDevice(AOContext& parent, const AsioStub::Operations& operations)
-      : detail::AsioDeviceWrapper<IODevice, AsioStub>(parent)
+      : detail::AsioDeviceWrapper<StubGate, AsioStub>(parent)
     {
         asioDev.setOperations(operations);
     }
@@ -1235,4 +1248,15 @@ TEST(IOTest, AsioDeviceWrapper_toExceptionPtr)   // NOLINT
 
     const auto ioErrCode = std::make_error_code(std::errc::io_error);
     EXPECT_NE(detail::toExceptionPtr(ioErrCode), nullptr);
+}
+
+TEST(IOTest, IoCancel)   // NOLINT
+{
+    ThreadExecutor executor;
+    AOContext aoCtx(executor);
+    StubDevice dev(aoCtx, AsioStub::Operations{
+                            AsioStub::CancelOp{},
+                            AsioStub::CloseOp{},
+                          });
+    EXPECT_NO_THROW((dev.ioCancel()));   // NOLINT
 }

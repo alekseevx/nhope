@@ -75,7 +75,9 @@ struct SerialPortParams
 class SerialPort;
 using SerialPortPtr = std::unique_ptr<SerialPort>;
 
-class SerialPort : public IODevice
+class SerialPort
+  : public IODevice
+  , public IOCancellable
 {
 public:
     static SerialPortPtr open(nhope::AOContext& aoCtx, std::string_view device, const SerialPortParams& params);

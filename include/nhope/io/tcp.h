@@ -20,7 +20,9 @@ struct TcpServerParams
 class TcpSocket;
 using TcpSocketPtr = std::unique_ptr<TcpSocket>;
 
-class TcpSocket : public IODevice
+class TcpSocket
+  : public IODevice
+  , public IOCancellable
 {
 public:
     enum class Shutdown
