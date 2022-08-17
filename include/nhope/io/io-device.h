@@ -40,6 +40,15 @@ class IODevice
   : public Reader
   , public Writter
 {};
+
+class IOCancellable : public Noncopyable
+{
+public:
+    virtual ~IOCancellable() = default;
+
+    virtual void ioCancel() = 0;
+};
+
 using IODevicePtr = std::unique_ptr<IODevice>;
 
 Future<std::vector<std::uint8_t>> read(Reader& dev, std::size_t bytesCount);
