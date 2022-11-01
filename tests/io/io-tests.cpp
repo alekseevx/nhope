@@ -1260,3 +1260,27 @@ TEST(IOTest, IoCancel)   // NOLINT
                           });
     EXPECT_NO_THROW((dev.ioCancel()));   // NOLINT
 }
+
+TEST(IOTest, tcpOptions)   //NOLINT
+{
+    const test::TcpEchoServer echoServer;
+    ThreadExecutor e;
+    AOContext aoCtx(e);
+
+    auto conn = TcpSocket::connect(aoCtx, test::TcpEchoServer::srvAddress, test::TcpEchoServer::srvPort).get();
+    TcpSocket::Options opts;
+    opts.reuseAddress = true;
+    opts.keepAlive = true;
+    opts.receiveBufferSize = 2048;
+    opts.sendBufferSize = 4096;
+    EXPECT_NE(opts.reuseAddress, conn->options().reuseAddress);
+    conn->setOptions(opts);
+    EXPECT_EQ(opts.reuseAddress, conn->options().reuseAddress);
+    EXPECT_EQ(opts.keepAlive, conn->options().keepAlive);
+    EXPECT_EQ(opts.receiveBufferSize, conn->options().receiveBufferSize);
+    EXPECT_EQ(opts.sendBufferSize, conn->options().sendBufferSize);
+
+#ifdef __linux__
+    EXPECT_TRUE(conn->nativeHandle() != -1);
+#endif
+}
