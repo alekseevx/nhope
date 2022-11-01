@@ -1,10 +1,5 @@
 #pragma once
 
-#ifdef WIN32
-#define _WINSOCK_DEPRECATED_NO_WARNINGS
-#include <WinSock2.h>
-#endif   // WIN32
-
 #include <cstdint>
 #include <memory>
 #include <optional>
@@ -31,11 +26,7 @@ class TcpSocket
   , public IOCancellable
 {
 public:
-#ifdef WIN32
-    using NativeHandle = SOCKET;
-#else
-    using NativeHandle = int;
-#endif
+    using NativeHandle = uintptr_t;
 
     enum class Shutdown
     {
