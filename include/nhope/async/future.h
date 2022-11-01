@@ -295,7 +295,7 @@ public:
         return m_futureReadyEvent != nullptr;
     }
 
-    [[deprecated("Use AOContext::close")]] void cancel()
+    void cancel()
     {
         state().cancel();
     }

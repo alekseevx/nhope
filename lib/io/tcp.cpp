@@ -60,6 +60,52 @@ public:
         return SockAddr{endpoint.data(), endpoint.size()};
     }
 
+    [[nodiscard]] NativeHandle nativeHandle() override
+    {
+        return this->asioDev.native_handle();
+    }
+
+    void setOptions(const Options& opts) override
+    {
+        if (opts.keepAlive.has_value()) {
+            const asio::ip::tcp::socket::keep_alive keep(opts.keepAlive.value());
+            this->asioDev.set_option(keep);
+        }
+        if (opts.reuseAddress.has_value()) {
+            const asio::ip::tcp::socket::reuse_address reuse(opts.reuseAddress.value());
+            this->asioDev.set_option(reuse);
+        }
+        if (opts.receiveBufferSize.has_value()) {
+            const asio::socket_base::receive_buffer_size option(opts.receiveBufferSize.value());
+            this->asioDev.set_option(option);
+        }
+        if (opts.sendBufferSize.has_value()) {
+            const asio::socket_base::send_buffer_size option(opts.sendBufferSize.value());
+            this->asioDev.set_option(option);
+        }
+    }
+
+    [[nodiscard]] Options options() const override
+    {
+        Options opts;
+        asio::socket_base::send_buffer_size sendOpt;
+        this->asioDev.get_option(sendOpt);
+        opts.sendBufferSize = sendOpt.value();
+        asio::socket_base::receive_buffer_size receiveSizeOpt;
+        this->asioDev.get_option(receiveSizeOpt);
+        opts.receiveBufferSize = receiveSizeOpt.value();
+
+        asio::ip::tcp::socket::keep_alive keepOpt;
+        this->asioDev.get_option(keepOpt);
+        opts.keepAlive = keepOpt.value();
+
+        asio::ip::tcp::socket::reuse_address reuseOpt;
+        this->asioDev.get_option(reuseOpt);
+        opts.reuseAddress = reuseOpt.value();
+
+        return opts;
+    }
+
     void shutdown(Shutdown what) override
     {
         this->asioDev.shutdown(toAsioShutdown(what));
