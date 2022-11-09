@@ -39,8 +39,10 @@
 #include "nhope/io/string-reader.h"
 #include "nhope/io/string-writter.h"
 #include "nhope/io/tcp.h"
+#include "nhope/io/udp.h"
 
 #include "./test-helpers/tcp-echo-server.h"
+#include "./test-helpers/udp-echo-server.h"
 
 #ifdef WIN32
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
@@ -1283,4 +1285,49 @@ TEST(IOTest, tcpOptions)   //NOLINT
 #ifdef __linux__
     EXPECT_TRUE(conn->nativeHandle() != -1);
 #endif
+}
+
+TEST(IOTest, udpSocket)   //NOLINT
+{
+    ThreadExecutor e;
+    AOContext aoCtx(e);
+
+    const auto clientPort{55578};
+
+    UdpSocket::Params p;
+    p.bindAddress.address = "0.0.0.0";
+    p.bindAddress.port = 0;
+    p.reuseAddress = true;
+    p.broadcast = true;
+    p.receiveBufferSize = 2048;
+    p.sendBufferSize = 4096;
+
+    test::UdpEchoServer echoServer(p);
+
+    UdpSocket::Params clientParams;
+    clientParams.bindAddress.address = "0.0.0.0";
+    clientParams.bindAddress.port = clientPort;
+    clientParams.peerAddress.emplace();
+    clientParams.peerAddress->port = echoServer.bindPort();
+    clientParams.peerAddress->address = "127.0.0.1";
+
+    auto client = UdpSocket::create(aoCtx, clientParams);
+    const std::vector<std::uint8_t> etalon{{1, 2, 3, 4, 5, 4, 3, 2, 1}};
+    const auto size = nhope::write(*client, etalon).get();
+    EXPECT_EQ(size, etalon.size());
+
+    EXPECT_EQ(*echoServer.peer().port(), clientPort);
+
+    auto receiveData = nhope::read(*client, size).get();
+    EXPECT_EQ(receiveData, etalon);
+}
+
+TEST(IOTest, udpSocketCancel)   //NOLINT
+{
+    ThreadExecutor e;
+    AOContext aoCtx(e);
+    auto socket = UdpSocket::create(aoCtx, {});
+    auto future = nhope::read(*socket, 4);
+    socket->ioCancel();
+    EXPECT_THROW(future.get(), std::system_error);   // NOLINT
 }
