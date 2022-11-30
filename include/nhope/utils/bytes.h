@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cstdint>
+#include <limits>
 
 #include <gsl/span>
 
@@ -151,6 +152,17 @@ constexpr Int fromBytes(gsl::span<const std::uint8_t> bytes, Endian byteOrder)
     Int retval{};
     fromBytes(retval, bytes.first<sizeof(Int)>(), byteOrder);
     return retval;
+}
+
+template<typename Int>
+inline constexpr Int bytesSwap(Int value)
+{
+    Int result{};
+    constexpr auto digits = std::numeric_limits<Int>::digits - 8;
+    for (int i = digits; i >= 0; i -= 8) {
+        result |= ((value >> i) & 0xFF) << digits - i;
+    }
+    return result;
 }
 
 }   // namespace nhope
