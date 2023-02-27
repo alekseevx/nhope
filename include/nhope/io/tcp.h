@@ -37,6 +37,7 @@ public:
 
     struct Options
     {
+        bool nonBlocking = true;
         std::optional<bool> keepAlive;
         std::optional<bool> reuseAddress;
         std::optional<int> receiveBufferSize;
@@ -53,6 +54,15 @@ public:
     virtual void shutdown(Shutdown = Shutdown::Both) = 0;
 
     static Future<TcpSocketPtr> connect(AOContext& aoCtx, std::string_view hostName, std::uint16_t port);
+
+    /*!
+     * @brief wraps already prepared socket
+     * 
+     * @param aoCtx ctx
+     * @param handle native
+     * @return TcpSocketPtr wrapped async socket
+     */
+    static TcpSocketPtr create(AOContext& aoCtx, NativeHandle handle);
 };
 
 class TcpServer;

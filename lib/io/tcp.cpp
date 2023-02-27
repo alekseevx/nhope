@@ -48,6 +48,12 @@ public:
       : detail::AsioDeviceWrapper<TcpSocket, AsioSocket>(parent)
     {}
 
+    explicit TcpSocketImpl(nhope::AOContext& parent, NativeHandle handle)
+      : detail::AsioDeviceWrapper<TcpSocket, AsioSocket>(parent)
+    {
+        asioDev.assign(asio::ip::tcp::v4(), static_cast<int>(handle));
+    }
+
     [[nodiscard]] SockAddr localAddress() const override
     {
         const auto endpoint = this->asioDev.local_endpoint();
@@ -83,6 +89,7 @@ public:
             const asio::socket_base::send_buffer_size option(opts.sendBufferSize.value());
             this->asioDev.set_option(option);
         }
+        this->asioDev.non_blocking(opts.nonBlocking);
     }
 
     [[nodiscard]] Options options() const override
@@ -259,6 +266,11 @@ Future<TcpSocketPtr> TcpSocket::connect(AOContext& aoCtx, std::string_view hostN
     auto [future, promise] = makePromise<TcpSocketPtr>();
     new ConnectOp(aoCtx, std::move(promise), hostName, port);
     return std::move(future);
+}
+
+TcpSocketPtr TcpSocket::create(AOContext& aoCtx, NativeHandle handle)
+{
+    return std::make_unique<TcpSocketImpl>(aoCtx, handle);
 }
 
 TcpServerPtr TcpServer::start(AOContext& aoCtx, const TcpServerParams& params)

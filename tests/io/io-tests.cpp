@@ -799,6 +799,28 @@ TEST(IOTest, tcpServerBindAddress)   // NOLINT
     EXPECT_EQ(port.value(), listenPort);   // NOLINT
 }
 
+TEST(IOTest, tcpSocketAssign)   // NOLINT
+{
+    test::TcpEchoServer echoServer;
+    ThreadExecutor e;
+    AOContext aoCtx(e);
+
+    // some legacy api socket
+    sockaddr_in servaddr;
+    const auto sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    servaddr.sin_family = AF_INET;
+    servaddr.sin_addr.s_addr = htonl(0x7f000001);
+    servaddr.sin_port = htons(test::TcpEchoServer::srvPort);
+    connect(sockfd, (sockaddr*)&servaddr, sizeof(servaddr));
+
+    auto wrapper = TcpSocket::create(aoCtx, sockfd);
+    const std::vector<std::uint8_t> data{0, 1, 2, 3, 4, 5};
+    nhope::write(*wrapper, data).get();
+    auto readded = nhope::read(*wrapper, data.size()).get();
+    EXPECT_EQ(readded, data);
+    close(sockfd);
+}
+
 TEST(IOTest, hostNameResolveFailed)   // NOLINT
 {
     ThreadExecutor e;
@@ -1330,4 +1352,35 @@ TEST(IOTest, udpSocketCancel)   //NOLINT
     auto future = nhope::read(*socket, 4);
     socket->ioCancel();
     EXPECT_THROW(future.get(), std::system_error);   // NOLINT
+}
+
+TEST(IOTest, udpSocketAssign)   // NOLINT
+{
+    ThreadExecutor e;
+    AOContext aoCtx(e);
+    UdpSocket::Params p;
+    p.bindAddress.address = "0.0.0.0";
+    p.bindAddress.port = 0;
+
+    test::UdpEchoServer echoServer(p);
+    const auto port = echoServer.bindPort();
+    const auto sockfd = socket(AF_INET, SOCK_DGRAM, 0);
+
+    // legacy udp socket
+    sockaddr_in servaddr{};
+    servaddr.sin_family = AF_INET;   // IPv4
+    servaddr.sin_addr.s_addr = INADDR_ANY;
+    servaddr.sin_port = htons(port);
+    const std::vector<std::uint8_t> etalon{1, 2, 3, 4, 5, 4, 3, 2, 1};
+    sendto(sockfd, etalon.data(), etalon.size(), MSG_CONFIRM, (const struct sockaddr*)&servaddr, sizeof(servaddr));
+
+    auto client = UdpSocket::create(aoCtx, sockfd);
+    auto receiveData = nhope::read(*client, etalon.size()).get();
+    EXPECT_EQ(receiveData, etalon);
+    nhope::write(*client, etalon).get();
+    std::vector<std::uint8_t> rx(etalon.size());
+    recv(sockfd, rx.data(), rx.size(), 0);
+    EXPECT_EQ(rx, etalon);
+
+    close(sockfd);
 }

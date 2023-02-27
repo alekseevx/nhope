@@ -23,6 +23,13 @@ public:
         setOptions(params);
     }
 
+    explicit UdpSocketImpl(nhope::AOContext& parentAOCtx, NativeHandle handle)
+      : m_socket(parentAOCtx.executor().ioCtx())
+      , m_aoCtx(parentAOCtx)
+    {
+        m_socket.assign(asio::ip::udp::v4(), static_cast<int>(handle));
+    }
+
     ~UdpSocketImpl() override = default;
 
     [[nodiscard]] NativeHandle nativeHandle() override
@@ -102,6 +109,7 @@ private:
             const asio::socket_base::send_buffer_size option(opts.sendBufferSize.value());
             m_socket.set_option(option);
         }
+        m_socket.non_blocking(opts.nonBlocking);
     }
 
 private:
@@ -114,6 +122,11 @@ private:
 UdpSocketPtr UdpSocket::create(AOContext& aoCtx, const UdpSocketImpl::Params& params)
 {
     return std::make_unique<UdpSocketImpl>(aoCtx, params);
+}
+
+UdpSocketPtr UdpSocket::create(AOContext& aoCtx, NativeHandle native)
+{
+    return std::make_unique<UdpSocketImpl>(aoCtx, native);
 }
 
 }   // namespace nhope
