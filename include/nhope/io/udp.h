@@ -29,6 +29,7 @@ public:
     {
         Endpoint bindAddress;
         std::optional<Endpoint> peerAddress;
+        bool nonBlocking = true;
 
         std::optional<bool> broadcast;
         std::optional<bool> reuseAddress;
@@ -43,6 +44,8 @@ public:
     [[nodiscard]] virtual SockAddr peerAddress() const = 0;
 
     static UdpSocketPtr create(AOContext& aoCtx, const Params& params);
+    // wraps already prepared socket
+    static UdpSocketPtr create(AOContext& aoCtx, NativeHandle native);
 };
 
 }   // namespace nhope
