@@ -799,6 +799,28 @@ TEST(IOTest, tcpServerBindAddress)   // NOLINT
     EXPECT_EQ(port.value(), listenPort);   // NOLINT
 }
 
+TEST(IOTest, tcpSocketAssign)   // NOLINT
+{
+    test::TcpEchoServer echoServer;
+    ThreadExecutor e;
+    AOContext aoCtx(e);
+
+    // some legacy api socket
+    sockaddr_in servaddr;
+    const auto sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    servaddr.sin_family = AF_INET;
+    servaddr.sin_addr.s_addr = htonl(0x7f000001);
+    servaddr.sin_port = htons(test::TcpEchoServer::srvPort);
+    connect(sockfd, (sockaddr*)&servaddr, sizeof(servaddr));
+
+    auto wrapper = TcpSocket::create(aoCtx, sockfd);
+    const std::vector<std::uint8_t> data{0, 1, 2, 3, 4, 5};
+    nhope::write(*wrapper, data).get();
+    auto readded = nhope::read(*wrapper, data.size()).get();
+    EXPECT_EQ(readded, data);
+    close(sockfd);
+}
+
 TEST(IOTest, hostNameResolveFailed)   // NOLINT
 {
     ThreadExecutor e;
