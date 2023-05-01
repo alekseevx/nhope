@@ -13,13 +13,13 @@ lang = "c++17"
 path = "benchs"
 
 [dependencies]
-asio = {git = "git@gitlab.olimp.lan:github/standalone-asio.git", tag = "asio-1-22-0", interface = "asio/include"}
-fmt = {git = "git@gitlab.olimp.lan:github/fmtlib.git", tag = "9.0.0"}
-gsl = {git = "git@gitlab.olimp.lan:github/gsl.git", tag = "v3.1.0", interface = "include"}
+asio = {git = "git@github.com:chriskohlhoff/asio.git", tag = "asio-1-28-0", interface = "asio/include"}
+fmt = {git = "git@github.com:fmtlib/fmt.git", tag = "9.1.0"}
+gsl = {git = "git@github.com:microsoft/GSL.git", tag = "v4.0.0", interface = "include"}
 
 [dev-dependencies]
-benchmark = {git = "git@gitlab.olimp.lan:github/benchmark.git", branch="main"}
-gtest = {git = "git@gitlab.olimp.lan:google/googletest.git", branch="file-info"}
+benchmark = {git = "git@github.com:google/benchmark.git", branch = "main"}
+gtest = {git = "git@github.com:google/googletest.git", branch = "main"}
 
 [dependencies.windows-specific]
 path = "specific/windows"

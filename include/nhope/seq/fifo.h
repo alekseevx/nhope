@@ -9,7 +9,7 @@
 #include <utility>
 
 #include <gsl/span>
-#include <gsl/gsl_assert>
+#include <gsl/assert>
 
 namespace nhope {
 

@@ -10,7 +10,7 @@ if(NOT ${BASTARD_DIR} STREQUAL "")
 endif()
 
 set(BASTARD_SETUP_VERSION "0.3.2")
-set(BASTARD_GIT_URI "http://gitlab.olimp.lan/cmake/bastard.git")
+set(BASTARD_GIT_URI "http://github.com/vitalsong/bastard.git")
 set(BASTARD_CACHE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/.deps/bastard")
 
 #---------------------------------------------------
