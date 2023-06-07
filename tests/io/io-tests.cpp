@@ -33,6 +33,7 @@
 #include "nhope/io/detail/asio-device-wrapper.h"
 #include "nhope/io/file.h"
 #include "nhope/io/io-device.h"
+#include "nhope/io/local-socket.h"
 #include "nhope/io/null-device.h"
 #include "nhope/io/pushback-reader.h"
 #include "nhope/io/serial-port.h"
@@ -47,6 +48,9 @@
 #ifdef WIN32
 #define _WINSOCK_DEPRECATED_NO_WARNINGS
 #include <WinSock2.h>
+#include <Ws2tcpip.h>
+#include <stdio.h>
+#pragma comment(lib, "Ws2_32.lib")
 #endif
 
 #ifdef __linux__
@@ -1372,15 +1376,51 @@ TEST(IOTest, udpSocketAssign)   // NOLINT
     servaddr.sin_addr.s_addr = INADDR_ANY;
     servaddr.sin_port = htons(port);
     const std::vector<std::uint8_t> etalon{1, 2, 3, 4, 5, 4, 3, 2, 1};
-    sendto(sockfd, etalon.data(), etalon.size(), MSG_CONFIRM, (const struct sockaddr*)&servaddr, sizeof(servaddr));
+    sendto(sockfd, (const char*)etalon.data(), (int)etalon.size(), 0x800, (const struct sockaddr*)&servaddr,
+           sizeof(servaddr));
 
     auto client = UdpSocket::create(aoCtx, sockfd);
     auto receiveData = nhope::read(*client, etalon.size()).get();
     EXPECT_EQ(receiveData, etalon);
     nhope::write(*client, etalon).get();
     std::vector<std::uint8_t> rx(etalon.size());
-    recv(sockfd, rx.data(), rx.size(), 0);
+    recv(sockfd, (char*)rx.data(), rx.size(), 0);
     EXPECT_EQ(rx, etalon);
 
     close(sockfd);
+}
+
+TEST(IOTest, localSocket)   // NOLINT
+{
+    ThreadExecutor e;
+    AOContext aoCtx(e);
+    auto path = std::filesystem::temp_directory_path() / "nhope-local-socket";
+    const LocalServerParams params{path.string()};
+    auto server = LocalServer::start(aoCtx, params);
+    auto tx = LocalSocket::connect(aoCtx, params.address).get();
+    const std::vector<std::uint8_t> data{1, 2, 3, 4, 5, 6};
+    EXPECT_EQ(nhope::write(*tx, data).get(), data.size());
+    auto rx = server->accept().get();
+    EXPECT_EQ(nhope::read(*rx, data.size()).get(), data);
+}
+
+TEST(IOTest, localSocketErrors)   // NOLINT
+{
+    ThreadExecutor e;
+    AOContext aoCtx(e);
+    EXPECT_THROW(LocalSocket::connect(aoCtx, "not-exists").get(), std::system_error);
+
+    Future<std::unique_ptr<LocalSocket>> f;
+    auto path = std::filesystem::temp_directory_path() / "nhope-err-socket";
+    const LocalServerParams params{path.string()};
+    {
+        auto server = LocalServer::start(aoCtx, params);
+        f = server->accept();
+    }
+    EXPECT_THROW(f.get(), std::system_error);
+
+    auto serverAoCloses = LocalServer::start(aoCtx, params);
+    auto closeF = serverAoCloses->accept();
+    aoCtx.close();
+    EXPECT_THROW(closeF.get(), std::system_error);
 }
