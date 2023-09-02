@@ -306,8 +306,14 @@ private:
     {
         auto&& [task, it] = findTaskById(m_waitedTasks, id);
         if (task != nullptr) {
-            assert(task->taskController->state() == ManageableTask::State::Stopped);   // NOLINT
+            assert(task->state() == ManageableTask::State::Stopped);   // NOLINT
             m_waitedTasks.erase(it);
+            return;
+        }
+        auto&& [delayedTask, delayedIt] = findTaskById(m_delayedTasks, id);
+        if (delayedTask != nullptr) {
+            assert(delayedTask->state() == ManageableTask::State::Stopped);   // NOLINT
+            m_delayedTasks.erase(delayedIt);
         }
     }
 
