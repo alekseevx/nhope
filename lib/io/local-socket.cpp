@@ -128,8 +128,8 @@ private:
 
 private:
     AOContextRef m_aoCtx;
-    std::unique_ptr<LocalSocketImpl> m_socket;
     Promise<std::unique_ptr<LocalSocket>> m_promise;
+    std::unique_ptr<LocalSocketImpl> m_socket;
 };
 
 }   // namespace

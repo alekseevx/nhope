@@ -23,7 +23,7 @@ TEST(CallSafeCallback, Call)   // NOLINT
     const auto safeCallback = makeSafeCallback(AOContextRef(aoContext), [&](int arg1, const std::string& arg2) {
         EXPECT_EQ(executor.id(), std::this_thread::get_id());
         EXPECT_EQ(arg1, callbackCalled);
-        EXPECT_EQ(arg2, fmt::format("{}", callbackCalled));
+        EXPECT_EQ(arg2, fmt::format("{}", callbackCalled.load()));
 
         ++callbackCalled;
     });

@@ -1,4 +1,5 @@
 #include <optional>
+#include <stdexcept>
 #include <thread>
 #include <functional>
 #include <gtest/gtest.h>
@@ -597,4 +598,19 @@ TEST(Scheduler, StateWatch)   // NOLINT
     scheduler.push(f, 2);
     scheduler.activate(thirdId);
     scheduler.waitAll();
+}
+
+TEST(Scheduler, PausedTaskFinish)   // NOLINT
+{
+    Scheduler scheduler;
+
+    auto f = [](auto&) mutable {
+        std::this_thread::sleep_for(100ms);
+    };
+
+    const auto firstId = scheduler.push(f);
+    scheduler.deactivate(firstId);
+    std::this_thread::sleep_for(200ms);
+    scheduler.activate(firstId);
+    scheduler.asyncWait(firstId).get();
 }
