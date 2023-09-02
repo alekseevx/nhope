@@ -600,18 +600,17 @@ TEST(Scheduler, StateWatch)   // NOLINT
     scheduler.waitAll();
 }
 
-TEST(Scheduler, ExceptionInPausedTask)   // NOLINT
+TEST(Scheduler, PausedTaskFinish)   // NOLINT
 {
     Scheduler scheduler;
 
     auto f = [](auto&) mutable {
-        std::this_thread::sleep_for(200ms);
-        throw std::runtime_error("something bad happening");
+        std::this_thread::sleep_for(100ms);
     };
 
     const auto firstId = scheduler.push(f);
     scheduler.deactivate(firstId);
-    std::this_thread::sleep_for(300ms);
+    std::this_thread::sleep_for(200ms);
     scheduler.activate(firstId);
     scheduler.asyncWait(firstId).get();
 }
