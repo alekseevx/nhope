@@ -1,4 +1,5 @@
 #include <exception>
+#include <memory>
 #include <stdexcept>
 #include <string>
 #include <thread>
@@ -99,6 +100,21 @@ TEST(Future, satisfiedFlag)   // NOLINT
         EXPECT_TRUE(p.satisfied());
         EXPECT_THROW(p.setValue(), PromiseAlreadySatisfiedError);            // NOLINT
         EXPECT_THROW(p.setException(exPtr), PromiseAlreadySatisfiedError);   // NOLINT
+    }
+
+    // avoid promise destruction in call chain
+    {
+        auto executor = ThreadExecutor();
+        auto aoCtx = AOContext(executor);
+        auto p = std::make_unique<Promise<void>>();
+        auto f = p->future().then(aoCtx, [&p] {
+            EXPECT_TRUE(p->satisfied());
+            p.reset();
+        });
+        aoCtx.exec([&] {
+            p->setValue();
+        });
+        f.wait();
     }
 }
 

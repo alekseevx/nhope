@@ -408,8 +408,8 @@ public:
             throw PromiseAlreadySatisfiedError();
         }
 
-        m_state->setValue(std::forward<Tp>(args)...);
         m_satisfiedFlag = true;
+        m_state->setValue(std::forward<Tp>(args)...);
     }
 
     void setException(std::exception_ptr ex)
@@ -418,8 +418,8 @@ public:
             throw PromiseAlreadySatisfiedError();
         }
 
-        m_state->setException(std::move(ex));
         m_satisfiedFlag = true;
+        m_state->setException(std::move(ex));
     }
 
     Future<T> future()
