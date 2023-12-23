@@ -6,7 +6,6 @@
 
 #include "nhope/async/ao-context-error.h"
 #include "nhope/async/ao-context.h"
-#include "nhope/async/executor.h"
 
 namespace nhope {
 

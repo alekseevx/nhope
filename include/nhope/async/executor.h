@@ -41,7 +41,7 @@ public:
      */
     virtual asio::io_context& ioCtx() = 0;
 
-    [[deprecated("Use exec insted")]] void post(Work work)
+    [[deprecated("Use exec instead")]] void post(Work work)
     {
         this->exec(std::move(work), ExecMode::AddInQueue);
     }

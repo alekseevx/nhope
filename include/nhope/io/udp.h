@@ -6,7 +6,6 @@
 
 #include "nhope/async/ao-context.h"
 #include "nhope/io/io-device.h"
-#include "nhope/io/network.h"
 #include "nhope/io/sock-addr.h"
 
 namespace nhope {

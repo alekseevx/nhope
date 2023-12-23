@@ -5,7 +5,6 @@
 #include <list>
 #include <memory>
 #include <string>
-#include <system_error>
 #include <utility>
 #include <vector>
 
@@ -16,7 +15,6 @@
 #include "nhope/async/ao-context.h"
 #include "nhope/async/executor.h"
 #include "nhope/async/future.h"
-#include "nhope/async/safe-callback.h"
 #include "nhope/io/io-device.h"
 #include "nhope/utils/detail/ref-ptr.h"
 
@@ -83,7 +81,7 @@ private:
         this->readNextPortion();
     }
 
-    Reader& m_dev;
+    Reader& m_dev;   // NOLINT cppcoreguidelines-avoid-const-or-ref-data-members
     Promise<std::vector<std::uint8_t>> m_promise;
     std::vector<std::uint8_t> m_buf;
     std::size_t m_portionSize = 0;
@@ -93,7 +91,7 @@ private:
 template<typename Handler>
 detail::RefPtr<ReadOp<Handler>> makeReadOp(Reader& dev, Handler&& handler)
 {
-    return detail::makeRefPtr<ReadOp<Handler>>(dev, std::move(handler));
+    return detail::makeRefPtr<ReadOp<Handler>>(dev, std::forward<Handler>(handler));
 }
 
 class WriteOp final : public detail::BaseRefCounter
@@ -145,7 +143,7 @@ private:
         m_promise.setValue(static_cast<std::size_t>(m_written));
     }
 
-    Writter& m_dev;
+    Writter& m_dev;   // NOLINT cppcoreguidelines-avoid-const-or-ref-data-members
     Promise<std::size_t> m_promise;
     const std::vector<std::uint8_t> m_data;
     const bool m_writeAll;

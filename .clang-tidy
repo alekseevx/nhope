@@ -6,7 +6,7 @@ Checks: >
     cppcoreguidelines-*,-cppcoreguidelines-special-member-functions,
       -cppcoreguidelines-avoid-magic-numbers,
       -cppcoreguidelines-pro-bounds-constant-array-index,
-    misc-*,-misc-non-private-member-variables-in-classes,
+    misc-*,-misc-non-private-member-variables-in-classes,-misc-no-recursion
     modernize-*,-modernize-use-trailing-return-type,
     performance-*,
     portability-*,

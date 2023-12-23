@@ -1,10 +1,8 @@
 #pragma once
 
 #include <chrono>
-#include <memory>
 #include <utility>
 
-#include "nhope/async/ao-context-error.h"
 #include "nhope/async/detail/ao-context-impl.h"
 #include "nhope/async/executor.h"
 
@@ -77,7 +75,7 @@ public:
      * @brief Производит закрытие AOContext
      *
      * Если close вызовут одновременно несколько потоков, то фактическое закрытие будет
-     * осуществлять только один из потоков, остальны потоки просто дождутся окончания закрытия.
+     * осуществлять только один из потоков, остальные потоки просто дождутся окончания закрытия.
      *
      * Последовательность действий при закрытии:
      * - Переходим в состояние "Подготовка к закрытию". Теперь isOpen() == false.

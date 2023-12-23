@@ -1,11 +1,8 @@
-#include <cstddef>
-#include <cstdint>
 #include <memory>
 #include <optional>
 #include <stdexcept>
 #include <string>
 #include <system_error>
-#include <utility>
 
 #include <asio/serial_port.hpp>
 #include <fmt/format.h>

@@ -1,12 +1,10 @@
 #pragma once
 
 #include <array>
-#include <cassert>
 #include <cstddef>
 #include <cstring>
 #include <optional>
 #include <type_traits>
-#include <utility>
 
 #include <gsl/span>
 #include <gsl/assert>
@@ -14,7 +12,7 @@
 namespace nhope {
 
 template<typename T, std::size_t Size>
-class Fifo
+class Fifo final
 {
     static_assert(std::is_standard_layout_v<T> && std::is_trivial_v<T>);
 
@@ -42,12 +40,12 @@ public:
         return m_count == 0;
     }
 
-    void clear()
+    void clear() noexcept
     {
         m_count = m_head = m_tail = 0;
     }
 
-    std::size_t push(gsl::span<const T> data)
+    std::size_t push(gsl::span<const T> data) noexcept
     {
         const auto freeSpace = Size - m_count;
         const auto count = std::min(data.size(), freeSpace);
@@ -69,9 +67,9 @@ public:
         return count;
     }
 
-    std::size_t push(T&& value)
+    std::size_t push(const T& value) noexcept
     {
-        return push(gsl::span<T, 1>(&value, 1));
+        return push(gsl::span<const T, 1>(&value, 1));
     }
 
     /*!
@@ -80,9 +78,9 @@ public:
      * @param data 
      * @return size_t really popped size from fifo
      */
-    std::size_t pop(gsl::span<T> data)
+    std::size_t pop(gsl::span<T> data) noexcept
     {
-        const std::size_t count = std::min(data.size(), m_count);
+        const auto count = std::min(data.size(), m_count);
         if (GSL_UNLIKELY(count == 0)) {
             return count;
         }
@@ -101,7 +99,7 @@ public:
         return count;
     }
 
-    [[nodiscard]] std::optional<T> pop()
+    [[nodiscard]] std::optional<T> pop() noexcept
     {
         T val{};
         if (pop(gsl::span<T, 1>(&val, 1)) == 0) {
@@ -111,11 +109,13 @@ public:
     }
 
 private:
-    static void copy(gsl::span<T> dst, gsl::span<const T> src)
+    static void copy(gsl::span<T> dst, gsl::span<const T> src) noexcept
     {
         std::memcpy(dst.data(), src.data(), src.size() * sizeof(T));
     }
+
     static constexpr std::size_t capacity = nextPowerOf2<Size>();
+
     std::array<T, capacity> m_buffer{};
     std::size_t m_head{};
     std::size_t m_tail{};

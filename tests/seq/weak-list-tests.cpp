@@ -1,4 +1,3 @@
-#include "nhope/async/future.h"
 #include <atomic>
 #include <cstddef>
 #include <iterator>
@@ -8,6 +7,8 @@
 
 #include <gtest/gtest.h>
 
+#include <nhope/async/future.h>
+#include <nhope/async/lockable-value.h>
 #include <nhope/seq/weak_list.h>
 
 namespace {

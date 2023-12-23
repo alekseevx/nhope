@@ -1,10 +1,7 @@
 #pragma once
 
 #include <cstddef>
-#include <memory>
-#include <list>
 #include <string>
-#include <thread>
 
 #include "nhope/async/executor.h"
 #include "nhope/utils/detail/fast-pimpl.h"

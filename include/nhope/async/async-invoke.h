@@ -1,7 +1,6 @@
 #pragma once
 
 #include <functional>
-#include <type_traits>
 #include <utility>
 
 #include "nhope/async/ao-context.h"

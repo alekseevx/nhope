@@ -128,7 +128,7 @@ public:
 
     template<typename Buff, typename Handler>
     void async_read_some(const Buff& buffer,   // NOLINT(readability-identifier-naming)
-                         Handler&& handler)
+                         Handler handler)
     {
         m_ioCtx.post([this, buffer, handler]() mutable {
             const auto op = nextOperation<ReadOp>();
@@ -140,7 +140,7 @@ public:
 
     template<typename Buff, typename Handler>
     void async_write_some(const Buff& buffer,   // NOLINT(readability-identifier-naming)
-                          Handler&& handler)
+                          Handler handler)
     {
         m_ioCtx.post([this, buffer, handler]() mutable {
             const auto op = nextOperation<WriteOp>();
@@ -810,7 +810,7 @@ TEST(IOTest, tcpSocketAssign)   // NOLINT
     AOContext aoCtx(e);
 
     // some legacy api socket
-    sockaddr_in servaddr;
+    sockaddr_in servaddr{};
     const auto sockfd = socket(AF_INET, SOCK_STREAM, 0);
     servaddr.sin_family = AF_INET;
     servaddr.sin_addr.s_addr = htonl(0x7f000001);
@@ -1353,8 +1353,11 @@ TEST(IOTest, udpSocketCancel)   //NOLINT
     ThreadExecutor e;
     AOContext aoCtx(e);
     auto socket = UdpSocket::create(aoCtx, {});
-    auto future = nhope::read(*socket, 4);
-    socket->ioCancel();
+    auto future = asyncInvoke(aoCtx, [&] {
+        auto future = nhope::read(*socket, 4);
+        socket->ioCancel();
+        return future;
+    });
     EXPECT_THROW(future.get(), std::system_error);   // NOLINT
 }
 
@@ -1380,11 +1383,17 @@ TEST(IOTest, udpSocketAssign)   // NOLINT
            sizeof(servaddr));
 
     auto client = UdpSocket::create(aoCtx, sockfd);
-    auto receiveData = nhope::read(*client, etalon.size()).get();
+    auto receiveData = invoke(aoCtx, [&] {
+        return nhope::read(*client, etalon.size());
+    });
     EXPECT_EQ(receiveData, etalon);
-    nhope::write(*client, etalon).get();
+
+    invoke(aoCtx, [&] {
+        return nhope::write(*client, etalon);
+    });
     std::vector<std::uint8_t> rx(etalon.size());
-    recv(sockfd, (char*)rx.data(), rx.size(), 0);
+    while (recv(sockfd, (char*)rx.data(), rx.size(), 0) != etalon.size()) {
+    }
     EXPECT_EQ(rx, etalon);
 
     close(sockfd);

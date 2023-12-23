@@ -4,7 +4,6 @@
 #include <cassert>
 #include <cstddef>
 #include <exception>
-#include <functional>
 #include <memory>
 #include <type_traits>
 #include <utility>
@@ -215,7 +214,7 @@ public:
     }
 
     template<typename Fn, typename... Args>
-    void calcResult(Fn&& fn, Args&&... args)
+    void calcResult(Fn fn, Args&&... args)
     {
         assert(!this->hasResult());
 
@@ -389,7 +388,7 @@ public:
         if constexpr (std::is_void_v<T>) {
             nextFutureState->calcResult(std::move(m_fn));
         } else {
-            nextFutureState->calcResult(m_fn, state->value());
+            nextFutureState->calcResult(std::move(m_fn), state->value());
         }
     }
 

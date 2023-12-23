@@ -1,7 +1,5 @@
 #pragma once
 
-#include <mutex>
-#include <list>
 #include <thread>
 #include <utility>
 
@@ -20,7 +18,7 @@ namespace nhope::detail {
 class AOContextImpl;
 
 template<typename Fn>
-void tryCall(Fn&& fn) noexcept
+void tryCall(Fn fn) noexcept
 {
     try {
         fn();
@@ -54,7 +52,7 @@ public:
     }
 
     template<typename Work>
-    void exec(Work&& work, Executor::ExecMode mode)
+    void exec(Work work, Executor::ExecMode mode)
     {
         if (!m_state.blockCloseAndAddRef()) {
             return;
@@ -83,7 +81,7 @@ public:
               }
               WorkingInThisThreadSet::Item thisGroup(self->m_groupId);
 
-              tryCall(std::forward<Work>(work));
+              tryCall(std::move(work));
 
               /* Take the reference from self to atomically 
                  remove the reference and unblock close. */
@@ -123,10 +121,10 @@ public:
     void close()
     {
         if (m_state.startClose()) {
-            ClosingInThisThreadSet::Item thisAOContexItem(this);
+            ClosingInThisThreadSet::Item thisAOContextItem(this);
 
-            // CloseHandlers can dstroy the AOContext
-            // The anchor will protected as from permature destruction
+            // CloseHandlers can destroy the AOContext
+            // The anchor will protected as from premature destruction
             const auto anchor = refPtrFromRawPtr<AOContextImpl>(this);
 
             this->waitForClosing();
@@ -315,7 +313,7 @@ private:
         /* Parent was closed */
         assert(m_parent != nullptr);   // NOLINT
 
-        // Fix for deadlock reproducible by "AOContext.ConcurentCloseChildAndParent"
+        // Fix for deadlock reproducible by "AOContext.ConcurrentCloseChildAndParent"
         //
         // How to get the deadlock:
         // Thread1:
@@ -327,9 +325,9 @@ private:
         // parent.removeCloseHandler waits for end of child.aoContextClose to exclude the deletion
         // of child while it used in child.aoContextClose.
         //
-        // To avoid deadlock, we allow not to wait for the compeltion of child.aoContextClose
+        // To avoid deadlock, we allow not to wait for the completion of child.aoContextClose
         // (this->m_done = true)
-        // The anchor will protected as from permature destruction
+        // The anchor will protected as from premature destruction
         const auto anchor = refPtrFromRawPtr<AOContextImpl>(this);
         *this->m_destroyed = true;
         this->m_done = true;
@@ -357,7 +355,7 @@ private:
     }
 
     template<typename StartFn>
-    void startCancellableTaskNonBlockClose(StartFn&& start, AOContextCloseHandler* closeHandler)
+    void startCancellableTaskNonBlockClose(StartFn start, AOContextCloseHandler* closeHandler)
     {
         this->addCloseHandlerNonBlockClose(closeHandler);
         try {

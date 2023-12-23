@@ -1,5 +1,4 @@
 #include <exception>
-#include <functional>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -14,7 +13,6 @@
 #include "nhope/async/ao-context.h"
 #include "nhope/async/executor.h"
 #include "nhope/async/future.h"
-#include "nhope/async/safe-callback.h"
 #include "nhope/io/detail/asio-device-wrapper.h"
 #include "nhope/io/sock-addr.h"
 #include "nhope/io/tcp.h"

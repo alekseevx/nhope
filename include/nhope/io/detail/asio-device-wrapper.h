@@ -1,6 +1,5 @@
 #pragma once
 
-#include <cstddef>
 #include <exception>
 #include <system_error>
 #include <utility>

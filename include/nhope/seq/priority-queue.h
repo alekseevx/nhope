@@ -26,7 +26,7 @@ public:
     }
 
     template<typename Fn>
-    void remove_if(Fn&& fn)
+    void remove_if(Fn fn)
     {
         static_assert(checkFunctionSignatureV<Fn, bool, const T&, int>, "expect bool(const T&, int) signature");
 

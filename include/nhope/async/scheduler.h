@@ -1,8 +1,6 @@
 #pragma once
 
 #include <cstdint>
-#include <functional>
-#include <memory>
 #include <optional>
 
 #include <nhope/async/manageable-task.h>

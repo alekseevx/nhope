@@ -1,7 +1,6 @@
 #include <filesystem>
 #include <list>
 #include <regex>
-#include <set>
 
 #include "nhope/io/serial-port.h"
 

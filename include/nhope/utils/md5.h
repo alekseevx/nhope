@@ -7,8 +7,6 @@
 #include <array>
 #include <filesystem>
 #include <istream>
-#include <string_view>
-#include <vector>
 
 #include <gsl/span>
 

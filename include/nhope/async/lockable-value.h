@@ -1,6 +1,5 @@
 #pragma once
 
-#include <functional>
 #include <mutex>
 #include <shared_mutex>
 #include <type_traits>
@@ -111,7 +110,7 @@ public:
 
 private:
     std::shared_lock<std::shared_mutex> m_lock;
-    const T& m_value;
+    const T& m_value;   // NOLINT cppcoreguidelines-avoid-const-or-ref-data-members
 };
 
 template<typename T>
@@ -135,7 +134,7 @@ public:
 
 private:
     std::scoped_lock<std::shared_mutex> m_lock;
-    T& m_value;
+    T& m_value;   // NOLINT cppcoreguidelines-avoid-const-or-ref-data-members
 };
 
 template<typename T>

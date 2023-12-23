@@ -7,7 +7,6 @@
 
 #include "nhope/async/ao-context.h"
 #include "nhope/io/io-device.h"
-#include "nhope/async/thread-pool-executor.h"
 #include "nhope/async/future.h"
 
 namespace nhope {

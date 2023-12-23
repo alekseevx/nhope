@@ -8,7 +8,6 @@
 #include <mutex>
 #include <shared_mutex>
 
-#include "nhope/async/lockable-value.h"
 #include "nhope/async/reverse-lock.h"
 #include "nhope/async/future.h"
 #include "nhope/utils/noncopyable.h"
@@ -74,7 +73,7 @@ public:
             return ptr;
         }
 
-        List& m_list;
+        List& m_list;   // NOLINT cppcoreguidelines-avoid-const-or-ref-data-members
         mutable ListIterator m_pos{};
         std::shared_ptr<T> m_current;
     };
@@ -218,7 +217,7 @@ public:
     }
 
     template<typename V>
-    std::shared_ptr<T> find(V&& val)
+    std::shared_ptr<T> find(const V& val)
     {
         std::scoped_lock lock(m_mutex);
         return m_list.find(val);

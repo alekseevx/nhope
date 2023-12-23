@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include <exception>
 #include <memory>
 #include <type_traits>
@@ -11,7 +12,6 @@
 #include "nhope/async/async-invoke.h"
 #include "nhope/async/executor.h"
 #include "nhope/async/future.h"
-#include "nhope/async/strand-executor.h"
 #include "nhope/async/timer.h"
 #include "nhope/seq/consumer-list.h"
 #include "nhope/seq/producer.h"
@@ -46,7 +46,7 @@ public:
     {}
 
     template<typename V>
-    bool operator==(V&& rhs) const
+    bool operator==(const V& rhs) const
     {
         using Vtype = std::decay_t<V>;
         if constexpr (std::is_same_v<Vtype, ObservableState<T>>) {
@@ -61,7 +61,7 @@ public:
     }
 
     template<typename V>
-    bool operator!=(V&& rhs) const
+    bool operator!=(const V& rhs) const
     {
         return !(*this == rhs);
     }
@@ -73,7 +73,7 @@ public:
     }
 
     template<typename V>
-    ObservableState& operator=(V&& value)
+    ObservableState& operator=(const V& value)
     {
         if constexpr (std::is_same_v<std::decay_t<V>, ObservableState<T>>) {
             m_state = value.state;
@@ -180,9 +180,9 @@ public:
     }
 
     template<typename V>
-    void setState(V&& v)
+    void setState(V v)
     {
-        asyncInvoke(m_stateAOCtx, [this, newVal = std::forward<V>(v)] {
+        asyncInvoke(m_stateAOCtx, [this, newVal = std::move(v)] {
             setNewState(newVal);
             m_updateAOCtx = std::make_unique<AOContext>(m_stateAOCtx);
             asyncInvoke(*m_updateAOCtx,

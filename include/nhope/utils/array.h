@@ -1,9 +1,7 @@
 #pragma once
 
-#include <algorithm>
 #include <array>
 #include <cstddef>
-#include <cstdint>
 #include <string_view>
 
 namespace nhope {
@@ -19,7 +17,7 @@ constexpr std::array<char, N> toArray(std::string_view val)
 }
 
 template<std::size_t N>
-constexpr std::array<char, N - 1> toArray(const char (&a)[N])
+constexpr std::array<char, N - 1> toArray(const char (&a)[N])   // NOLINT cppcoreguidelines-avoid-c-arrays
 {
     std::array<char, N - 1> res{};
     for (std::size_t i = 0; i != N - 1; ++i) {

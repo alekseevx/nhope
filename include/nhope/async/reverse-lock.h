@@ -19,7 +19,7 @@ public:
     }
 
 private:
-    Lock& m_lock;
+    Lock& m_lock;   // NOLINT cppcoreguidelines-avoid-const-or-ref-data-members
 };
 
 }   // namespace nhope

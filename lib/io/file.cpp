@@ -62,7 +62,7 @@ public:
         m_resultCtx.close();
 
         if (m_file != nullptr) {
-            // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+            // NOLINTNEXTLINE(cppcoreguidelines-owning-memory,cert-err33-c)
             std::fclose(m_file);
         }
     }

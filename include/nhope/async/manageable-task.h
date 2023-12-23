@@ -2,7 +2,6 @@
 
 #include <exception>
 #include <functional>
-#include <future>
 #include <memory>
 
 #include "nhope/async/future.h"

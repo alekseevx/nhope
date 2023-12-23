@@ -8,7 +8,6 @@
 #include <utility>
 
 #include "nhope/async/future.h"
-#include "nhope/utils/detail/ref-ptr.h"
 #include "nhope/async/detail/future-state.h"
 
 namespace nhope {

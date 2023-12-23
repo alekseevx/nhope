@@ -1,7 +1,5 @@
 #pragma once
 
-#include <exception>
-
 #include "noncopyable.h"
 #include "type.h"
 
@@ -15,8 +13,8 @@ class ScopeExit : public Noncopyable
 public:
     static_assert(checkFunctionSignatureV<Fn, void>, "expect void() signature");
 
-    explicit ScopeExit(Fn&& f)
-      : m_fn(std::forward<Fn>(f))
+    explicit ScopeExit(Fn f)
+      : m_fn(std::move(f))
     {}
 
     ~ScopeExit()

@@ -1,14 +1,11 @@
 #pragma once
 
-#include <cstddef>
 #include <exception>
 #include <functional>
 #include <memory>
 #include <thread>
-#include <tuple>
 #include <type_traits>
 #include <utility>
-#include <vector>
 
 #include "nhope/async/ao-context.h"
 #include "nhope/async/detail/future-state.h"
@@ -542,7 +539,7 @@ auto toThread(Fn&& fn, Args&&... args)
     Promise<T> promise;
     Future<T> future = promise.future();
 
-    auto bindedFn = std::bind(fn, std::forward<Args>(args)...);
+    auto bindedFn = std::bind(std::forward<Fn>(fn), std::forward<Args>(args)...);
     std::thread([fn = std::move(bindedFn), promise = std::move(promise)]() mutable {
         try {
             if constexpr (std::is_void_v<T>) {

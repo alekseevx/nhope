@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <cstddef>
+#include <list>
 #include <memory>
 #include <optional>
 

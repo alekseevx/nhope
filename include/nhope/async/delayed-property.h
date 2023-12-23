@@ -28,7 +28,7 @@ public:
     {}
 
     explicit DelayedProperty(T&& value) noexcept(std::is_nothrow_move_constructible_v<T>)
-      : m_d(std::make_shared<Prv>(std::forward<T>(value)))
+      : m_d(std::make_shared<Prv>(std::move(value)))
     {}
 
     template<typename... Args>

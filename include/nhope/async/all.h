@@ -24,7 +24,7 @@ public:
     {}
 
     template<typename Fn>
-    Future<std::vector<ResT>> start(Fn&& fn, std::vector<ArgT> args)
+    Future<std::vector<ResT>> start(Fn fn, std::vector<ArgT> args)
     {
         auto future = m_promise.future();
         if (args.empty()) {
@@ -87,7 +87,7 @@ public:
     {}
 
     template<typename Fn>
-    Future<void> start(Fn&& fn, std::vector<ArgT> args)
+    Future<void> start(Fn fn, std::vector<ArgT> args)
     {
         auto future = m_promise.future();
         if (args.empty()) {
@@ -226,7 +226,7 @@ private:
     }
 
     template<std::size_t i, typename Tp>
-    void taskFinished(Tp&& r)
+    void taskFinished(Tp r)
     {
         std::get<i>(m_result) = std::move(r);
 

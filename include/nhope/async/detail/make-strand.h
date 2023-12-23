@@ -26,7 +26,7 @@ public:
     }
 
 private:
-    const HolderOwnMode m_ownMode;
+    HolderOwnMode m_ownMode;
 };
 
 using SequenceExecutorHolder = std::unique_ptr<SequenceExecutor, HolderDeleter>;

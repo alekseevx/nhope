@@ -13,7 +13,6 @@
 #include "nhope/async/ao-context.h"
 #include "nhope/async/future.h"
 #include "nhope/async/timer.h"
-#include "nhope/utils/scope-exit.h"
 
 namespace nhope {
 namespace {

@@ -54,7 +54,7 @@ public:
     }
 
     /**
-     * @brief Restores the previos state the mutex
+     * @brief Restores the previous state the mutex
      */
     ~RecursiveLock()
     {
