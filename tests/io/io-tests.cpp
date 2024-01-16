@@ -982,6 +982,21 @@ TEST(IOTest, modemControlSerialPort)   // NOLINT
 #endif
 }
 
+TEST(IOTest, clearReadBuffer)   // NOLINT
+{
+#ifdef __linux__
+    ThreadExecutor e;
+    AOContext aoCtx(e);
+    SerialPortParams p{};
+    nhope::test::VirtualSerialPort com("/tmp/com_1", "/tmp/com_2");
+    nhope::SerialPortPtr serial = SerialPort::open(aoCtx, "/tmp/com_1", p);
+    //NOLINTNEXTLINE
+    EXPECT_NO_THROW(serial->clearReadBuffer());
+#else
+    GTEST_SKIP();   //NOLINT
+#endif
+}
+
 constexpr auto copyPortionSize = 4 * 1024;
 
 TEST(IOTest, Copy)   // NOLINT

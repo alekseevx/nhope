@@ -1,6 +1,10 @@
 #include "sys/ioctl.h"
+#include <array>
+#include <cerrno>
 #include <cstdio>
+#include <cstring>
 #include <stdexcept>
+#include <unistd.h>
 
 #include "nhope/io/detail/serial-port-detail.h"
 
@@ -35,6 +39,25 @@ SerialPortParams::ModemControl getModemControl(asio::serial_port& serialPort)
         throw std::system_error(err, "serial-port: failed to get modem control");
     }
     return arg;
+}
+
+void clearReadBuffer(asio::serial_port& serialPort)
+{
+    const auto hander = serialPort.native_handle();
+    std::array<char, 1> buf{};
+    ssize_t r{};
+    while (true) {
+        r = ::read(hander, buf.data(), 1);
+        if (r == 0) {
+            throw std::runtime_error("serial port EOF");
+        }
+        if (r < 0) {
+            if (errno != EAGAIN) {
+                throw std::runtime_error(strerror(errno));
+            }
+            return;
+        }
+    }
 }
 
 }   // namespace nhope::detail

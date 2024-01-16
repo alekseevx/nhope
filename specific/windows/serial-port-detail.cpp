@@ -18,4 +18,9 @@ nhope::SerialPortParams::ModemControl getModemControl(asio::serial_port& /*seria
     throw std::logic_error("serial-port: platform don't support modem control");
 }
 
+void clearReadBuffer(asio::serial_port& /*unused*/)
+{
+    throw std::logic_error("serial-port: clearReadBuffer not implemented yet");
+}
+
 }   // namespace nhope::detail

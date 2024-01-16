@@ -102,6 +102,11 @@ public:
         asioDev.set_option(toAsio(params.stopbits));
     }
 
+    void clearReadBuffer() override
+    {
+        nhope::detail::clearReadBuffer(asioDev);
+    }
+
     void setRTS(bool state) override
     {
         nhope::detail::setRTS(asioDev, state);

@@ -8,5 +8,6 @@ namespace nhope::detail {
 void setRTS(asio::serial_port& serialPort, bool state);
 void setDTR(asio::serial_port& serialPort, bool state);
 SerialPortParams::ModemControl getModemControl(asio::serial_port& serialPort);
+void clearReadBuffer(asio::serial_port& serialPort);
 
 }   // namespace nhope::detail
