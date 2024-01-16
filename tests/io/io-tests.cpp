@@ -1382,7 +1382,8 @@ TEST(IOTest, udpSocketAssign)   // NOLINT
     sendto(sockfd, (const char*)etalon.data(), (int)etalon.size(), 0x800, (const struct sockaddr*)&servaddr,
            sizeof(servaddr));
 
-    auto client = UdpSocket::create(aoCtx, sockfd);
+    auto client = UdpMultiPeerSocket::create(aoCtx, sockfd);
+    client->addPeer(UdpSocket::Endpoint{"127.0.0.1", port});
     auto receiveData = invoke(aoCtx, [&] {
         return nhope::read(*client, etalon.size());
     });
@@ -1432,4 +1433,33 @@ TEST(IOTest, localSocketErrors)   // NOLINT
     auto closeF = serverAoCloses->accept();
     aoCtx.close();
     EXPECT_THROW(closeF.get(), std::system_error);
+}
+
+TEST(IOTest, udpMultiSocket)   // NOLINT
+{
+    ThreadExecutor e;
+    AOContext aoCtx(e);
+    const auto clientPort{55578};
+
+    UdpSocket::Params params;
+    params.bindAddress.address = "0.0.0.0";
+    params.bindAddress.port = 0;
+    params.peerAddress = UdpSocket::Endpoint{"127.0.0.1", clientPort};
+    UdpSocket::Endpoint secondPeer{"127.0.0.1", clientPort + 1};
+    auto socket = UdpMultiPeerSocket::create(aoCtx, params);
+    ASSERT_EQ(socket->peers().size(), 1);
+    socket->addPeer(secondPeer);
+    ASSERT_EQ(socket->peers().size(), 2);
+    socket->removePeer(secondPeer);
+
+    ASSERT_EQ(socket->peers().size(), 1);
+    ASSERT_EQ(socket->peers()[0], *params.peerAddress);
+    socket->removePeer(*params.peerAddress);
+
+    const std::vector<std::uint8_t> data(56);
+    EXPECT_THROW(nhope::write(*socket, data).get(), std::runtime_error);
+
+    socket->addPeer(*params.peerAddress);
+    socket->addPeer(secondPeer);
+    EXPECT_EQ(nhope::write(*socket, data).get(), data.size());
 }
