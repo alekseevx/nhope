@@ -175,7 +175,7 @@ public:
                 m_peers)
                 .then(m_aoCtx,
                       [handler](std::vector<std::size_t> sizes) {
-                          handler(nullptr, *std::min_element(sizes.begin(), sizes.end()));
+                          handler(nullptr, sizes.front());
                       })
                 .fail(m_aoCtx, [handler](auto ex) {
                     handler(std::move(ex), 0);
