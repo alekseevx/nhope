@@ -1457,7 +1457,7 @@ TEST(IOTest, udpMultiSocket)   // NOLINT
     socket->removePeer(*params.peerAddress);
 
     const std::vector<std::uint8_t> data(56);
-    EXPECT_THROW(nhope::write(*socket, data).get(), std::runtime_error);
+    EXPECT_EQ(nhope::write(*socket, data).get(), data.size());
 
     socket->addPeer(*params.peerAddress);
     socket->addPeer(secondPeer);

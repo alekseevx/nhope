@@ -154,7 +154,7 @@ public:
         m_aoCtx.exec(
           [this, data, handler = std::move(handler)] {
               if (m_peers.empty()) {
-                  handler(std::make_exception_ptr(std::runtime_error("multi udp: no peers for send")), 0);
+                  handler(nullptr, data.size());
                   return;
               }
               all(
