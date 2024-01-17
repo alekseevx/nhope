@@ -93,6 +93,20 @@ public:
           });
     }
 
+    Future<std::size_t> sendTo(gsl::span<const std::uint8_t> data, const Endpoint& ep) override
+    {
+        auto pr = makePromise<std::size_t>();
+        m_socket.async_send_to(asio::buffer(data.data(), data.size()), fromEndpoint(ep),
+                               [promise = std::move(pr.second)](auto& err, auto count) mutable {
+                                   if (err) {
+                                       promise.setException(detail::toExceptionPtr(err));
+                                       return;
+                                   }
+                                   promise.setValue(count);
+                               });
+        return std::move(pr.first);
+    }
+
 protected:
     void setOptions(const UdpSocketImpl::Params& opts)
     {

@@ -1346,6 +1346,14 @@ TEST(IOTest, udpSocket)   //NOLINT
 
     auto receiveData = nhope::read(*client, size).get();
     EXPECT_EQ(receiveData, etalon);
+    const std::vector<std::uint8_t> etalonToAddr{{5, 4, 3, 5, 1}};
+    EXPECT_EQ(
+      client
+        ->sendTo(etalonToAddr, UdpSocket::Endpoint{clientParams.peerAddress->address, clientParams.peerAddress->port})
+        .get(),
+      etalonToAddr.size());
+    auto receiveAddressData = nhope::read(*client, size).get();
+    EXPECT_EQ(receiveAddressData, etalonToAddr);
 }
 
 TEST(IOTest, udpSocketCancel)   //NOLINT
