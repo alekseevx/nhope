@@ -1,11 +1,13 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <optional>
 #include <vector>
 
 #include "nhope/async/ao-context.h"
+#include "nhope/async/future.h"
 #include "nhope/io/io-device.h"
 #include "nhope/io/sock-addr.h"
 
@@ -47,6 +49,7 @@ public:
     [[nodiscard]] virtual NativeHandle nativeHandle() = 0;
     [[nodiscard]] virtual SockAddr localAddress() const = 0;
     [[nodiscard]] virtual SockAddr peerAddress() const = 0;
+    [[nodiscard]] virtual Future<std::size_t> sendTo(gsl::span<const std::uint8_t> data, const Endpoint& ep) = 0;
 
     static UdpSocketPtr create(AOContext& aoCtx, const Params& params);
     // wraps already prepared socket
