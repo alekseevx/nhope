@@ -1,5 +1,6 @@
 #include <chrono>
 #include <functional>
+#include <memory>
 #include <string>
 #include <tuple>
 #include <vector>
@@ -193,4 +194,28 @@ TEST(all, tuple)   // NOLINT
 
         EXPECT_THROW(res.get(), std::invalid_argument);   // NOLINT
     }
+}
+
+TEST(all, nonCopyableVectorArgs)   // NOLINT
+{
+    ThreadExecutor executor;
+    AOContext ao(executor);
+    using NonCopy = std::unique_ptr<int>;
+    std::vector<NonCopy> values;
+    values.emplace_back(std::make_unique<int>(1));
+    values.emplace_back(std::make_unique<int>(2));
+    values.emplace_back(std::make_unique<int>(3));
+
+    auto res = all(
+                 ao,
+                 [](AOContext&, const NonCopy& val) {
+                     return makeReadyFuture<int>(*val * 2);
+                 },
+                 values)
+                 .get();
+
+    ASSERT_EQ(res.size(), values.size());
+    EXPECT_EQ(res.at(0), 2);
+    EXPECT_EQ(res.at(1), 4);
+    EXPECT_EQ(res.at(2), 6);
 }
