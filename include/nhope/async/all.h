@@ -24,17 +24,17 @@ public:
     {}
 
     template<typename Fn>
-    Future<std::vector<ResT>> start(Fn fn, std::vector<ArgT> args)
+    Future<std::vector<ResT>> start(Fn fn, const std::vector<ArgT>& args)
     {
         auto future = m_promise.future();
         if (args.empty()) {
             m_promise.setValue(std::vector<ResT>{});
             return future;
         }
-
-        m_result.resize(args.size());
+        const auto argCount = args.size();
+        m_result.resize(argCount);
         try {
-            for (size_t i = 0; i < args.size(); ++i) {
+            for (size_t i = 0; i < argCount; ++i) {
                 fn(m_ctx, args[i])
                   .then(m_ctx,
                         [i, self = this->shared_from_this()](auto r) {
@@ -87,7 +87,7 @@ public:
     {}
 
     template<typename Fn>
-    Future<void> start(Fn fn, std::vector<ArgT> args)
+    Future<void> start(Fn fn, const std::vector<ArgT>& args)
     {
         auto future = m_promise.future();
         if (args.empty()) {
@@ -155,7 +155,7 @@ private:
  * @return Future<std::vector<FnRetValType>> или Future<void>, если Fn возвращает Future<void>.
  */
 template<typename Fn, typename ArgT>
-auto all(AOContext& ctx, Fn&& fn, std::vector<ArgT> args)
+auto all(AOContext& ctx, Fn&& fn, const std::vector<ArgT>& args)
 {
     using FnProps = FunctionProps<decltype(std::function(std::declval<Fn>()))>;
 
@@ -166,7 +166,7 @@ auto all(AOContext& ctx, Fn&& fn, std::vector<ArgT> args)
     static_assert(std::is_invocable_v<Fn, AOContext&, ArgT>, "Fn must accept AOContext and ArgT");
 
     auto op = detail::AllOpForVec<ResT, ArgT>::create(ctx);
-    return op->start(std::forward<Fn>(fn), std::move(args));
+    return op->start(std::forward<Fn>(fn), args);
 }
 
 namespace detail {
@@ -250,7 +250,7 @@ private:
 }   // namespace detail
 
 /*!
- * @brief Запускает на параллельное выполнение переданные функции, дожидается их завершения и возвращает 
+ * @brief Запускает на параллельное выполнение переданные функции, дожидается их завершения и возвращает
  *        tuple с полученными результатами.
  *
  * @return Future<std::tuple<T...>>
